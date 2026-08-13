@@ -21,29 +21,29 @@ class TransactionRepositoryImpl(
         return db.transactionQueries.selectAll()
             .asFlow()
             .mapToList(Dispatchers.Default)
-            .map { rows -> rows.map { it.toDomain() } }
+            .map { rows -> rows.map { it.toTransactionDomain() } }
     }
 
     override suspend fun getById(id: String): Transaction? {
-        return db.transactionQueries.selectById(id).executeAsOneOrNull()?.toDomain()
+        return db.transactionQueries.selectById(id).executeAsOneOrNull()?.toTransactionDomain()
     }
 
     override suspend fun getByAccountId(accountId: String): List<Transaction> {
         return db.transactionQueries.selectByAccountId(accountId)
             .executeAsList()
-            .map { it.toDomain() }
+            .map { it.toTransactionDomain() }
     }
 
     override suspend fun getByCategory(category: String): List<Transaction> {
         return db.transactionQueries.selectByCategory(category)
             .executeAsList()
-            .map { it.toDomain() }
+            .map { it.toTransactionDomain() }
     }
 
     override suspend fun getByDateRange(startDate: LocalDate, endDate: LocalDate): List<Transaction> {
         return db.transactionQueries.selectByDateRange(startDate.toString(), endDate.toString())
             .executeAsList()
-            .map { it.toDomain() }
+            .map { it.toTransactionDomain() }
     }
 
     override suspend fun getByCategoryAndDateRange(
@@ -53,13 +53,61 @@ class TransactionRepositoryImpl(
     ): List<Transaction> {
         return db.transactionQueries.selectByCategoryAndDateRange(
             category, startDate.toString(), endDate.toString()
-        ).executeAsList().map { it.toDomain() }
+        ).executeAsList().map { row ->
+            Transaction(
+                id = row.id,
+                accountId = row.account_id,
+                cardId = row.card_id,
+                amount = row.amount,
+                currency = row.currency,
+                category = SpendingCategory.valueOf(row.category),
+                subcategory = row.subcategory,
+                merchantName = row.merchant_name,
+                note = row.note,
+                date = LocalDate.parse(row.date),
+                type = TransactionType.valueOf(row.type),
+                location = run {
+                    val lat = row.latitude
+                    val lon = row.longitude
+                    if (lat != null && lon != null) {
+                        LocationTag(latitude = lat, longitude = lon, name = row.location_name)
+                    } else null
+                },
+                receiptId = row.receipt_id,
+                isRecurring = row.is_recurring == 1L,
+                createdAt = Instant.parse(row.created_at),
+            )
+        }
     }
 
     override suspend fun getWithLocation(): List<Transaction> {
         return db.transactionQueries.selectWithLocation()
             .executeAsList()
-            .map { it.toDomain() }
+            .map { row ->
+                Transaction(
+                    id = row.id,
+                    accountId = row.account_id,
+                    cardId = row.card_id,
+                    amount = row.amount,
+                    currency = row.currency,
+                    category = SpendingCategory.valueOf(row.category),
+                    subcategory = row.subcategory,
+                    merchantName = row.merchant_name,
+                    note = row.note,
+                    date = LocalDate.parse(row.date),
+                    type = TransactionType.valueOf(row.type),
+                    location = run {
+                        val lat = row.latitude
+                        val lon = row.longitude
+                        if (lat != null && lon != null) {
+                            LocationTag(latitude = lat, longitude = lon, name = row.location_name)
+                        } else null
+                    },
+                    receiptId = row.receipt_id,
+                    isRecurring = row.is_recurring == 1L,
+                    createdAt = Instant.parse(row.created_at),
+                )
+            }
     }
 
     override suspend fun getSpendingByCategory(
@@ -129,7 +177,7 @@ class TransactionRepositoryImpl(
     }
 }
 
-private fun com.divafinance.core.database.DivaTransaction.toDomain() = Transaction(
+internal fun com.divafinance.core.database.DivaTransaction.toTransactionDomain(): Transaction = Transaction(
     id = id,
     accountId = account_id,
     cardId = card_id,
@@ -141,9 +189,13 @@ private fun com.divafinance.core.database.DivaTransaction.toDomain() = Transacti
     note = note,
     date = LocalDate.parse(date),
     type = TransactionType.valueOf(type),
-    location = if (latitude != null && longitude != null) {
-        LocationTag(latitude = latitude, longitude = longitude, name = location_name)
-    } else null,
+    location = run {
+        val lat = latitude
+        val lon = longitude
+        if (lat != null && lon != null) {
+            LocationTag(latitude = lat, longitude = lon, name = location_name)
+        } else null
+    },
     receiptId = receipt_id,
     isRecurring = is_recurring == 1L,
     createdAt = Instant.parse(created_at),

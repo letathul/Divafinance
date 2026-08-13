@@ -22,7 +22,7 @@ class SettingsRepositoryImpl(
     }
 
     override suspend fun get(key: String): String? {
-        return db.settingsQueries.selectByKey(key).executeAsOneOrNull()?.value_
+        return db.settingsQueries.selectByKey(key).executeAsOneOrNull()
     }
 
     override suspend fun set(key: String, value: String) {

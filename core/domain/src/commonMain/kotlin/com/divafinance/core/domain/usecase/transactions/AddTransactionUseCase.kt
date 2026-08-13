@@ -12,8 +12,9 @@ class AddTransactionUseCase(
     suspend operator fun invoke(transaction: Transaction) {
         transactionRepository.insert(transaction)
 
-        if (transaction.type == TransactionType.DEBIT && transaction.cardId != null) {
-            val card = cardRepository.getById(transaction.cardId) ?: return
+        val cardId = transaction.cardId
+        if (transaction.type == TransactionType.DEBIT && cardId != null) {
+            val card = cardRepository.getById(cardId) ?: return
             cardRepository.updateBalance(
                 id = card.id,
                 balance = card.currentBalance + transaction.amount,

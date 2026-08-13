@@ -45,6 +45,6 @@ include(":feature:automation")
 include(":server")
 
 // Android dynamic feature modules
-include(":dynamic:map-dynamic")
-include(":dynamic:scanner-dynamic")
-include(":dynamic:server-dynamic")
+include(":dynamic:map_dynamic")
+include(":dynamic:scanner_dynamic")
+include(":dynamic:server_dynamic")
