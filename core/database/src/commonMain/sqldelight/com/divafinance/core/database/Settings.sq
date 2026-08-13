@@ -1,0 +1,14 @@
+selectAll:
+SELECT * FROM UserSettings;
+
+selectByKey:
+SELECT value FROM UserSettings WHERE key = ?;
+
+upsert:
+INSERT OR REPLACE INTO UserSettings(key, value) VALUES (?, ?);
+
+delete:
+DELETE FROM UserSettings WHERE key = ?;
+
+deleteAll:
+DELETE FROM UserSettings;

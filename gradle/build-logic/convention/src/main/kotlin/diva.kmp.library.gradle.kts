@@ -1,0 +1,40 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+
+plugins {
+    id("org.jetbrains.kotlin.multiplatform")
+    id("com.android.library")
+}
+
+kotlin {
+    androidTarget {
+        compilations.all {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { target ->
+        target.binaries.framework {
+            baseName = project.name
+            isStatic = true
+        }
+    }
+}
+
+android {
+    val catalogs = extensions.getByType<VersionCatalogsExtension>()
+    val libs = catalogs.named("libs")
+
+    compileSdk = libs.findVersion("android-compileSdk").get().toString().toInt()
+    defaultConfig {
+        minSdk = libs.findVersion("android-minSdk").get().toString().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}

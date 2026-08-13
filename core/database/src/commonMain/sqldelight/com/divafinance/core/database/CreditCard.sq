@@ -1,0 +1,25 @@
+selectAll:
+SELECT * FROM CreditCard WHERE is_active = 1 ORDER BY name;
+
+selectById:
+SELECT * FROM CreditCard WHERE id = ?;
+
+selectByAccountId:
+SELECT * FROM CreditCard WHERE account_id = ? AND is_active = 1;
+
+insert:
+INSERT INTO CreditCard(id, account_id, name, last_four, network, color, credit_limit, current_balance, statement_date, due_date, annual_fee, is_active, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE CreditCard SET name = ?, last_four = ?, network = ?, color = ?, credit_limit = ?, current_balance = ?, statement_date = ?, due_date = ?, annual_fee = ?, is_active = ?, updated_at = ?
+WHERE id = ?;
+
+updateBalance:
+UPDATE CreditCard SET current_balance = ?, updated_at = ? WHERE id = ?;
+
+delete:
+DELETE FROM CreditCard WHERE id = ?;
+
+count:
+SELECT COUNT(*) FROM CreditCard WHERE is_active = 1;

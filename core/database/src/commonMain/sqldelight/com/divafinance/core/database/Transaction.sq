@@ -1,0 +1,42 @@
+selectAll:
+SELECT * FROM DivaTransaction ORDER BY date DESC, created_at DESC;
+
+selectById:
+SELECT * FROM DivaTransaction WHERE id = ?;
+
+selectByAccountId:
+SELECT * FROM DivaTransaction WHERE account_id = ? ORDER BY date DESC;
+
+selectByCategory:
+SELECT * FROM DivaTransaction WHERE category = ? ORDER BY date DESC;
+
+selectByDateRange:
+SELECT * FROM DivaTransaction WHERE date >= ? AND date <= ? ORDER BY date DESC;
+
+selectByCategoryAndDateRange:
+SELECT * FROM DivaTransaction WHERE category = ? AND date >= ? AND date <= ? ORDER BY date DESC;
+
+selectWithLocation:
+SELECT * FROM DivaTransaction WHERE latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY date DESC;
+
+sumByCategory:
+SELECT category, SUM(amount) AS total FROM DivaTransaction
+WHERE type = 'DEBIT' AND date >= ? AND date <= ?
+GROUP BY category ORDER BY total DESC;
+
+insert:
+INSERT INTO DivaTransaction(id, account_id, card_id, amount, currency, category, subcategory, merchant_name, note, date, type, latitude, longitude, location_name, receipt_id, is_recurring, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE DivaTransaction SET account_id = ?, card_id = ?, amount = ?, currency = ?, category = ?, subcategory = ?, merchant_name = ?, note = ?, date = ?, type = ?, latitude = ?, longitude = ?, location_name = ?, receipt_id = ?, is_recurring = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM DivaTransaction WHERE id = ?;
+
+count:
+SELECT COUNT(*) FROM DivaTransaction;
+
+totalSpending:
+SELECT SUM(amount) FROM DivaTransaction WHERE type = 'DEBIT' AND date >= ? AND date <= ?;

@@ -1,0 +1,22 @@
+selectAll:
+SELECT * FROM Receipt ORDER BY created_at DESC;
+
+selectById:
+SELECT * FROM Receipt WHERE id = ?;
+
+selectByTransactionId:
+SELECT * FROM Receipt WHERE transaction_id = ?;
+
+selectByStatus:
+SELECT * FROM Receipt WHERE status = ? ORDER BY created_at DESC;
+
+insert:
+INSERT INTO Receipt(id, transaction_id, image_path, ocr_text, merchant_name, total_amount, date, status, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Receipt SET transaction_id = ?, image_path = ?, ocr_text = ?, merchant_name = ?, total_amount = ?, date = ?, status = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM Receipt WHERE id = ?;

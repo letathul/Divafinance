@@ -1,0 +1,27 @@
+selectByCardId:
+SELECT * FROM RewardRule WHERE card_id = ? AND is_active = 1;
+
+selectByCategory:
+SELECT RewardRule.*, CreditCard.name AS card_name, CreditCard.color AS card_color,
+       CreditCard.credit_limit, CreditCard.current_balance
+FROM RewardRule
+JOIN CreditCard ON CreditCard.id = RewardRule.card_id
+WHERE RewardRule.category = ? AND RewardRule.is_active = 1 AND CreditCard.is_active = 1
+ORDER BY RewardRule.multiplier DESC;
+
+selectAll:
+SELECT * FROM RewardRule WHERE is_active = 1;
+
+insert:
+INSERT INTO RewardRule(id, card_id, category, multiplier, reward_type, cap_amount, cap_period, is_active)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE RewardRule SET category = ?, multiplier = ?, reward_type = ?, cap_amount = ?, cap_period = ?, is_active = ?
+WHERE id = ?;
+
+deleteByCardId:
+DELETE FROM RewardRule WHERE card_id = ?;
+
+delete:
+DELETE FROM RewardRule WHERE id = ?;

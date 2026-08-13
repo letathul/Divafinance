@@ -1,0 +1,21 @@
+selectAll:
+SELECT * FROM FeedPost ORDER BY created_at DESC;
+
+selectRecent:
+SELECT * FROM FeedPost ORDER BY created_at DESC LIMIT ?;
+
+selectByType:
+SELECT * FROM FeedPost WHERE type = ? ORDER BY created_at DESC;
+
+selectLatestBotInsight:
+SELECT * FROM FeedPost WHERE type = 'BOT_INSIGHT' ORDER BY created_at DESC LIMIT 1;
+
+insert:
+INSERT INTO FeedPost(id, type, title, body, transaction_id, metadata, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+delete:
+DELETE FROM FeedPost WHERE id = ?;
+
+deleteOlderThan:
+DELETE FROM FeedPost WHERE created_at < ?;

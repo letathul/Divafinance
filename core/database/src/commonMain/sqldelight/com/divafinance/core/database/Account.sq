@@ -1,0 +1,22 @@
+selectAll:
+SELECT * FROM Account WHERE is_active = 1 ORDER BY name;
+
+selectById:
+SELECT * FROM Account WHERE id = ?;
+
+insert:
+INSERT INTO Account(id, name, type, currency, balance, color, icon, is_active, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Account SET name = ?, type = ?, currency = ?, balance = ?, color = ?, icon = ?, is_active = ?, updated_at = ?
+WHERE id = ?;
+
+updateBalance:
+UPDATE Account SET balance = ?, updated_at = ? WHERE id = ?;
+
+delete:
+DELETE FROM Account WHERE id = ?;
+
+count:
+SELECT COUNT(*) FROM Account WHERE is_active = 1;

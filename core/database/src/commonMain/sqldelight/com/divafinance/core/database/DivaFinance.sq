@@ -1,0 +1,94 @@
+CREATE TABLE Account (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    balance REAL NOT NULL DEFAULT 0.0,
+    color TEXT,
+    icon TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE CreditCard (
+    id TEXT NOT NULL PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES Account(id),
+    name TEXT NOT NULL,
+    last_four TEXT,
+    network TEXT NOT NULL DEFAULT 'OTHER',
+    color TEXT NOT NULL DEFAULT '#1E1E2E',
+    credit_limit REAL NOT NULL DEFAULT 0.0,
+    current_balance REAL NOT NULL DEFAULT 0.0,
+    statement_date INTEGER,
+    due_date INTEGER,
+    annual_fee REAL NOT NULL DEFAULT 0.0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE RewardRule (
+    id TEXT NOT NULL PRIMARY KEY,
+    card_id TEXT NOT NULL REFERENCES CreditCard(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    multiplier REAL NOT NULL,
+    reward_type TEXT NOT NULL,
+    cap_amount REAL,
+    cap_period TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE DivaTransaction (
+    id TEXT NOT NULL PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES Account(id),
+    card_id TEXT,
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    category TEXT NOT NULL,
+    subcategory TEXT,
+    merchant_name TEXT,
+    note TEXT,
+    date TEXT NOT NULL,
+    type TEXT NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    location_name TEXT,
+    receipt_id TEXT,
+    is_recurring INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE Receipt (
+    id TEXT NOT NULL PRIMARY KEY,
+    transaction_id TEXT REFERENCES DivaTransaction(id),
+    image_path TEXT,
+    ocr_text TEXT,
+    merchant_name TEXT,
+    total_amount REAL,
+    date TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE FeedPost (
+    id TEXT NOT NULL PRIMARY KEY,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    transaction_id TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE UserSettings (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE GraphThreshold (
+    id TEXT NOT NULL PRIMARY KEY,
+    category TEXT NOT NULL,
+    threshold_percent REAL NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1
+);

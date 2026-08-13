@@ -1,0 +1,22 @@
+plugins {
+    id("diva.kmp.library")
+}
+
+android {
+    namespace = "com.divafinance.core.domain"
+}
+
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project(":core:model"))
+            implementation(project(":core:data"))
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+    }
+}
