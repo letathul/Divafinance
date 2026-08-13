@@ -37,3 +37,5 @@ DerivedData/
 
 # Misc
 *.hprof
+/gradlew
+/.kotlin/

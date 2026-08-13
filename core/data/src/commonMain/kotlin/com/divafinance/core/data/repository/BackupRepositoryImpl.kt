@@ -57,9 +57,13 @@ class BackupRepositoryImpl(
                 currency = row.currency, category = SpendingCategory.valueOf(row.category),
                 subcategory = row.subcategory, merchantName = row.merchant_name, note = row.note,
                 date = LocalDate.parse(row.date), type = TransactionType.valueOf(row.type),
-                location = if (row.latitude != null && row.longitude != null) {
-                    LocationTag(row.latitude, row.longitude, row.location_name)
-                } else null,
+                location = run {
+                    val lat = row.latitude
+                    val lon = row.longitude
+                    if (lat != null && lon != null) {
+                        LocationTag(lat, lon, row.location_name)
+                    } else null
+                },
                 receiptId = row.receipt_id, isRecurring = row.is_recurring == 1L,
                 createdAt = Instant.parse(row.created_at),
             )
@@ -85,7 +89,7 @@ class BackupRepositoryImpl(
         }
 
         val settings = db.settingsQueries.selectAll().executeAsList().map { row ->
-            UserSettings(key = row.key_, value = row.value_)
+            UserSettings(key = row.key, value = row.value_)
         }
 
         val thresholds = db.graphThresholdQueries.selectAll().executeAsList().map { row ->

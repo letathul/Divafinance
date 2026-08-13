@@ -13,6 +13,7 @@ kotlin {
             implementation(project(":core:common"))
             implementation(project(":core:database"))
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.sqldelight.coroutines)
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.serialization.json)
         }

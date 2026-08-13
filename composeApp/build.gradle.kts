@@ -7,6 +7,7 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain(17)
     androidTarget {
         compilations.all {
             kotlinOptions {
@@ -14,6 +15,7 @@ kotlin {
             }
         }
     }
+    /*
     listOf(
         iosX64(),
         iosArm64(),
@@ -24,6 +26,7 @@ kotlin {
             isStatic = true
         }
     }
+    */
 
     sourceSets {
         commonMain.dependencies {
@@ -107,8 +110,8 @@ android {
     }
 
     dynamicFeatures += setOf(
-        ":dynamic:map-dynamic",
-        ":dynamic:scanner-dynamic",
-        ":dynamic:server-dynamic"
+        ":dynamic:map_dynamic",
+        ":dynamic:scanner_dynamic",
+        ":dynamic:server_dynamic"
     )
 }
