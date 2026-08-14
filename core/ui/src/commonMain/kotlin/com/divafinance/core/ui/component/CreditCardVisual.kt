@@ -16,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaBlue
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun CreditCardVisual(
@@ -59,5 +62,18 @@ fun CreditCardVisual(
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun CreditCardVisualPreview() {
+    DivaTheme {
+        CreditCardVisual(
+            name = "Chase Sapphire",
+            lastFour = "4242",
+            network = "VISA",
+            color = DivaBlue,
+        )
     }
 }

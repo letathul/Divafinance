@@ -24,6 +24,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.domain.usecase.graphs.CategoryThresholdData
+import com.divafinance.core.model.GraphThreshold
+import com.divafinance.core.model.enums.SpendingCategory
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val barGreen = Color(0xFF4CAF50)
 private val barRed = Color(0xFFE53935)
@@ -148,6 +152,38 @@ fun ThresholdBarChart(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ThresholdBarChartPreview() {
+    DivaTheme {
+        ThresholdBarChart(
+            data = listOf(
+                CategoryThresholdData(
+                    category = "Dining",
+                    spending = 450.0,
+                    threshold = GraphThreshold("1", SpendingCategory.DINING, 30.0),
+                    percentOfThreshold = 117.0,
+                    isOverThreshold = true,
+                ),
+                CategoryThresholdData(
+                    category = "Travel",
+                    spending = 320.0,
+                    threshold = GraphThreshold("2", SpendingCategory.TRAVEL, 25.0),
+                    percentOfThreshold = 80.0,
+                    isOverThreshold = false,
+                ),
+                CategoryThresholdData(
+                    category = "Gas",
+                    spending = 180.0,
+                    threshold = null,
+                    percentOfThreshold = null,
+                    isOverThreshold = false,
+                ),
+            ),
         )
     }
 }

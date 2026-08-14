@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun BackupProgressDialog(
@@ -38,4 +40,15 @@ fun BackupProgressDialog(
             }
         },
     )
+}
+
+@Preview
+@Composable
+private fun BackupProgressDialogPreview() {
+    DivaTheme {
+        BackupProgressDialog(
+            title = "Exporting",
+            message = "Creating backup of your financial data...",
+        )
+    }
 }

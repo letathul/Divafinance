@@ -17,7 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.model.FeedPost
+import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.ui.component.DivaCard
+import com.divafinance.core.ui.theme.DivaTheme
+import kotlinx.datetime.Clock
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun TransactionFeedItem(
@@ -54,5 +58,22 @@ fun TransactionFeedItem(
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun TransactionFeedItemPreview() {
+    DivaTheme {
+        TransactionFeedItem(
+            post = FeedPost(
+                id = "1",
+                type = FeedPostType.TRANSACTION,
+                title = "Spent $42.50 at Starbucks",
+                body = "Dining - paid with Chase Sapphire (3x points)",
+                createdAt = Clock.System.now(),
+            ),
+            modifier = Modifier.padding(16.dp),
+        )
     }
 }

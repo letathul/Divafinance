@@ -20,6 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.model.FeedPost
+import com.divafinance.core.model.enums.FeedPostType
+import com.divafinance.core.ui.theme.DivaTheme
+import kotlinx.datetime.Clock
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun BotInsightBubble(
@@ -59,5 +63,22 @@ fun BotInsightBubble(
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun BotInsightBubblePreview() {
+    DivaTheme {
+        BotInsightBubble(
+            post = FeedPost(
+                id = "1",
+                type = FeedPostType.BOT_INSIGHT,
+                title = "Weekly Insight",
+                body = "Your dining spending is up 15% this week compared to your average. Consider using your Amex Gold for 4x points.",
+                createdAt = Clock.System.now(),
+            ),
+            modifier = Modifier.padding(16.dp),
+        )
     }
 }

@@ -24,7 +24,9 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.feature.graphs.SpendingSlice
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val chartColors = listOf(
     Color(0xFFD4A843),
@@ -132,6 +134,23 @@ fun SpendingPieChart(
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun SpendingPieChartPreview() {
+    DivaTheme {
+        SpendingPieChart(
+            slices = listOf(
+                SpendingSlice("Dining", 450.0, 35f),
+                SpendingSlice("Travel", 320.0, 25f),
+                SpendingSlice("Gas", 180.0, 14f),
+                SpendingSlice("Groceries", 200.0, 16f),
+                SpendingSlice("Other", 130.0, 10f),
+            ),
+            totalSpending = 1280.0,
+        )
     }
 }
 

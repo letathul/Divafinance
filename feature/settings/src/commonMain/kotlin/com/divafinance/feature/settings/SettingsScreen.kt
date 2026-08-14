@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaOutlinedButton
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,5 +49,13 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun SettingsScreenPreview() {
+    DivaTheme {
+        SettingsScreen()
     }
 }

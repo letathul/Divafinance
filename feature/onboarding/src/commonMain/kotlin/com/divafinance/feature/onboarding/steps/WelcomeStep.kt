@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun WelcomeStep(onNext: () -> Unit) {
@@ -39,5 +41,13 @@ fun WelcomeStep(onNext: () -> Unit) {
             onClick = onNext,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@Preview
+@Composable
+private fun WelcomeStepPreview() {
+    DivaTheme {
+        WelcomeStep(onNext = {})
     }
 }

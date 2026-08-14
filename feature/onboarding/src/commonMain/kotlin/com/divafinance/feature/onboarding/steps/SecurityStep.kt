@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun SecurityStep(
@@ -81,5 +83,22 @@ fun SecurityStep(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun SecurityStepPreview() {
+    DivaTheme {
+        SecurityStep(
+            pin = "1234",
+            pinConfirm = "1234",
+            pinError = null,
+            isCompleting = false,
+            onPinChanged = {},
+            onPinConfirmChanged = {},
+            onComplete = {},
+            onBack = {},
+        )
     }
 }
