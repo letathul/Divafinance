@@ -15,6 +15,7 @@ import com.divafinance.feature.cards.CardsListScreen
 import com.divafinance.feature.cards.CardsViewModel
 import com.divafinance.feature.dashboard.DashboardScreen
 import com.divafinance.feature.feed.FeedScreen
+import com.divafinance.feature.feed.FeedViewModel
 import com.divafinance.feature.graphs.GraphsDashboardScreen
 import com.divafinance.feature.graphs.GraphsViewModel
 import com.divafinance.feature.graphs.ThresholdConfigScreen
@@ -153,7 +154,10 @@ fun DivaNavHost(
             )
         }
 
-        composable(DivaRoutes.FEED) { FeedScreen() }
+        composable(DivaRoutes.FEED) {
+            val feedViewModel: FeedViewModel = koinViewModel()
+            FeedScreen(viewModel = feedViewModel)
+        }
         composable(DivaRoutes.SETTINGS) {
             SettingsScreen(
                 onNavigateToBackup = {

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.common.UuidGenerator
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
+import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.GetTransactionsUseCase
 import com.divafinance.core.model.CreditCard
@@ -51,6 +52,7 @@ class TransactionsViewModel(
     private val getTransactionsUseCase: GetTransactionsUseCase,
     private val addTransactionUseCase: AddTransactionUseCase,
     private val getAllCardsUseCase: GetAllCardsUseCase,
+    private val postTransactionToFeedUseCase: PostTransactionToFeedUseCase,
 ) : ViewModel() {
 
     private val _filterState = MutableStateFlow(TransactionFilterState())
@@ -158,6 +160,9 @@ class TransactionsViewModel(
             )
 
             addTransactionUseCase(transaction)
+            try {
+                postTransactionToFeedUseCase(transaction)
+            } catch (_: Exception) { }
             _formState.update { it.copy(isSaving = false) }
             onSuccess()
         }

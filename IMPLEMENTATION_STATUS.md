@@ -157,12 +157,17 @@ Divafinance/
 - [x] DI: FileSystem in PlatformModule, BackupViewModel in ViewModelModule
 - [x] Navigation: backup route wired with ViewModel, settings→backup navigation
 
-### Increment 11: Social Feed & Daily Bot (Feature G) — PENDING ⬜
+### Increment 11: Social Feed & Daily Bot (Feature G) — DONE ✅
 
-- [ ] FeedScreen with chronological post list
-- [ ] Auto-post to feed on transaction creation
-- [ ] Daily insight generation (deterministic, rule-based)
-- [ ] FeedViewModel, DailyInsightCard, BotInsightBubble
+- [x] FeedViewModel with reactive feed post collection and insight generation trigger
+- [x] FeedScreen with LazyColumn timeline, empty state, TopAppBar with "Insights" action
+- [x] TransactionFeedItem component — card-style post with icon, title, body, timestamp
+- [x] BotInsightBubble component — distinct tertiaryContainer background, star icon
+- [x] formatTimestamp utility — "Today at HH:mm" or "M/d at HH:mm"
+- [x] Auto-post to feed on transaction creation via PostTransactionToFeedUseCase in TransactionsViewModel
+- [x] Weekly spending insight generation (GenerateDailyInsightUseCase) triggered on feed open
+- [x] DI: FeedViewModel registered in ViewModelModule, TransactionsViewModel updated with 4th dependency
+- [x] Navigation: feed route wired with FeedViewModel
 
 ### Increment 12: Spending Map (Feature D) + Dynamic Delivery — PENDING ⬜
 
@@ -215,14 +220,14 @@ Divafinance/
 | 8 | Transactions + Dashboard | ✅ Done |
 | 9 | Financial Graphs | ✅ Done |
 | 10 | Backup & Restore | ✅ Done |
-| 11 | Social Feed & Daily Bot | ⬜ Pending |
+| 11 | Social Feed & Daily Bot | ✅ Done |
 | 12 | Spending Map + Dynamic Delivery | ⬜ Pending |
 | 13 | Embedded Ktor Server + Dynamic Delivery | ⬜ Pending |
 | 14 | Receipt Scanning + Dynamic Delivery | ⬜ Pending |
 | 15 | Native Automations | ⬜ Pending |
 | 16 | Integration Testing & Polish | ⬜ Pending |
 
-**Progress: 10 / 16 increments complete (63%)**
+**Progress: 11 / 16 increments complete (69%)**
 
 ---
 
