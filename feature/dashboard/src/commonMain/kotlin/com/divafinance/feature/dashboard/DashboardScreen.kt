@@ -33,6 +33,7 @@ fun DashboardScreen(
     onNavigateToCards: () -> Unit = {},
     onNavigateToTransactions: () -> Unit = {},
     onNavigateToBestCard: () -> Unit = {},
+    onNavigateToGraphs: () -> Unit = {},
     viewModel: DashboardViewModel = koinViewModel(),
 ) {
     val cards by viewModel.cards.collectAsState()
@@ -83,6 +84,7 @@ fun DashboardScreen(
             QuickActionsSection(
                 onNavigateToCards = onNavigateToCards,
                 onNavigateToBestCard = onNavigateToBestCard,
+                onNavigateToGraphs = onNavigateToGraphs,
             )
         }
 
@@ -164,6 +166,7 @@ private fun OverviewCard(totalSpending: Double, totalIncome: Double) {
 private fun QuickActionsSection(
     onNavigateToCards: () -> Unit,
     onNavigateToBestCard: () -> Unit,
+    onNavigateToGraphs: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Quick Actions", style = MaterialTheme.typography.titleMedium)
@@ -176,6 +179,11 @@ private fun QuickActionsSection(
             DivaOutlinedButton(
                 text = "Best Card",
                 onClick = onNavigateToBestCard,
+                modifier = Modifier.weight(1f),
+            )
+            DivaOutlinedButton(
+                text = "Graphs",
+                onClick = onNavigateToGraphs,
                 modifier = Modifier.weight(1f),
             )
         }

@@ -15,6 +15,8 @@ import com.divafinance.feature.cards.CardsViewModel
 import com.divafinance.feature.dashboard.DashboardScreen
 import com.divafinance.feature.feed.FeedScreen
 import com.divafinance.feature.graphs.GraphsDashboardScreen
+import com.divafinance.feature.graphs.GraphsViewModel
+import com.divafinance.feature.graphs.ThresholdConfigScreen
 import com.divafinance.feature.map.SpendingMapScreen
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
@@ -40,6 +42,7 @@ object DivaRoutes {
     const val MAP = "map"
     const val SCANNER = "scanner"
     const val BACKUP = "backup"
+    const val THRESHOLD_CONFIG = "graphs/thresholds"
     const val AUTOMATION = "automation"
 
     fun cardDetail(cardId: String) = "cards/$cardId"
@@ -53,6 +56,7 @@ fun DivaNavHost(
 ) {
     val cardsViewModel: CardsViewModel = koinViewModel()
     val transactionsViewModel: TransactionsViewModel = koinViewModel()
+    val graphsViewModel: GraphsViewModel = koinViewModel()
 
     NavHost(
         navController = navController,
@@ -83,6 +87,9 @@ fun DivaNavHost(
                 },
                 onNavigateToBestCard = {
                     navController.navigate(DivaRoutes.BEST_CARD)
+                },
+                onNavigateToGraphs = {
+                    navController.navigate(DivaRoutes.GRAPHS)
                 },
             )
         }
@@ -147,7 +154,21 @@ fun DivaNavHost(
 
         composable(DivaRoutes.FEED) { FeedScreen() }
         composable(DivaRoutes.SETTINGS) { SettingsScreen() }
-        composable(DivaRoutes.GRAPHS) { GraphsDashboardScreen() }
+        composable(DivaRoutes.GRAPHS) {
+            GraphsDashboardScreen(
+                onNavigateToThresholdConfig = {
+                    navController.navigate(DivaRoutes.THRESHOLD_CONFIG)
+                },
+                viewModel = graphsViewModel,
+            )
+        }
+
+        composable(DivaRoutes.THRESHOLD_CONFIG) {
+            ThresholdConfigScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = graphsViewModel,
+            )
+        }
         composable(DivaRoutes.MAP) { SpendingMapScreen() }
         composable(DivaRoutes.SCANNER) { ScannerScreen() }
         composable(DivaRoutes.BACKUP) { BackupRestoreScreen() }

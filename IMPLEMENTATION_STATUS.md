@@ -135,12 +135,12 @@ Divafinance/
 - [x] Navigation: transaction add route, dashboard callbacks for cards/transactions/best-card
 - [x] DI: TransactionsViewModel and DashboardViewModel registered
 
-### Increment 9: Financial Graphs (Feature C) — PENDING ⬜
+### Increment 9: Financial Graphs (Feature C) — DONE ✅
 
-- [ ] Custom Canvas charts: SpendingPieChart (drawArc), ThresholdBarChart, TrendLineChart (drawPath)
-- [ ] GraphsDashboardScreen with chart tabs
-- [ ] ThresholdConfigScreen for per-category % thresholds
-- [ ] GraphsViewModel
+- [x] Custom Canvas charts: SpendingPieChart (drawArc donut with legend), ThresholdBarChart (bars with threshold lines), TrendLineChart (drawPath with gradient fill)
+- [x] GraphsDashboardScreen with tab navigation (Spending/Thresholds/Trends), time period selector (1M/3M/6M/1Y)
+- [x] ThresholdConfigScreen for per-category % thresholds with add/edit/delete, over-threshold alerts
+- [x] GraphsViewModel with spending slices, threshold data, trend points, configurable time periods
 
 ### Increment 10: Backup & Restore (Feature E) — PENDING ⬜
 
@@ -205,7 +205,7 @@ Divafinance/
 | 6 | Onboarding | ✅ Done |
 | 7 | Credit Card Management | ✅ Done |
 | 8 | Transactions + Dashboard | ✅ Done |
-| 9 | Financial Graphs | ⬜ Pending |
+| 9 | Financial Graphs | ✅ Done |
 | 10 | Backup & Restore | ⬜ Pending |
 | 11 | Social Feed & Daily Bot | ⬜ Pending |
 | 12 | Spending Map + Dynamic Delivery | ⬜ Pending |
@@ -214,7 +214,7 @@ Divafinance/
 | 15 | Native Automations | ⬜ Pending |
 | 16 | Integration Testing & Polish | ⬜ Pending |
 
-**Progress: 8 / 16 increments complete (50%)**
+**Progress: 9 / 16 increments complete (56%)**
 
 ---
 
