@@ -9,4 +9,5 @@ android {
 dependencies {
     implementation(project(":composeApp"))
     implementation(project(":server"))
+    implementation(libs.koin.android)
 }

@@ -11,6 +11,7 @@ fun initKoin(appDeclaration: KoinApplication.() -> Unit = {}) {
             dataModule,
             domainModule,
             viewModelModule,
+            serverModule,
         )
     }
 }

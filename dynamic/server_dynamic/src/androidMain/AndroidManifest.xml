@@ -10,4 +10,16 @@
         </dist:delivery>
         <dist:fusing dist:include="true" />
     </dist:module>
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <application>
+        <activity
+            android:name="com.divafinance.dynamic.server.ServerDynamicActivity"
+            android:exported="false" />
+        <service
+            android:name="com.divafinance.dynamic.server.ServerForegroundService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
+    </application>
 </manifest>
