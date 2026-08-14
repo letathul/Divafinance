@@ -5,6 +5,7 @@ import com.divafinance.feature.cards.CardsViewModel
 import com.divafinance.feature.feed.FeedViewModel
 import com.divafinance.feature.dashboard.DashboardViewModel
 import com.divafinance.feature.graphs.GraphsViewModel
+import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.onboarding.OnboardingViewModel
 import com.divafinance.feature.transactions.TransactionsViewModel
 import org.koin.core.module.dsl.viewModel
@@ -18,4 +19,5 @@ val viewModelModule = module {
     viewModel { GraphsViewModel(get(), get(), get()) }
     viewModel { BackupViewModel(get(), get(), get()) }
     viewModel { FeedViewModel(get(), get()) }
+    viewModel { MapViewModel(get(), get()) }
 }

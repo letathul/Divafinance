@@ -19,6 +19,7 @@ import com.divafinance.feature.feed.FeedViewModel
 import com.divafinance.feature.graphs.GraphsDashboardScreen
 import com.divafinance.feature.graphs.GraphsViewModel
 import com.divafinance.feature.graphs.ThresholdConfigScreen
+import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.map.SpendingMapScreen
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
@@ -92,6 +93,9 @@ fun DivaNavHost(
                 },
                 onNavigateToGraphs = {
                     navController.navigate(DivaRoutes.GRAPHS)
+                },
+                onNavigateToMap = {
+                    navController.navigate(DivaRoutes.MAP)
                 },
             )
         }
@@ -180,7 +184,13 @@ fun DivaNavHost(
                 viewModel = graphsViewModel,
             )
         }
-        composable(DivaRoutes.MAP) { SpendingMapScreen() }
+        composable(DivaRoutes.MAP) {
+            val mapViewModel: MapViewModel = koinViewModel()
+            SpendingMapScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = mapViewModel,
+            )
+        }
         composable(DivaRoutes.SCANNER) { ScannerScreen() }
         composable(DivaRoutes.BACKUP) {
             val backupViewModel: BackupViewModel = koinViewModel()
