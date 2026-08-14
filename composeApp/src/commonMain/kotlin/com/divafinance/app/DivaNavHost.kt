@@ -7,7 +7,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.backup.BackupRestoreScreen
+import com.divafinance.feature.cards.AddEditCardScreen
+import com.divafinance.feature.cards.BestCardRecommendationScreen
+import com.divafinance.feature.cards.CardDetailScreen
 import com.divafinance.feature.cards.CardsListScreen
+import com.divafinance.feature.cards.CardsViewModel
 import com.divafinance.feature.dashboard.DashboardScreen
 import com.divafinance.feature.feed.FeedScreen
 import com.divafinance.feature.graphs.GraphsDashboardScreen
@@ -16,11 +20,16 @@ import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.settings.SettingsScreen
 import com.divafinance.feature.transactions.TransactionListScreen
+import org.koin.compose.viewmodel.koinViewModel
 
 object DivaRoutes {
     const val ONBOARDING = "onboarding"
     const val DASHBOARD = "dashboard"
     const val CARDS = "cards"
+    const val CARD_DETAIL = "cards/{cardId}"
+    const val CARD_ADD = "cards/add"
+    const val CARD_EDIT = "cards/edit"
+    const val BEST_CARD = "cards/best"
     const val TRANSACTIONS = "transactions"
     const val FEED = "feed"
     const val SETTINGS = "settings"
@@ -29,6 +38,8 @@ object DivaRoutes {
     const val SCANNER = "scanner"
     const val BACKUP = "backup"
     const val AUTOMATION = "automation"
+
+    fun cardDetail(cardId: String) = "cards/$cardId"
 }
 
 @Composable
@@ -37,6 +48,8 @@ fun DivaNavHost(
     startDestination: String,
     modifier: Modifier = Modifier,
 ) {
+    val cardsViewModel: CardsViewModel = koinViewModel()
+
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -53,7 +66,49 @@ fun DivaNavHost(
         }
 
         composable(DivaRoutes.DASHBOARD) { DashboardScreen() }
-        composable(DivaRoutes.CARDS) { CardsListScreen() }
+
+        composable(DivaRoutes.CARDS) {
+            CardsListScreen(
+                onAddCard = { navController.navigate(DivaRoutes.CARD_ADD) },
+                onCardClick = { cardId -> navController.navigate(DivaRoutes.cardDetail(cardId)) },
+                viewModel = cardsViewModel,
+            )
+        }
+
+        composable(DivaRoutes.CARD_DETAIL) { backStackEntry ->
+            val cardId = backStackEntry.arguments?.getString("cardId") ?: return@composable
+            CardDetailScreen(
+                cardId = cardId,
+                onBack = { navController.popBackStack() },
+                onEdit = { card ->
+                    cardsViewModel.loadCardForEditing(card)
+                    navController.navigate(DivaRoutes.CARD_EDIT)
+                },
+                viewModel = cardsViewModel,
+            )
+        }
+
+        composable(DivaRoutes.CARD_ADD) {
+            AddEditCardScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = cardsViewModel,
+            )
+        }
+
+        composable(DivaRoutes.CARD_EDIT) {
+            AddEditCardScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = cardsViewModel,
+            )
+        }
+
+        composable(DivaRoutes.BEST_CARD) {
+            BestCardRecommendationScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = cardsViewModel,
+            )
+        }
+
         composable(DivaRoutes.TRANSACTIONS) { TransactionListScreen() }
         composable(DivaRoutes.FEED) { FeedScreen() }
         composable(DivaRoutes.SETTINGS) { SettingsScreen() }

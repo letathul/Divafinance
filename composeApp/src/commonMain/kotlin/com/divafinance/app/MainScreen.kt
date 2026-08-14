@@ -45,7 +45,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(DivaRoutes.SETTINGS, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
-private val bottomNavRoutes = bottomNavItems.map { it.route }.toSet()
+private val bottomNavRoutes = bottomNavItems.map { it.route }.toSet() + DivaRoutes.CARDS
 
 @Composable
 fun MainScreen() {
