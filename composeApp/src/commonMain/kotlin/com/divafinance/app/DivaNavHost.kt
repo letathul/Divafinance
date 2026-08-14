@@ -213,6 +213,8 @@ fun DivaNavHost(
                 viewModel = backupViewModel,
             )
         }
-        composable(DivaRoutes.AUTOMATION) { AutomationScreen() }
+        composable(DivaRoutes.AUTOMATION) {
+            AutomationScreen(onBack = { navController.popBackStack() })
+        }
     }
 }
