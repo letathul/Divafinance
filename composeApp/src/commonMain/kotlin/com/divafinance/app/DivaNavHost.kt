@@ -19,7 +19,9 @@ import com.divafinance.feature.map.SpendingMapScreen
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.settings.SettingsScreen
+import com.divafinance.feature.transactions.AddTransactionScreen
 import com.divafinance.feature.transactions.TransactionListScreen
+import com.divafinance.feature.transactions.TransactionsViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
 object DivaRoutes {
@@ -31,6 +33,7 @@ object DivaRoutes {
     const val CARD_EDIT = "cards/edit"
     const val BEST_CARD = "cards/best"
     const val TRANSACTIONS = "transactions"
+    const val TRANSACTION_ADD = "transactions/add"
     const val FEED = "feed"
     const val SETTINGS = "settings"
     const val GRAPHS = "graphs"
@@ -49,6 +52,7 @@ fun DivaNavHost(
     modifier: Modifier = Modifier,
 ) {
     val cardsViewModel: CardsViewModel = koinViewModel()
+    val transactionsViewModel: TransactionsViewModel = koinViewModel()
 
     NavHost(
         navController = navController,
@@ -65,7 +69,23 @@ fun DivaNavHost(
             )
         }
 
-        composable(DivaRoutes.DASHBOARD) { DashboardScreen() }
+        composable(DivaRoutes.DASHBOARD) {
+            DashboardScreen(
+                onNavigateToCards = {
+                    navController.navigate(DivaRoutes.CARDS) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToTransactions = {
+                    navController.navigate(DivaRoutes.TRANSACTIONS) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToBestCard = {
+                    navController.navigate(DivaRoutes.BEST_CARD)
+                },
+            )
+        }
 
         composable(DivaRoutes.CARDS) {
             CardsListScreen(
@@ -109,7 +129,22 @@ fun DivaNavHost(
             )
         }
 
-        composable(DivaRoutes.TRANSACTIONS) { TransactionListScreen() }
+        composable(DivaRoutes.TRANSACTIONS) {
+            TransactionListScreen(
+                onAddTransaction = {
+                    navController.navigate(DivaRoutes.TRANSACTION_ADD)
+                },
+                viewModel = transactionsViewModel,
+            )
+        }
+
+        composable(DivaRoutes.TRANSACTION_ADD) {
+            AddTransactionScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = transactionsViewModel,
+            )
+        }
+
         composable(DivaRoutes.FEED) { FeedScreen() }
         composable(DivaRoutes.SETTINGS) { SettingsScreen() }
         composable(DivaRoutes.GRAPHS) { GraphsDashboardScreen() }
