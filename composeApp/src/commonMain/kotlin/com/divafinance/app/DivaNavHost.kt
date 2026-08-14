@@ -24,6 +24,7 @@ import com.divafinance.feature.map.SpendingMapScreen
 import com.divafinance.server.DivaServer
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
+import com.divafinance.feature.scanner.ScannerViewModel
 import com.divafinance.feature.settings.SettingsScreen
 import com.divafinance.feature.transactions.AddTransactionScreen
 import com.divafinance.feature.transactions.TransactionListScreen
@@ -198,7 +199,13 @@ fun DivaNavHost(
                 viewModel = mapViewModel,
             )
         }
-        composable(DivaRoutes.SCANNER) { ScannerScreen() }
+        composable(DivaRoutes.SCANNER) {
+            val scannerViewModel: ScannerViewModel = koinViewModel()
+            ScannerScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = scannerViewModel,
+            )
+        }
         composable(DivaRoutes.BACKUP) {
             val backupViewModel: BackupViewModel = koinViewModel()
             BackupRestoreScreen(
