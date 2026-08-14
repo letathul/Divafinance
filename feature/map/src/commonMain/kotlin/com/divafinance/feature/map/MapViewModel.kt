@@ -22,6 +22,7 @@ data class MapUiState(
     val locationGroups: List<LocationSpending> = emptyList(),
     val selectedGroup: LocationSpending? = null,
     val isLoading: Boolean = true,
+    val error: String? = null,
     val showTagDialog: Boolean = false,
     val tagTransactionId: String? = null,
 )
@@ -40,22 +41,29 @@ class MapViewModel(
 
     fun loadSpendingByLocation() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val grouped = getSpendingByLocation()
-            val locationGroups = grouped.mapNotNull { (name, transactions) ->
-                val firstLocation = transactions.firstNotNullOfOrNull { it.location }
-                    ?: return@mapNotNull null
-                LocationSpending(
-                    name = name,
-                    location = firstLocation,
-                    transactions = transactions,
-                    totalAmount = transactions.sumOf { it.amount },
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val grouped = getSpendingByLocation()
+                val locationGroups = grouped.mapNotNull { (name, transactions) ->
+                    val firstLocation = transactions.firstNotNullOfOrNull { it.location }
+                        ?: return@mapNotNull null
+                    LocationSpending(
+                        name = name,
+                        location = firstLocation,
+                        transactions = transactions,
+                        totalAmount = transactions.sumOf { it.amount },
+                    )
+                }.sortedByDescending { it.totalAmount }
+                _uiState.value = _uiState.value.copy(
+                    locationGroups = locationGroups,
+                    isLoading = false,
                 )
-            }.sortedByDescending { it.totalAmount }
-            _uiState.value = _uiState.value.copy(
-                locationGroups = locationGroups,
-                isLoading = false,
-            )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "Failed to load location data",
+                )
+            }
         }
     }
 

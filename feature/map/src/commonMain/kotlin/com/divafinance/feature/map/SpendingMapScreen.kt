@@ -1,8 +1,11 @@
 package com.divafinance.feature.map
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -22,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.component.LoadingIndicator
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -46,16 +51,42 @@ fun SpendingMapScreen(
             )
         },
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                LoadingIndicator()
+        when {
+            uiState.isLoading -> {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    LoadingIndicator()
+                }
             }
-        } else {
-            MapFallbackScreen(
-                locationGroups = uiState.locationGroups,
-                onGroupClick = { viewModel.selectGroup(it) },
-                modifier = Modifier.padding(padding),
-            )
+            uiState.error != null -> {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Something went wrong",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = uiState.error!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        TextButton(onClick = { viewModel.loadSpendingByLocation() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+            else -> {
+                MapFallbackScreen(
+                    locationGroups = uiState.locationGroups,
+                    onGroupClick = { viewModel.selectGroup(it) },
+                    modifier = Modifier.padding(padding),
+                )
+            }
         }
     }
 

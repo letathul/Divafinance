@@ -171,6 +171,12 @@ fun DivaNavHost(
                 onNavigateToBackup = {
                     navController.navigate(DivaRoutes.BACKUP)
                 },
+                onNavigateToScanner = {
+                    navController.navigate(DivaRoutes.SCANNER)
+                },
+                onNavigateToAutomation = {
+                    navController.navigate(DivaRoutes.AUTOMATION)
+                },
                 isServerRunning = divaServer.isRunning(),
                 onToggleServer = { enabled ->
                     if (enabled) divaServer.start() else divaServer.stop()

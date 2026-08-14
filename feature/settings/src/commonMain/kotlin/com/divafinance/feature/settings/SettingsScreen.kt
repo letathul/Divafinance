@@ -31,6 +31,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun SettingsScreen(
     onNavigateToBackup: () -> Unit = {},
+    onNavigateToScanner: () -> Unit = {},
+    onNavigateToAutomation: () -> Unit = {},
     isServerRunning: Boolean = false,
     onToggleServer: (Boolean) -> Unit = {},
     serverPort: Int = 8080,
@@ -54,6 +56,24 @@ fun SettingsScreen(
                     DivaOutlinedButton(
                         text = "Backup & Restore",
                         onClick = onNavigateToBackup,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            DivaCard {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Tools", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    DivaOutlinedButton(
+                        text = "Receipt Scanner",
+                        onClick = onNavigateToScanner,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    DivaOutlinedButton(
+                        text = "Automations",
+                        onClick = onNavigateToAutomation,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
