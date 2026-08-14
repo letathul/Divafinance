@@ -14,7 +14,6 @@ kotlin {
             }
         }
     }
-    /*
     listOf(
         iosX64(),
         iosArm64(),
@@ -25,7 +24,6 @@ kotlin {
             isStatic = true
         }
     }
-    */
 }
 
 android {

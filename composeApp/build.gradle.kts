@@ -15,7 +15,6 @@ kotlin {
             }
         }
     }
-    /*
     listOf(
         iosX64(),
         iosArm64(),
@@ -26,7 +25,6 @@ kotlin {
             isStatic = true
         }
     }
-    */
 
     sourceSets {
         commonMain.dependencies {
@@ -74,6 +72,9 @@ kotlin {
             implementation(libs.koin.android)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.play.feature.delivery.ktx)
+        }
+        iosMain.dependencies {
+            implementation(libs.koin.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
