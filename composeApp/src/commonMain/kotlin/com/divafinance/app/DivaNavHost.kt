@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.backup.BackupRestoreScreen
+import com.divafinance.feature.backup.BackupViewModel
 import com.divafinance.feature.cards.AddEditCardScreen
 import com.divafinance.feature.cards.BestCardRecommendationScreen
 import com.divafinance.feature.cards.CardDetailScreen
@@ -153,7 +154,13 @@ fun DivaNavHost(
         }
 
         composable(DivaRoutes.FEED) { FeedScreen() }
-        composable(DivaRoutes.SETTINGS) { SettingsScreen() }
+        composable(DivaRoutes.SETTINGS) {
+            SettingsScreen(
+                onNavigateToBackup = {
+                    navController.navigate(DivaRoutes.BACKUP)
+                },
+            )
+        }
         composable(DivaRoutes.GRAPHS) {
             GraphsDashboardScreen(
                 onNavigateToThresholdConfig = {
@@ -171,7 +178,13 @@ fun DivaNavHost(
         }
         composable(DivaRoutes.MAP) { SpendingMapScreen() }
         composable(DivaRoutes.SCANNER) { ScannerScreen() }
-        composable(DivaRoutes.BACKUP) { BackupRestoreScreen() }
+        composable(DivaRoutes.BACKUP) {
+            val backupViewModel: BackupViewModel = koinViewModel()
+            BackupRestoreScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = backupViewModel,
+            )
+        }
         composable(DivaRoutes.AUTOMATION) { AutomationScreen() }
     }
 }
