@@ -16,6 +16,10 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)
         }
+        androidMain.dependencies {
+            implementation(libs.maps.compose)
+            implementation(libs.play.services.maps)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)

@@ -16,6 +16,9 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)
         }
+        androidMain.dependencies {
+            implementation(libs.mlkit.text.recognition)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)

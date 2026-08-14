@@ -25,6 +25,7 @@ data class MapUiState(
     val error: String? = null,
     val showTagDialog: Boolean = false,
     val tagTransactionId: String? = null,
+    val showMapView: Boolean = isPlatformMapAvailable(),
 )
 
 class MapViewModel(
@@ -83,6 +84,10 @@ class MapViewModel(
             showTagDialog = false,
             tagTransactionId = null,
         )
+    }
+
+    fun toggleMapView() {
+        _uiState.value = _uiState.value.copy(showMapView = !_uiState.value.showMapView)
     }
 
     fun tagTransaction(locationName: String, latitude: Double, longitude: Double) {

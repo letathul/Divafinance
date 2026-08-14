@@ -19,7 +19,9 @@ data class AutomationUiState(
     val actions: List<AutomationAction> = defaultActions(),
 )
 
-class AutomationViewModel : ViewModel() {
+class AutomationViewModel(
+    private val automationHandler: AutomationHandler = AutomationHandler(),
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AutomationUiState())
     val uiState: StateFlow<AutomationUiState> = _uiState.asStateFlow()
@@ -30,6 +32,21 @@ class AutomationViewModel : ViewModel() {
                 if (action.id == id) action.copy(enabled = !action.enabled) else action
             },
         )
+        syncShortcuts()
+    }
+
+    private fun syncShortcuts() {
+        val enabledShortcuts = _uiState.value.actions
+            .filter { it.enabled }
+            .map { action ->
+                ShortcutInfo(
+                    id = action.id,
+                    title = action.title,
+                    description = action.description,
+                    deepLinkUri = "divafinance://automation/${action.id}",
+                )
+            }
+        automationHandler.registerShortcuts(enabledShortcuts)
     }
 }
 
