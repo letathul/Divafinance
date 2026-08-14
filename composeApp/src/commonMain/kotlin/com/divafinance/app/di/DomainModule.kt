@@ -16,6 +16,7 @@ import com.divafinance.core.domain.usecase.location.GetSpendingByLocationUseCase
 import com.divafinance.core.domain.usecase.location.TagTransactionLocationUseCase
 import com.divafinance.core.domain.usecase.onboarding.CompleteOnboardingUseCase
 import com.divafinance.core.domain.usecase.onboarding.InitializeDatabaseUseCase
+import com.divafinance.core.domain.usecase.onboarding.SetPinUseCase
 import com.divafinance.core.domain.usecase.onboarding.ValidatePinUseCase
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
@@ -42,6 +43,7 @@ val domainModule = module {
     // Onboarding
     factory { CompleteOnboardingUseCase(get()) }
     factory { ValidatePinUseCase(get()) }
+    factory { SetPinUseCase(get()) }
     factory { InitializeDatabaseUseCase(get()) }
 
     // Backup
