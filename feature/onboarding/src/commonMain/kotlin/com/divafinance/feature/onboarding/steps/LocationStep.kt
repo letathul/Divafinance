@@ -12,6 +12,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun LocationStep(
@@ -56,5 +58,18 @@ fun LocationStep(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun LocationStepPreview() {
+    DivaTheme {
+        LocationStep(
+            location = "New York",
+            onLocationChanged = {},
+            onNext = {},
+            onBack = {},
+        )
     }
 }

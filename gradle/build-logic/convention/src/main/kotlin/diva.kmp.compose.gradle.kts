@@ -16,5 +16,9 @@ extensions.getByType<KotlinMultiplatformExtension>().apply {
         implementation(compose.material3)
         implementation(compose.ui)
         implementation(compose.components.resources)
+        implementation(compose.components.uiToolingPreview)
+    }
+    sourceSets.getByName("androidMain").dependencies {
+        implementation(compose.uiTooling)
     }
 }

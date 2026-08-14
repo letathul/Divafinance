@@ -1,19 +1,24 @@
 package com.divafinance.feature.scanner
 
-import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.runComposeUiTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
-@OptIn(ExperimentalTestApi::class)
 class ScannerScreenTest {
 
     @Test
-    fun displaysTitle() = runComposeUiTest {
-        setContent {
-            ScannerScreen()
-        }
-        onNodeWithText("Scanner").assertIsDisplayed()
+    fun scannerTabEnumValues() {
+        assertEquals(2, ScannerTab.entries.size)
+        assertEquals(ScannerTab.RECEIPT, ScannerTab.entries[0])
+        assertEquals(ScannerTab.IMPORT, ScannerTab.entries[1])
+    }
+
+    @Test
+    fun scannerUiStateDefaults() {
+        val state = ScannerUiState()
+        assertEquals(ScannerTab.RECEIPT, state.currentTab)
+        assertEquals(false, state.isProcessing)
+        assertEquals(null, state.lastReceipt)
+        assertEquals(null, state.importedCount)
+        assertEquals(null, state.error)
     }
 }

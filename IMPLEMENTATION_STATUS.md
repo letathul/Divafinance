@@ -142,19 +142,32 @@ Divafinance/
 - [x] ThresholdConfigScreen for per-category % thresholds with add/edit/delete, over-threshold alerts
 - [x] GraphsViewModel with spending slices, threshold data, trend points, configurable time periods
 
-### Increment 10: Backup & Restore (Feature E) — PENDING ⬜
+### Increment 10: Backup & Restore (Feature E) — DONE ✅
 
-- [ ] FileSystem expect/actual for platform file I/O
-- [ ] Export: serialize all data → JSON → ZIP `.diva` archive
-- [ ] Import: read archive, validate schema, merge/replace in DB transaction
-- [ ] BackupViewModel, BackupRestoreScreen, BackupProgressDialog
+- [x] FileSystem expect/actual for platform file I/O (commonMain expect, androidMain actual using Context/java.io.File)
+- [x] BackupFileInfo data class for backup file metadata
+- [x] Export: DB → BackupArchive → JSON serialization → `.diva` file via FileSystem
+- [x] Import: `.diva` file → JSON deserialization → version validation → DB import (replace or merge)
+- [x] BackupViewModel with export, import (confirm dialog with replace/merge), delete, file listing
+- [x] BackupRestoreScreen with export section, backup file list, import/delete actions, snackbar feedback
+- [x] BackupProgressDialog with indeterminate progress indicator
+- [x] Import confirmation dialog with Replace/Merge/Cancel options
+- [x] Delete confirmation dialog
+- [x] SettingsScreen updated with "Backup & Restore" navigation button
+- [x] DI: FileSystem in PlatformModule, BackupViewModel in ViewModelModule
+- [x] Navigation: backup route wired with ViewModel, settings→backup navigation
 
-### Increment 11: Social Feed & Daily Bot (Feature G) — PENDING ⬜
+### Increment 11: Social Feed & Daily Bot (Feature G) — DONE ✅
 
-- [ ] FeedScreen with chronological post list
-- [ ] Auto-post to feed on transaction creation
-- [ ] Daily insight generation (deterministic, rule-based)
-- [ ] FeedViewModel, DailyInsightCard, BotInsightBubble
+- [x] FeedViewModel with reactive feed post collection and insight generation trigger
+- [x] FeedScreen with LazyColumn timeline, empty state, TopAppBar with "Insights" action
+- [x] TransactionFeedItem component — card-style post with icon, title, body, timestamp
+- [x] BotInsightBubble component — distinct tertiaryContainer background, star icon
+- [x] formatTimestamp utility — "Today at HH:mm" or "M/d at HH:mm"
+- [x] Auto-post to feed on transaction creation via PostTransactionToFeedUseCase in TransactionsViewModel
+- [x] Weekly spending insight generation (GenerateDailyInsightUseCase) triggered on feed open
+- [x] DI: FeedViewModel registered in ViewModelModule, TransactionsViewModel updated with 4th dependency
+- [x] Navigation: feed route wired with FeedViewModel
 
 ### Increment 12: Spending Map (Feature D) + Dynamic Delivery — PENDING ⬜
 
@@ -206,15 +219,15 @@ Divafinance/
 | 7 | Credit Card Management | ✅ Done |
 | 8 | Transactions + Dashboard | ✅ Done |
 | 9 | Financial Graphs | ✅ Done |
-| 10 | Backup & Restore | ⬜ Pending |
-| 11 | Social Feed & Daily Bot | ⬜ Pending |
+| 10 | Backup & Restore | ✅ Done |
+| 11 | Social Feed & Daily Bot | ✅ Done |
 | 12 | Spending Map + Dynamic Delivery | ⬜ Pending |
 | 13 | Embedded Ktor Server + Dynamic Delivery | ⬜ Pending |
 | 14 | Receipt Scanning + Dynamic Delivery | ⬜ Pending |
 | 15 | Native Automations | ⬜ Pending |
 | 16 | Integration Testing & Polish | ⬜ Pending |
 
-**Progress: 9 / 16 increments complete (56%)**
+**Progress: 11 / 16 increments complete (69%)**
 
 ---
 

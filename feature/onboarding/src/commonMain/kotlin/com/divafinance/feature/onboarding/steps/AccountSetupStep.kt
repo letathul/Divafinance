@@ -16,6 +16,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val accountTypes = listOf(
     "CHECKING" to "Checking Account",
@@ -98,5 +100,20 @@ fun AccountSetupStep(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun AccountSetupStepPreview() {
+    DivaTheme {
+        AccountSetupStep(
+            accountName = "My Checking",
+            accountType = "CHECKING",
+            onAccountNameChanged = {},
+            onAccountTypeChanged = {},
+            onNext = {},
+            onBack = {},
+        )
     }
 }

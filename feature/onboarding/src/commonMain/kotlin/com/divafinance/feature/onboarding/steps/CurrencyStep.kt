@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private data class CurrencyOption(val code: String, val symbol: String, val name: String)
 
@@ -114,5 +116,18 @@ fun CurrencyStep(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun CurrencyStepPreview() {
+    DivaTheme {
+        CurrencyStep(
+            selectedCurrency = "USD",
+            onCurrencySelected = {},
+            onNext = {},
+            onBack = {},
+        )
     }
 }

@@ -10,10 +10,13 @@ import kotlin.test.Test
 class BackupRestoreScreenTest {
 
     @Test
-    fun displaysTitle() = runComposeUiTest {
+    fun progressDialogDisplaysTitle() = runComposeUiTest {
         setContent {
-            BackupRestoreScreen()
+            BackupProgressDialog(
+                title = "Exporting",
+                message = "Creating backup of your financial data...",
+            )
         }
-        onNodeWithText("Backup & Restore").assertIsDisplayed()
+        onNodeWithText("Exporting").assertIsDisplayed()
     }
 }

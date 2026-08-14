@@ -1,19 +1,16 @@
 package com.divafinance.feature.feed
 
-import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.runComposeUiTest
+import com.divafinance.feature.feed.component.formatTimestamp
+import kotlinx.datetime.Clock
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
-@OptIn(ExperimentalTestApi::class)
 class FeedScreenTest {
 
     @Test
-    fun displaysTitle() = runComposeUiTest {
-        setContent {
-            FeedScreen()
-        }
-        onNodeWithText("Feed").assertIsDisplayed()
+    fun formatTimestampShowsTodayForCurrentTime() {
+        val now = Clock.System.now()
+        val result = formatTimestamp(now)
+        assertTrue(result.startsWith("Today at"))
     }
 }

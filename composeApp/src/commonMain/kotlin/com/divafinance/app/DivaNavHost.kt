@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.backup.BackupRestoreScreen
+import com.divafinance.feature.backup.BackupViewModel
 import com.divafinance.feature.cards.AddEditCardScreen
 import com.divafinance.feature.cards.BestCardRecommendationScreen
 import com.divafinance.feature.cards.CardDetailScreen
@@ -14,16 +15,21 @@ import com.divafinance.feature.cards.CardsListScreen
 import com.divafinance.feature.cards.CardsViewModel
 import com.divafinance.feature.dashboard.DashboardScreen
 import com.divafinance.feature.feed.FeedScreen
+import com.divafinance.feature.feed.FeedViewModel
 import com.divafinance.feature.graphs.GraphsDashboardScreen
 import com.divafinance.feature.graphs.GraphsViewModel
 import com.divafinance.feature.graphs.ThresholdConfigScreen
+import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.map.SpendingMapScreen
+import com.divafinance.server.DivaServer
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
+import com.divafinance.feature.scanner.ScannerViewModel
 import com.divafinance.feature.settings.SettingsScreen
 import com.divafinance.feature.transactions.AddTransactionScreen
 import com.divafinance.feature.transactions.TransactionListScreen
 import com.divafinance.feature.transactions.TransactionsViewModel
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 object DivaRoutes {
@@ -91,6 +97,9 @@ fun DivaNavHost(
                 onNavigateToGraphs = {
                     navController.navigate(DivaRoutes.GRAPHS)
                 },
+                onNavigateToMap = {
+                    navController.navigate(DivaRoutes.MAP)
+                },
             )
         }
 
@@ -152,8 +161,28 @@ fun DivaNavHost(
             )
         }
 
-        composable(DivaRoutes.FEED) { FeedScreen() }
-        composable(DivaRoutes.SETTINGS) { SettingsScreen() }
+        composable(DivaRoutes.FEED) {
+            val feedViewModel: FeedViewModel = koinViewModel()
+            FeedScreen(viewModel = feedViewModel)
+        }
+        composable(DivaRoutes.SETTINGS) {
+            val divaServer = koinInject<DivaServer>()
+            SettingsScreen(
+                onNavigateToBackup = {
+                    navController.navigate(DivaRoutes.BACKUP)
+                },
+                onNavigateToScanner = {
+                    navController.navigate(DivaRoutes.SCANNER)
+                },
+                onNavigateToAutomation = {
+                    navController.navigate(DivaRoutes.AUTOMATION)
+                },
+                isServerRunning = divaServer.isRunning(),
+                onToggleServer = { enabled ->
+                    if (enabled) divaServer.start() else divaServer.stop()
+                },
+            )
+        }
         composable(DivaRoutes.GRAPHS) {
             GraphsDashboardScreen(
                 onNavigateToThresholdConfig = {
@@ -169,9 +198,29 @@ fun DivaNavHost(
                 viewModel = graphsViewModel,
             )
         }
-        composable(DivaRoutes.MAP) { SpendingMapScreen() }
-        composable(DivaRoutes.SCANNER) { ScannerScreen() }
-        composable(DivaRoutes.BACKUP) { BackupRestoreScreen() }
-        composable(DivaRoutes.AUTOMATION) { AutomationScreen() }
+        composable(DivaRoutes.MAP) {
+            val mapViewModel: MapViewModel = koinViewModel()
+            SpendingMapScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = mapViewModel,
+            )
+        }
+        composable(DivaRoutes.SCANNER) {
+            val scannerViewModel: ScannerViewModel = koinViewModel()
+            ScannerScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = scannerViewModel,
+            )
+        }
+        composable(DivaRoutes.BACKUP) {
+            val backupViewModel: BackupViewModel = koinViewModel()
+            BackupRestoreScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = backupViewModel,
+            )
+        }
+        composable(DivaRoutes.AUTOMATION) {
+            AutomationScreen(onBack = { navController.popBackStack() })
+        }
     }
 }

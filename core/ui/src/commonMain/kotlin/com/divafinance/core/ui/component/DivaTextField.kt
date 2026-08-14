@@ -8,6 +8,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun DivaTextField(
@@ -41,4 +44,17 @@ fun DivaTextField(
         keyboardOptions = keyboardOptions,
         shape = MaterialTheme.shapes.medium,
     )
+}
+
+@Preview
+@Composable
+private fun DivaTextFieldPreview() {
+    DivaTheme {
+        DivaTextField(
+            value = "Chase Sapphire",
+            onValueChange = {},
+            label = "Card Name",
+            modifier = Modifier.padding(16.dp),
+        )
+    }
 }

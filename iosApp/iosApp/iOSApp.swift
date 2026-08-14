@@ -6,5 +6,8 @@ struct iOSApp: App {
         WindowGroup {
             ContentView()
         }
+        #if compiler(>=6.1)
+        .defaultGlassEffect()
+        #endif
     }
 }

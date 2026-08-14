@@ -19,7 +19,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.feature.graphs.TrendPoint
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private val lineColor = Color(0xFFD4A843)
 private val fillColorStart = Color(0x40D4A843)
@@ -148,5 +150,22 @@ fun TrendLineChart(
                 ),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun TrendLineChartPreview() {
+    DivaTheme {
+        TrendLineChart(
+            data = listOf(
+                TrendPoint("Jan", 1200.0),
+                TrendPoint("Feb", 980.0),
+                TrendPoint("Mar", 1450.0),
+                TrendPoint("Apr", 1100.0),
+                TrendPoint("May", 1320.0),
+                TrendPoint("Jun", 890.0),
+            ),
+        )
     }
 }
