@@ -7,11 +7,7 @@ fun initKoin(appDeclaration: KoinApplication.() -> Unit = {}) {
     startKoin {
         appDeclaration()
         modules(
-            platformModule(),
-            dataModule,
-            domainModule,
-            viewModelModule,
-            serverModule,
+            appModules() + dynamicFeatureModule
         )
     }
 }

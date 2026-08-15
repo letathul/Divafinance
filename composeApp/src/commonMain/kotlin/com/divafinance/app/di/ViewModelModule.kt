@@ -11,6 +11,7 @@ import com.divafinance.feature.automation.AutomationHandler
 import com.divafinance.feature.automation.AutomationViewModel
 import com.divafinance.feature.scanner.ScannerViewModel
 import com.divafinance.feature.scanner.ocr.OcrEngine
+import com.divafinance.feature.settings.SettingsViewModel
 import com.divafinance.feature.transactions.TransactionsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -28,4 +29,5 @@ val viewModelModule = module {
     viewModel { MapViewModel(get(), get()) }
     viewModel { ScannerViewModel(get(), get(), get()) }
     viewModel { AutomationViewModel(get()) }
+    viewModel { SettingsViewModel(get(), get()) }
 }
