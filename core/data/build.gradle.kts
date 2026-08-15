@@ -9,7 +9,8 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core:model"))
+            // `api` so consumers see the model types exposed by the repositories.
+            api(project(":core:model"))
             implementation(project(":core:common"))
             implementation(project(":core:database"))
             implementation(libs.kotlinx.coroutines.core)

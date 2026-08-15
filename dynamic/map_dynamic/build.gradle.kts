@@ -8,5 +8,6 @@ android {
 
 dependencies {
     implementation(project(":composeApp"))
+    implementation(project(":core:ui"))
     implementation(project(":feature:map"))
 }

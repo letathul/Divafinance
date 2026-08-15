@@ -213,12 +213,12 @@ private fun ThresholdListItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (data.percentOfThreshold != null) {
+                data.percentOfThreshold?.let { percentOfThreshold ->
                     Text(
                         text = if (data.isOverThreshold) {
-                            "Over by ${"%.0f".format(data.percentOfThreshold - 100)}%"
+                            "Over by ${"%.0f".format(percentOfThreshold - 100)}%"
                         } else {
-                            "${"%.0f".format(data.percentOfThreshold)}% of limit used"
+                            "${"%.0f".format(percentOfThreshold)}% of limit used"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (data.isOverThreshold) {
