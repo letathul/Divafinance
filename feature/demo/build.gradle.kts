@@ -3,25 +3,25 @@ plugins {
 }
 
 android {
-    namespace = "com.divafinance.feature.onboarding"
+    namespace = "com.divafinance.feature.demo"
 }
 
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core:domain"))
+            implementation(project(":core:model"))
+            implementation(project(":core:data"))
             implementation(project(":core:ui"))
             implementation(project(":core:common"))
-            // The demo is offered as the final onboarding step.
-            implementation(project(":feature:demo"))
             implementation(libs.koin.core)
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
-            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
-            implementation(compose.uiTest)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

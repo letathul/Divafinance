@@ -14,6 +14,8 @@ kotlin {
             implementation(project(":core:ui"))
             implementation(project(":core:common"))
             implementation(project(":server"))
+            // Settings hosts the one-way "remove demo data" action.
+            implementation(project(":feature:demo"))
             implementation(libs.koin.core)
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)

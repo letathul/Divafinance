@@ -73,6 +73,7 @@ kotlin {
             implementation(project(":feature:scanner"))
             implementation(project(":feature:backup"))
             implementation(project(":feature:automation"))
+            implementation(project(":feature:demo"))
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
@@ -120,6 +121,7 @@ android {
     dynamicFeatures += setOf(
         ":dynamic:map_dynamic",
         ":dynamic:scanner_dynamic",
-        ":dynamic:server_dynamic"
+        ":dynamic:server_dynamic",
+        ":dynamic:demo_dynamic"
     )
 }

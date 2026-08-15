@@ -40,6 +40,7 @@ include(":feature:map")
 include(":feature:scanner")
 include(":feature:backup")
 include(":feature:automation")
+include(":feature:demo")
 
 // Embedded server
 include(":server")
@@ -48,3 +49,4 @@ include(":server")
 include(":dynamic:map_dynamic")
 include(":dynamic:scanner_dynamic")
 include(":dynamic:server_dynamic")
+include(":dynamic:demo_dynamic")

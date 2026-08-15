@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:dist="http://schemas.android.com/apk/distribution">
+
+    <dist:module
+        dist:instant="false"
+        dist:title="@string/title_demo_dynamic">
+        <dist:delivery>
+            <dist:on-demand />
+        </dist:delivery>
+        <!-- Not fused: the demo must be genuinely absent for users who never take the
+             offer, and removable for those who do. -->
+        <dist:fusing dist:include="false" />
+    </dist:module>
+
+    <application>
+        <activity
+            android:name="com.divafinance.dynamic.demo.DemoDynamicActivity"
+            android:exported="false" />
+    </application>
+</manifest>

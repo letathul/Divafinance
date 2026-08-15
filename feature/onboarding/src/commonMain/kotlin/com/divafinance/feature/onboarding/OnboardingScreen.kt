@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.divafinance.feature.onboarding.steps.AccountSetupStep
 import com.divafinance.feature.onboarding.steps.CardSetupStep
 import com.divafinance.feature.onboarding.steps.CurrencyStep
+import com.divafinance.feature.onboarding.steps.DemoStep
 import com.divafinance.feature.onboarding.steps.LocationStep
 import com.divafinance.feature.onboarding.steps.SecurityStep
 import com.divafinance.feature.onboarding.steps.WelcomeStep
@@ -99,7 +100,14 @@ fun OnboardingScreen(
                     isCompleting = state.isCompleting,
                     onPinChanged = viewModel::updatePin,
                     onPinConfirmChanged = viewModel::updatePinConfirm,
-                    onComplete = viewModel::completeOnboarding,
+                    onComplete = viewModel::submitPin,
+                    onBack = viewModel::previousStep,
+                )
+
+                OnboardingStep.DEMO -> DemoStep(
+                    isCompleting = state.isCompleting,
+                    onUseDemo = { viewModel.finish(withDemo = true) },
+                    onSkipDemo = { viewModel.finish(withDemo = false) },
                     onBack = viewModel::previousStep,
                 )
             }

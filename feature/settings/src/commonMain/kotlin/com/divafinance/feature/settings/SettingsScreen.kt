@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,7 +38,39 @@ fun SettingsScreen(
     isServerRunning: Boolean = false,
     onToggleServer: (Boolean) -> Unit = {},
     serverPort: Int = 8080,
+    isDemoActive: Boolean = false,
+    isRemovingDemo: Boolean = false,
+    onRemoveDemo: () -> Unit = {},
 ) {
+    var confirmRemoveDemo by remember { mutableStateOf(false) }
+
+    if (confirmRemoveDemo) {
+        AlertDialog(
+            onDismissRequest = { confirmRemoveDemo = false },
+            title = { Text("Remove demo data?") },
+            text = {
+                Text(
+                    "This deletes the demo accounts, cards, transactions, receipts and " +
+                        "insights. Anything you recorded against a demo account goes with " +
+                        "it. This can't be undone, and the demo can't be turned back on.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRemoveDemo = false
+                        onRemoveDemo()
+                    },
+                ) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemoveDemo = false }) { Text("Keep it") }
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Settings") })
@@ -49,6 +83,30 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Only rendered while the demo is active. Once removed it never comes back,
+            // so there is deliberately no "enable" path here.
+            if (isDemoActive) {
+                DivaCard {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Demo Data", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "You're exploring with sample data. Remove it when you're ready " +
+                                "to start tracking for real — this is one-way.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        DivaOutlinedButton(
+                            text = if (isRemovingDemo) "Removing..." else "Remove demo data",
+                            onClick = { confirmRemoveDemo = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isRemovingDemo,
+                        )
+                    }
+                }
+            }
+
             DivaCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Data", style = MaterialTheme.typography.titleMedium)

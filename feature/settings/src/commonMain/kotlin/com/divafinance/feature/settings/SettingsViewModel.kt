@@ -3,6 +3,8 @@ package com.divafinance.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.data.repository.SettingsRepository
+import com.divafinance.feature.demo.DemoDataManager
+import com.divafinance.feature.demo.DemoStatus
 import com.divafinance.server.DivaServer
 import com.divafinance.server.ServerConfig
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,11 +18,15 @@ data class SettingsUiState(
     val serverPort: Int = 8080,
     val currency: String = "USD",
     val isDarkTheme: Boolean = false,
+    /** The demo section only exists while the demo is active; removal is one-way. */
+    val isDemoActive: Boolean = false,
+    val isRemovingDemo: Boolean = false,
 )
 
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val divaServer: DivaServer,
+    private val demoDataManager: DemoDataManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -41,8 +47,22 @@ class SettingsViewModel(
                     isDarkTheme = darkTheme,
                     serverPort = port,
                     isServerRunning = divaServer.isRunning(),
+                    isDemoActive = demoDataManager.status() == DemoStatus.ACTIVE,
                 )
             }
+        }
+    }
+
+    /**
+     * Deletes the demo data and retires the offer for good. The section disappears on
+     * success and never returns.
+     */
+    fun removeDemoData() {
+        if (_uiState.value.isRemovingDemo) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRemovingDemo = true) }
+            demoDataManager.clear()
+            _uiState.update { it.copy(isRemovingDemo = false, isDemoActive = false) }
         }
     }
 

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.domain.usecase.onboarding.CompleteOnboardingUseCase
 import com.divafinance.core.domain.usecase.onboarding.SetPinUseCase
+import com.divafinance.feature.demo.DemoDataManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,7 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class OnboardingStep {
-    WELCOME, CURRENCY, LOCATION, ACCOUNT_SETUP, CARD_SETUP, SECURITY
+    WELCOME, CURRENCY, LOCATION, ACCOUNT_SETUP, CARD_SETUP, SECURITY, DEMO
 }
 
 data class OnboardingState(
@@ -27,11 +28,13 @@ data class OnboardingState(
     val pinError: String? = null,
     val isCompleting: Boolean = false,
     val isCompleted: Boolean = false,
+    val demoError: String? = null,
 )
 
 class OnboardingViewModel(
     private val completeOnboardingUseCase: CompleteOnboardingUseCase,
     private val setPinUseCase: SetPinUseCase,
+    private val demoDataManager: DemoDataManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingState())
@@ -93,7 +96,11 @@ class OnboardingViewModel(
         _state.update { it.copy(pinConfirm = confirm, pinError = null) }
     }
 
-    fun completeOnboarding() {
+    /**
+     * Validates the PIN and moves on to the demo offer. Onboarding is only actually
+     * committed once the demo question is answered, in [finish].
+     */
+    fun submitPin() {
         val current = _state.value
         if (current.pin.length < 4) {
             _state.update { it.copy(pinError = "PIN must be at least 4 digits") }
@@ -103,15 +110,43 @@ class OnboardingViewModel(
             _state.update { it.copy(pinError = "PINs do not match") }
             return
         }
+        nextStep()
+    }
+
+    /**
+     * Commits onboarding and answers the one-time demo offer.
+     *
+     * If [withDemo] is true but the demo module can't be delivered, onboarding is still
+     * completed and the offer is left open, so the user can take it later rather than
+     * losing it to a transient download failure.
+     */
+    fun finish(withDemo: Boolean) {
+        val current = _state.value
+        if (current.isCompleting) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isCompleting = true) }
+            _state.update { it.copy(isCompleting = true, demoError = null) }
+
             setPinUseCase(current.pin)
             completeOnboardingUseCase(
                 baseCurrency = current.selectedCurrency,
                 defaultLocation = current.defaultLocation.ifBlank { null },
             )
-            _state.update { it.copy(isCompleting = false, isCompleted = true) }
+
+            val demoFailed = if (withDemo) {
+                !demoDataManager.seed(current.selectedCurrency)
+            } else {
+                demoDataManager.decline()
+                false
+            }
+
+            _state.update {
+                it.copy(
+                    isCompleting = false,
+                    isCompleted = true,
+                    demoError = if (demoFailed) "Couldn't load the demo data." else null,
+                )
+            }
         }
     }
 
