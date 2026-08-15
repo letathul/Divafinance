@@ -101,9 +101,9 @@ fun ThresholdBarChart(
                     cornerRadius = CornerRadius(4f, 4f),
                 )
 
-                if (item.threshold != null) {
+                item.threshold?.let { threshold ->
                     val thresholdY = topPadding + drawableHeight -
-                        (item.threshold.thresholdPercent / chartMax * drawableHeight).toFloat()
+                        (threshold.thresholdPercent / chartMax * drawableHeight).toFloat()
                     drawLine(
                         color = thresholdLineColor,
                         start = Offset(x - 4f, thresholdY),

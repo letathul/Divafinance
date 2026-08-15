@@ -224,9 +224,9 @@ private fun TransactionItem(transaction: Transaction) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (!transaction.note.isNullOrBlank()) {
+                transaction.note?.takeIf { it.isNotBlank() }?.let { note ->
                     Text(
-                        text = transaction.note,
+                        text = note,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.androidApplication) apply false
     alias(libs.plugins.androidLibrary) apply false
+    alias(libs.plugins.androidKotlinMultiplatformLibrary) apply false
     alias(libs.plugins.androidDynamicFeature) apply false
     alias(libs.plugins.sqldelight) apply false
 }

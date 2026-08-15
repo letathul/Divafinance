@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Diva Finance</string>
+
+    <!--
+      Dynamic-feature titles must live in the base module's resource table:
+      bundletool resolves each module's dist:title against the base APK.
+    -->
+    <string name="title_map_dynamic">Spending Map</string>
+    <string name="title_scanner_dynamic">Receipt Scanner</string>
+    <string name="title_server_dynamic">Local Web Server</string>
 </resources>

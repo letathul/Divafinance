@@ -9,7 +9,8 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core:model"))
+            // `api` so feature modules see the model types returned by use cases.
+            api(project(":core:model"))
             implementation(project(":core:data"))
             implementation(project(":core:common"))
             implementation(libs.kotlinx.coroutines.core)

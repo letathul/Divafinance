@@ -15,7 +15,8 @@ kotlin {
             implementation(project(":core:data"))
             implementation(project(":core:network"))
 
-            implementation(libs.ktor.server.core)
+            // `api` because ContentType appears in DivaServer's public constructor signature.
+            api(libs.ktor.server.core)
             implementation(libs.ktor.server.cio)
             implementation(libs.ktor.server.content.negotiation)
             implementation(libs.ktor.server.sessions)

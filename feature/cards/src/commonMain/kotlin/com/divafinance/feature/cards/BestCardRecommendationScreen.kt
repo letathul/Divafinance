@@ -153,9 +153,9 @@ private fun RecommendationCard(
 
             Spacer(Modifier.height(4.dp))
 
-            if (recommendation.rule != null) {
+            recommendation.rule?.let { rule ->
                 Text(
-                    text = "${recommendation.rule.multiplier}x ${recommendation.rule.rewardType.displayName} on ${recommendation.rule.category.displayName}",
+                    text = "${rule.multiplier}x ${rule.rewardType.displayName} on ${rule.category.displayName}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

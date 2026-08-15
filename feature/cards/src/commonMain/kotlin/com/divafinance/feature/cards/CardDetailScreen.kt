@@ -171,10 +171,10 @@ private fun RewardRuleItem(rule: CardRewardRule) {
             Text(
                 text = buildString {
                     append("${rule.multiplier}x ${rule.rewardType.displayName}")
-                    if (rule.capAmount != null) {
-                        append(" (cap: ${"$%.0f".format(rule.capAmount)}")
-                        if (rule.capPeriod != null) {
-                            append("/${rule.capPeriod.name.lowercase()}")
+                    rule.capAmount?.let { capAmount ->
+                        append(" (cap: ${"$%.0f".format(capAmount)}")
+                        rule.capPeriod?.let { capPeriod ->
+                            append("/${capPeriod.name.lowercase()}")
                         }
                         append(")")
                     }

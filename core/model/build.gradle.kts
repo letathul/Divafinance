@@ -10,8 +10,10 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kotlinx.serialization.json)
-            implementation(libs.kotlinx.datetime)
+            // `api` because LocalDate/Instant and @Serializable types appear in the
+            // public signatures of the model classes consumed by every other module.
+            api(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.datetime)
         }
     }
 }
