@@ -18,12 +18,16 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -78,6 +82,8 @@ fun ScannerScreen(
             when (uiState.currentTab) {
                 ScannerTab.RECEIPT -> ReceiptScannerContent(
                     uiState = uiState,
+                    isOcrAvailable = viewModel.isOcrAvailable(),
+                    onScanImage = { path -> viewModel.scanImage(path) },
                     onScanDemo = {
                         viewModel.processOcrResult(
                             imagePath = "demo_receipt.jpg",
@@ -102,31 +108,71 @@ fun ScannerScreen(
 @Composable
 private fun ReceiptScannerContent(
     uiState: ScannerUiState,
+    isOcrAvailable: Boolean,
+    onScanImage: (String) -> Unit,
     onScanDemo: () -> Unit,
     onClear: () -> Unit,
 ) {
+    var imagePath by remember { mutableStateOf("") }
+
     DivaCard {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Receipt Scanner", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            Text(
-                "Scan a receipt to extract merchant name and total amount. " +
-                    "Camera integration requires the scanner dynamic module.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(16.dp))
 
-            if (uiState.isProcessing) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    LoadingIndicator()
-                }
-            } else {
-                DivaButton(
-                    text = "Scan Demo Receipt",
-                    onClick = onScanDemo,
+            if (isOcrAvailable) {
+                Text(
+                    "Enter the path to a receipt image to extract merchant name and total amount using OCR.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+
+                DivaTextField(
+                    value = imagePath,
+                    onValueChange = { imagePath = it },
+                    label = "Image path",
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(12.dp))
+
+                if (uiState.isProcessing) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        LoadingIndicator()
+                    }
+                } else {
+                    DivaButton(
+                        text = "Scan Receipt",
+                        onClick = { if (imagePath.isNotBlank()) onScanImage(imagePath) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onScanDemo,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Scan Demo Receipt")
+                    }
+                }
+            } else {
+                Text(
+                    "OCR is not available on this device. Use the demo to preview functionality.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
+
+                if (uiState.isProcessing) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        LoadingIndicator()
+                    }
+                } else {
+                    DivaButton(
+                        text = "Scan Demo Receipt",
+                        onClick = onScanDemo,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
