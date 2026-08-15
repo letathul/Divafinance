@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.CardRewardRule
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.ui.component.CreditCardVisual
@@ -102,12 +103,12 @@ private fun CardInfoSection(card: CreditCard) {
 
             InfoRow("Network", card.network.displayName)
             if (card.creditLimit > 0) {
-                InfoRow("Credit Limit", "${"$%.2f".format(card.creditLimit)}")
-                InfoRow("Current Balance", "${"$%.2f".format(card.currentBalance)}")
-                InfoRow("Available Credit", "${"$%.2f".format(card.availableCredit)}")
+                InfoRow("Credit Limit", "$" + card.creditLimit.toFixed(2))
+                InfoRow("Current Balance", "$" + card.currentBalance.toFixed(2))
+                InfoRow("Available Credit", "$" + card.availableCredit.toFixed(2))
             }
             if (card.annualFee > 0) {
-                InfoRow("Annual Fee", "${"$%.2f".format(card.annualFee)}")
+                InfoRow("Annual Fee", "$" + card.annualFee.toFixed(2))
             }
             if (card.statementDate != null) {
                 InfoRow("Statement Day", "${card.statementDate}")
@@ -172,7 +173,7 @@ private fun RewardRuleItem(rule: CardRewardRule) {
                 text = buildString {
                     append("${rule.multiplier}x ${rule.rewardType.displayName}")
                     rule.capAmount?.let { capAmount ->
-                        append(" (cap: ${"$%.0f".format(capAmount)}")
+                        append(" (cap: ${"$" + capAmount.toFixed(0)}")
                         rule.capPeriod?.let { capPeriod ->
                             append("/${capPeriod.name.lowercase()}")
                         }

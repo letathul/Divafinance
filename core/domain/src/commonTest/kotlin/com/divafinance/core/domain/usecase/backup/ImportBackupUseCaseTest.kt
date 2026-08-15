@@ -3,7 +3,7 @@ package com.divafinance.core.domain.usecase.backup
 import com.divafinance.core.domain.fake.FakeBackupRepository
 import com.divafinance.core.model.BackupArchive
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

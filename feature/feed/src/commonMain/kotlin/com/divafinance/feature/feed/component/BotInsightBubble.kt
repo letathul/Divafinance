@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.ui.theme.DivaTheme
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable

@@ -2,7 +2,7 @@ package com.divafinance.core.model
 
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
 

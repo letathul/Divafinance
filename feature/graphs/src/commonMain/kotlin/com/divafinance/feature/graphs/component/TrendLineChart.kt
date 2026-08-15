@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.feature.graphs.TrendPoint
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -139,7 +140,7 @@ fun TrendLineChart(
                 strokeWidth = 1f,
             )
             val value = maxAmount * (1.0 - i.toDouble() / gridLines)
-            val valueLabel = if (value >= 1000) "${"%.0f".format(value / 1000)}k" else "${"%.0f".format(value)}"
+            val valueLabel = if (value >= 1000) "${(value / 1000).toFixed(0)}k" else value.toFixed(0)
             val valueLayout = textMeasurer.measure(valueLabel, labelStyle)
             drawText(
                 textLayoutResult = valueLayout,

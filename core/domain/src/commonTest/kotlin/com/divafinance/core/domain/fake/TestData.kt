@@ -2,7 +2,7 @@ package com.divafinance.core.domain.fake
 
 import com.divafinance.core.model.*
 import com.divafinance.core.model.enums.*
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 
 object TestData {

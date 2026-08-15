@@ -12,8 +12,8 @@ import com.divafinance.core.model.enums.RewardType
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.model.*
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 
 class BackupRepositoryImpl(

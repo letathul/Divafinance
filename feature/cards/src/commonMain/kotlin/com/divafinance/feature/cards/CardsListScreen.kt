@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.ui.component.CreditCardVisual
 import com.divafinance.core.ui.component.DivaCard
@@ -167,7 +168,7 @@ private fun CardListItem(
             if (card.creditLimit > 0) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Limit: ${"$%.2f".format(card.creditLimit)} | Available: ${"$%.2f".format(card.availableCredit)}",
+                    text = "Limit: ${"$" + card.creditLimit.toFixed(2)} | Available: ${"$" + card.availableCredit.toFixed(2)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

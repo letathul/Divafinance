@@ -2,7 +2,7 @@ package com.divafinance.core.data.mapper
 
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.enums.CardNetwork
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 object CardMapper {
 

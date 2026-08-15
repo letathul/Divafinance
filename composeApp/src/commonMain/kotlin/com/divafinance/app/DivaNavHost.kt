@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.savedstate.read
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.backup.BackupRestoreScreen
 import com.divafinance.feature.backup.BackupViewModel
@@ -112,7 +113,10 @@ fun DivaNavHost(
         }
 
         composable(DivaRoutes.CARD_DETAIL) { backStackEntry ->
-            val cardId = backStackEntry.arguments?.getString("cardId") ?: return@composable
+            // `arguments` is a multiplatform SavedState, not an Android Bundle,
+            // so it is read through the savedstate reader rather than getString().
+            val cardId = backStackEntry.arguments?.read { getStringOrNull("cardId") }
+                ?: return@composable
             CardDetailScreen(
                 cardId = cardId,
                 onBack = { navController.popBackStack() },

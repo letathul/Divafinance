@@ -2,7 +2,7 @@ package com.divafinance.core.domain.fake
 
 import com.divafinance.core.data.repository.BackupRepository
 import com.divafinance.core.model.BackupArchive
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class FakeBackupRepository : BackupRepository {
     var lastExport: BackupArchive? = null

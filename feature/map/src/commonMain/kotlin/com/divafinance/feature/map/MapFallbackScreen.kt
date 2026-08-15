@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.AmountDisplay
 import com.divafinance.core.ui.component.DivaCard
@@ -100,7 +101,7 @@ private fun LocationGroupCard(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "%.4f, %.4f".format(group.location.latitude, group.location.longitude),
+                text = "${group.location.latitude.toFixed(4)}, ${group.location.longitude.toFixed(4)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -148,7 +149,7 @@ fun LocationDetailSheet(
                         )
                     }
                     Text(
-                        text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$%.2f".format(transaction.amount)}",
+                        text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                         style = MaterialTheme.typography.titleSmall,
                         color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
                     )

@@ -1,7 +1,7 @@
 package com.divafinance.core.model
 
 import com.divafinance.core.model.enums.FeedPostType
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 
 @Serializable

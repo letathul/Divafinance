@@ -43,8 +43,17 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
+    <!-- Required by Compose Multiplatform; without it Compose throws on startup. -->
+    <key>CADisableMinimumFrameDurationOnPhone</key>
+    <true/>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Diva Finance uses local network to serve the browser-based dashboard on your device.</string>
+    <!-- iOS counterparts of the CAMERA / ACCESS_FINE_LOCATION permissions the
+         Android manifest declares; iOS terminates the app if these are missing. -->
+    <key>NSCameraUsageDescription</key>
+    <string>Diva Finance uses the camera to scan receipts.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Diva Finance uses your location to tag transactions on the spending map.</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
 </dict>

@@ -22,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.DivaCard
@@ -57,7 +58,7 @@ fun TransactionDetailScreen(
             DivaCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$%.2f".format(transaction.amount)}",
+                        text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                         style = MaterialTheme.typography.headlineMedium,
                         color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
                     )
@@ -87,7 +88,7 @@ fun TransactionDetailScreen(
                             Text(it, style = MaterialTheme.typography.bodyMedium)
                         }
                         Text(
-                            text = "%.4f, %.4f".format(loc.latitude, loc.longitude),
+                            text = "${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

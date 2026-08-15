@@ -4,7 +4,7 @@ import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test

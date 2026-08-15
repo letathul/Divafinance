@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
@@ -233,7 +234,7 @@ private fun TransactionItem(transaction: Transaction) {
                 }
             }
             Text(
-                text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$%.2f".format(transaction.amount)}",
+                text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                 style = MaterialTheme.typography.titleMedium,
                 color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
             )

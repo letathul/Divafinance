@@ -24,6 +24,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.feature.graphs.SpendingSlice
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -96,7 +97,7 @@ fun SpendingPieChart(
                     }
                 }
 
-                val totalText = "${"%.0f".format(totalSpending)}"
+                val totalText = totalSpending.toFixed(0)
                 val totalLayout = textMeasurer.measure(totalText, centerTextStyle)
                 drawText(
                     textLayoutResult = totalLayout,
@@ -130,7 +131,7 @@ fun SpendingPieChart(
                 LegendItem(
                     color = chartColors[index % chartColors.size],
                     label = slice.category,
-                    value = "${"%.1f".format(slice.percent)}%",
+                    value = "${slice.percent.toFixed(1)}%",
                 )
             }
         }

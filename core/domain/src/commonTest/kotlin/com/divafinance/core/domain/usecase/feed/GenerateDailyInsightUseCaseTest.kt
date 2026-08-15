@@ -6,7 +6,7 @@ import com.divafinance.core.domain.fake.TestData
 import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.model.enums.SpendingCategory
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus

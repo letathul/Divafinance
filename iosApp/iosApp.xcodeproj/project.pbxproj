@@ -303,6 +303,7 @@
 					"$(inherited)",
 					"-framework",
 					ComposeApp,
+					"-lsqlite3",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.divafinance.app;
 				PRODUCT_NAME = "Diva Finance";
@@ -332,6 +333,7 @@
 					"$(inherited)",
 					"-framework",
 					ComposeApp,
+					"-lsqlite3",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.divafinance.app;
 				PRODUCT_NAME = "Diva Finance";

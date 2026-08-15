@@ -5,7 +5,7 @@ import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.enums.FeedPostType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

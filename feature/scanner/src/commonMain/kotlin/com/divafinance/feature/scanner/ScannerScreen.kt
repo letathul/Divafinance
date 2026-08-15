@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
@@ -184,7 +185,7 @@ private fun ReceiptScannerContent(
                 Text("Scan Result", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 ResultRow("Merchant", receipt.merchantName ?: "Unknown")
-                ResultRow("Total", receipt.totalAmount?.let { "${"$%.2f".format(it)}" } ?: "Not found")
+                ResultRow("Total", receipt.totalAmount?.let { "$" + it.toFixed(2) } ?: "Not found")
                 ResultRow("Status", receipt.status.name)
                 Spacer(Modifier.height(12.dp))
                 DivaButton(text = "Clear", onClick = onClear, modifier = Modifier.fillMaxWidth())

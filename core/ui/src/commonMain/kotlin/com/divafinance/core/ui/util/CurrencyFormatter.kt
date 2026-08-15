@@ -1,8 +1,10 @@
 package com.divafinance.core.ui.util
 
+import com.divafinance.core.common.toFixed
+
 fun formatCurrency(amount: Double, currency: String = "USD"): String {
     val symbol = currencySymbols[currency] ?: currency
-    return "$symbol${"%.2f".format(kotlin.math.abs(amount))}"
+    return "$symbol${kotlin.math.abs(amount).toFixed(2)}"
 }
 
 private val currencySymbols = mapOf(

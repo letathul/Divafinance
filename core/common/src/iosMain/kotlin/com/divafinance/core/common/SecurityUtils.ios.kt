@@ -1,12 +1,8 @@
 package com.divafinance.core.common
 
-import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
-import kotlinx.cinterop.get
-import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
 import platform.CoreCrypto.CCKeyDerivationPBKDF
@@ -36,23 +32,21 @@ actual object SecurityUtils {
         val pinBytes = pin.encodeToByteArray()
         val derivedKey = ByteArray(KEY_LENGTH)
 
-        memScoped {
-            pinBytes.usePinned { pinPinned ->
-                saltBytes.usePinned { saltPinned ->
-                    derivedKey.usePinned { keyPinned ->
-                        CCKeyDerivationPBKDF(
-                            algorithm = kCCPBKDF2,
-                            password = pinPinned.addressOf(0).reinterpret(),
-                            passwordLen = pinBytes.size.convert(),
-                            salt = saltPinned.addressOf(0).reinterpret(),
-                            saltLen = saltBytes.size.convert(),
-                            prf = kCCPRFHmacAlgSHA256,
-                            rounds = ITERATIONS.convert(),
-                            derivedKey = keyPinned.addressOf(0).reinterpret(),
-                            derivedKeyLen = KEY_LENGTH.convert(),
-                        )
-                    }
-                }
+        // cinterop maps CoreCrypto's `const char *password` to String?, so the PIN is
+        // passed directly; passwordLen stays the UTF-8 byte count, matching the C API.
+        saltBytes.usePinned { saltPinned ->
+            derivedKey.usePinned { keyPinned ->
+                CCKeyDerivationPBKDF(
+                    algorithm = kCCPBKDF2,
+                    password = pin,
+                    passwordLen = pinBytes.size.convert(),
+                    salt = saltPinned.addressOf(0).reinterpret(),
+                    saltLen = saltBytes.size.convert(),
+                    prf = kCCPRFHmacAlgSHA256,
+                    rounds = ITERATIONS.convert(),
+                    derivedKey = keyPinned.addressOf(0).reinterpret(),
+                    derivedKeyLen = KEY_LENGTH.convert(),
+                )
             }
         }
 

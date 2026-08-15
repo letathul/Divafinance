@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryChip
@@ -137,7 +138,7 @@ fun AddTransactionScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                 )
                                 Text(
-                                    text = "Available: ${"$%.2f".format(selectedCard.availableCredit)}",
+                                    text = "Available: ${"$" + selectedCard.availableCredit.toFixed(2)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

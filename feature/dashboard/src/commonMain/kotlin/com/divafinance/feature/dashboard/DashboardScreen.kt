@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.AmountDisplay
@@ -219,7 +220,7 @@ private fun RecentTransactionItem(transaction: Transaction) {
                 )
             }
             Text(
-                text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$%.2f".format(transaction.amount)}",
+                text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                 style = MaterialTheme.typography.titleSmall,
                 color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
             )

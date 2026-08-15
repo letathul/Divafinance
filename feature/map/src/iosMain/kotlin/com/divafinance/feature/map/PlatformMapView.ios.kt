@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.interop.UIKitView
+import com.divafinance.core.common.toFixed
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreLocation.CLLocationCoordinate2DMake
 import platform.MapKit.MKAnnotationProtocol
@@ -27,7 +28,7 @@ actual fun PlatformMapView(
                     spending.location.longitude,
                 ),
                 spending.name,
-                "${"$%.2f".format(spending.totalAmount)} (${spending.transactions.size} transactions)",
+                "${"$" + spending.totalAmount.toFixed(2)} (${spending.transactions.size} transactions)",
             )
         }
     }
