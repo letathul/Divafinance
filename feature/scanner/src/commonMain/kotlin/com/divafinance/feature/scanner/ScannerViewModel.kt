@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
 import com.divafinance.core.model.Receipt
+import com.divafinance.feature.scanner.ocr.OcrEngine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ enum class ScannerTab { RECEIPT, IMPORT }
 class ScannerViewModel(
     private val parseReceipt: ParseReceiptUseCase,
     private val importStatement: ImportStatementUseCase,
+    private val ocrEngine: OcrEngine = OcrEngine(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
@@ -33,6 +35,27 @@ class ScannerViewModel(
 
     fun switchTab(tab: ScannerTab) {
         _uiState.value = _uiState.value.copy(currentTab = tab, error = null)
+    }
+
+    fun isOcrAvailable(): Boolean = ocrEngine.isAvailable()
+
+    fun scanImage(imagePath: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isProcessing = true, error = null)
+            try {
+                val ocrResult = ocrEngine.recognizeText(imagePath)
+                val receipt = parseReceipt(imagePath, ocrResult.fullText)
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    lastReceipt = receipt,
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    error = e.message ?: "Failed to scan image",
+                )
+            }
+        }
     }
 
     fun processOcrResult(imagePath: String, ocrText: String) {

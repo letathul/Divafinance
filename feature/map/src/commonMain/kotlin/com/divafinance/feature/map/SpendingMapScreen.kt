@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +50,16 @@ fun SpendingMapScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    if (isPlatformMapAvailable()) {
+                        IconButton(onClick = { viewModel.toggleMapView() }) {
+                            Icon(
+                                if (uiState.showMapView) Icons.Default.List else Icons.Default.Place,
+                                contentDescription = if (uiState.showMapView) "List view" else "Map view",
+                            )
+                        }
+                    }
+                },
             )
         },
     ) { padding ->
@@ -79,6 +91,13 @@ fun SpendingMapScreen(
                         }
                     }
                 }
+            }
+            uiState.showMapView -> {
+                PlatformMapView(
+                    locations = uiState.locationGroups,
+                    onLocationClick = { viewModel.selectGroup(it) },
+                    modifier = Modifier.padding(padding),
+                )
             }
             else -> {
                 MapFallbackScreen(

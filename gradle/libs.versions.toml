@@ -22,6 +22,10 @@ androidx-activity-compose = "1.9.3"
 play-feature-delivery = "2.1.0"
 play-feature-delivery-ktx = "2.1.0"
 
+mlkit-text-recognition = "16.0.1"
+maps-compose = "6.2.1"
+play-services-maps = "19.0.0"
+
 [libraries]
 # KotlinX
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
@@ -69,6 +73,13 @@ androidx-activity-compose = { module = "androidx.activity:activity-compose", ver
 # Play Feature Delivery
 play-feature-delivery = { module = "com.google.android.play:feature-delivery", version.ref = "play-feature-delivery" }
 play-feature-delivery-ktx = { module = "com.google.android.play:feature-delivery-ktx", version.ref = "play-feature-delivery-ktx" }
+
+# ML Kit
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-text-recognition" }
+
+# Google Maps
+maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "maps-compose" }
+play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "play-services-maps" }
 
 # Testing
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
