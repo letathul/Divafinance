@@ -1,10 +1,13 @@
 package com.divafinance.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.savedstate.read
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.backup.BackupRestoreScreen
 import com.divafinance.feature.backup.BackupViewModel
@@ -26,6 +29,7 @@ import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.scanner.ScannerViewModel
 import com.divafinance.feature.settings.SettingsScreen
+import com.divafinance.feature.settings.SettingsViewModel
 import com.divafinance.feature.transactions.AddTransactionScreen
 import com.divafinance.feature.transactions.TransactionListScreen
 import com.divafinance.feature.transactions.TransactionsViewModel
@@ -112,7 +116,10 @@ fun DivaNavHost(
         }
 
         composable(DivaRoutes.CARD_DETAIL) { backStackEntry ->
-            val cardId = backStackEntry.arguments?.getString("cardId") ?: return@composable
+            // `arguments` is a multiplatform SavedState, not an Android Bundle,
+            // so it is read through the savedstate reader rather than getString().
+            val cardId = backStackEntry.arguments?.read { getStringOrNull("cardId") }
+                ?: return@composable
             CardDetailScreen(
                 cardId = cardId,
                 onBack = { navController.popBackStack() },
@@ -167,6 +174,8 @@ fun DivaNavHost(
         }
         composable(DivaRoutes.SETTINGS) {
             val divaServer = koinInject<DivaServer>()
+            val settingsViewModel: SettingsViewModel = koinViewModel()
+            val settingsState by settingsViewModel.uiState.collectAsState()
             SettingsScreen(
                 onNavigateToBackup = {
                     navController.navigate(DivaRoutes.BACKUP)
@@ -181,6 +190,9 @@ fun DivaNavHost(
                 onToggleServer = { enabled ->
                     if (enabled) divaServer.start() else divaServer.stop()
                 },
+                isDemoActive = settingsState.isDemoActive,
+                isRemovingDemo = settingsState.isRemovingDemo,
+                onRemoveDemo = settingsViewModel::removeDemoData,
             )
         }
         composable(DivaRoutes.GRAPHS) {

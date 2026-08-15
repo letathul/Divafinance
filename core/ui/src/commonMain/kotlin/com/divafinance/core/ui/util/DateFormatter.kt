@@ -1,6 +1,6 @@
 package com.divafinance.core.ui.util
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -21,7 +21,8 @@ fun formatInstant(instant: Instant, timeZone: TimeZone = TimeZone.currentSystemD
 }
 
 fun formatRelativeDate(date: LocalDate, today: LocalDate): String {
-    val diff = today.toEpochDays() - date.toEpochDays()
+    // toEpochDays() returns Long as of kotlinx-datetime 0.7; a day delta always fits an Int.
+    val diff = (today.toEpochDays() - date.toEpochDays()).toInt()
     return when {
         diff == 0 -> "Today"
         diff == 1 -> "Yesterday"

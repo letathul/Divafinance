@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.BackupFileInfo
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaOutlinedButton
@@ -301,7 +302,7 @@ private fun DeleteConfirmDialog(
 private fun formatFileSize(bytes: Long): String {
     return when {
         bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "${"%.1f".format(bytes / 1024.0)} KB"
-        else -> "${"%.1f".format(bytes / (1024.0 * 1024.0))} MB"
+        bytes < 1024 * 1024 -> "${(bytes / 1024.0).toFixed(1)} KB"
+        else -> "${(bytes / (1024.0 * 1024.0)).toFixed(1)} MB"
     }
 }

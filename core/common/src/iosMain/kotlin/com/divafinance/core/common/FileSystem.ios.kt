@@ -1,7 +1,10 @@
 package com.divafinance.core.common
 
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSDate
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.NSString
@@ -9,9 +12,13 @@ import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import platform.Foundation.stringWithContentsOfFile
-import platform.Foundation.lastPathComponent
-import platform.Foundation.pathExtension
+// `timeIntervalSince1970` is declared in the NSExtendedDate category, which
+// cinterop exposes as an extension property rather than an NSDate member.
+import platform.Foundation.timeIntervalSince1970
 
+// The NSFileManager/NSString APIs below all take an `error:` out-parameter,
+// which cinterop models as a CPointer — hence the foreign-API opt-in.
+@OptIn(ExperimentalForeignApi::class)
 actual class FileSystem {
     private val fileManager = NSFileManager.defaultManager
 
@@ -62,9 +69,16 @@ actual class FileSystem {
                 val filePath = "$backupDir/$fileName"
                 val attrs = fileManager.attributesOfItemAtPath(filePath, error = null)
                     ?: return@mapNotNull null
-                val size = (attrs["NSFileSize"] as? Number)?.toLong() ?: 0L
-                val modified = (attrs["NSFileModificationDate"] as? platform.Foundation.NSDate)
-                    ?.timeIntervalSince1970?.toLong()?.times(1000) ?: 0L
+                // Values come out of an NSDictionary, so depending on how the
+                // interop bridge unwraps them they may arrive as NSNumber or as a
+                // Kotlin number — accept both rather than silently defaulting to 0.
+                val size = when (val raw = attrs["NSFileSize"]) {
+                    is NSNumber -> raw.longLongValue
+                    is Number -> raw.toLong()
+                    else -> 0L
+                }
+                val modified = (attrs["NSFileModificationDate"] as? NSDate)
+                    ?.let { (it.timeIntervalSince1970 * 1000).toLong() } ?: 0L
                 BackupFileInfo(
                     name = fileName,
                     path = filePath,

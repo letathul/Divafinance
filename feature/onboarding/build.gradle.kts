@@ -12,6 +12,8 @@ kotlin {
             implementation(project(":core:domain"))
             implementation(project(":core:ui"))
             implementation(project(":core:common"))
+            // The demo is offered as the final onboarding step.
+            implementation(project(":feature:demo"))
             implementation(libs.koin.core)
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)

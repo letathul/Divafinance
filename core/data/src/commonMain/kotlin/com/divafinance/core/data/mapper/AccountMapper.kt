@@ -2,7 +2,7 @@ package com.divafinance.core.data.mapper
 
 import com.divafinance.core.model.Account
 import com.divafinance.core.model.enums.AccountType
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 object AccountMapper {
 

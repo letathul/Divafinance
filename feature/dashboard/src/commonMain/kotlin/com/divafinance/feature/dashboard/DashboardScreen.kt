@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.AmountDisplay
@@ -42,77 +44,83 @@ fun DashboardScreen(
     val totalSpending by viewModel.totalSpending.collectAsState()
     val totalIncome by viewModel.totalIncome.collectAsState()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            Text(
-                text = "Dashboard",
-                style = MaterialTheme.typography.headlineMedium,
-            )
-        }
+    Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Text(
+                    text = "Dashboard",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+            }
 
-        item { OverviewCard(totalSpending = totalSpending, totalIncome = totalIncome) }
+            item { OverviewCard(totalSpending = totalSpending, totalIncome = totalIncome) }
 
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DivaCard(modifier = Modifier.weight(1f), onClick = onNavigateToCards) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "${cards.size}",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text("Cards", style = MaterialTheme.typography.bodySmall)
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DivaCard(modifier = Modifier.weight(1f), onClick = onNavigateToCards) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "${cards.size}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Text("Cards", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
-                }
-                DivaCard(modifier = Modifier.weight(1f), onClick = onNavigateToTransactions) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "${recentTransactions.size}+",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text("Transactions", style = MaterialTheme.typography.bodySmall)
+                    DivaCard(modifier = Modifier.weight(1f), onClick = onNavigateToTransactions) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "${recentTransactions.size}+",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Text("Transactions", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
+
+            item {
+                Text(
+                    text = "Recent Transactions",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+
+            if (recentTransactions.isEmpty()) {
+                item {
+                    Text(
+                        text = "No transactions yet. Add your first transaction to get started.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+            }
+
+            items(recentTransactions, key = { it.id }) { transaction ->
+                RecentTransactionItem(transaction = transaction)
+            }
         }
 
-        item {
+        Surface(
+            tonalElevation = 2.dp,
+            shadowElevation = 8.dp,
+        ) {
             QuickActionsSection(
                 onNavigateToCards = onNavigateToCards,
                 onNavigateToBestCard = onNavigateToBestCard,
                 onNavigateToGraphs = onNavigateToGraphs,
                 onNavigateToMap = onNavigateToMap,
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
             )
         }
-
-        item {
-            Text(
-                text = "Recent Transactions",
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-
-        if (recentTransactions.isEmpty()) {
-            item {
-                Text(
-                    text = "No transactions yet. Add your first transaction to get started.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
-            }
-        }
-
-        items(recentTransactions, key = { it.id }) { transaction ->
-            RecentTransactionItem(transaction = transaction)
-        }
-
-        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
@@ -170,8 +178,9 @@ private fun QuickActionsSection(
     onNavigateToBestCard: () -> Unit,
     onNavigateToGraphs: () -> Unit,
     onNavigateToMap: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Quick Actions", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DivaOutlinedButton(
@@ -219,7 +228,7 @@ private fun RecentTransactionItem(transaction: Transaction) {
                 )
             }
             Text(
-                text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$%.2f".format(transaction.amount)}",
+                text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                 style = MaterialTheme.typography.titleSmall,
                 color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
             )

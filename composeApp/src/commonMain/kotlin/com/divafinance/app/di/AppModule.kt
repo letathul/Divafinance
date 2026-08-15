@@ -8,4 +8,5 @@ fun appModules(): List<Module> = listOf(
     domainModule,
     viewModelModule,
     serverModule,
+    demoModule,
 )

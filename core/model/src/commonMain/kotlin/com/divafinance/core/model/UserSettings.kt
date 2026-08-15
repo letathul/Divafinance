@@ -17,5 +17,11 @@ data class UserSettings(
         const val KEY_POINTS_VALUE = "points_value"
         const val KEY_MILES_VALUE = "miles_value"
         const val KEY_SERVER_PORT = "server_port"
+
+        /**
+         * Lifecycle of the one-time demo offer. Absent means "not decided yet", which
+         * is the only state in which the offer is shown. See DemoStatus.
+         */
+        const val KEY_DEMO_STATUS = "demo_status"
     }
 }

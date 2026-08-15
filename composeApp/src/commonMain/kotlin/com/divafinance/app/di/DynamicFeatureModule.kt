@@ -2,10 +2,26 @@ package com.divafinance.app.di
 
 import com.divafinance.app.dynamic.DynamicFeatureLoader
 import com.divafinance.app.dynamic.DynamicModule
+import com.divafinance.feature.demo.DemoModuleInstaller
 import org.koin.dsl.module
 
 val dynamicFeatureModule = module {
     single { DynamicFeatureAvailability(get()) }
+    single<DemoModuleInstaller> { PlayDemoModuleInstaller(get()) }
+}
+
+/**
+ * Bridges [DemoModuleInstaller] — declared in :feature:demo so it has no Play Core
+ * dependency — onto the app's split-install loader.
+ */
+class PlayDemoModuleInstaller(
+    private val loader: DynamicFeatureLoader,
+) : DemoModuleInstaller {
+    override suspend fun install(onProgress: (Float) -> Unit): Boolean =
+        loader.requestInstall(DynamicModule.DEMO, onProgress)
+
+    override suspend fun uninstall(): Boolean =
+        loader.requestUninstall(DynamicModule.DEMO)
 }
 
 class DynamicFeatureAvailability(private val loader: DynamicFeatureLoader) {

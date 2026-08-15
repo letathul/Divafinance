@@ -23,6 +23,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.usecase.graphs.CategoryThresholdData
 import com.divafinance.core.model.GraphThreshold
 import com.divafinance.core.model.enums.SpendingCategory
@@ -132,7 +133,7 @@ fun ThresholdBarChart(
                     ),
                 )
 
-                val percentLabel = "${"%.0f".format(percent)}%"
+                val percentLabel = "${percent.toFixed(0)}%"
                 val percentLayout = textMeasurer.measure(percentLabel, labelStyle)
                 drawText(
                     textLayoutResult = percentLayout,

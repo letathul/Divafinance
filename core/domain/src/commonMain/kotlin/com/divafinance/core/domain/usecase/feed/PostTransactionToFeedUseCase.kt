@@ -5,7 +5,7 @@ import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.model.enums.TransactionType
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

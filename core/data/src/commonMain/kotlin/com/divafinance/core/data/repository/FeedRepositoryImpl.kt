@@ -8,7 +8,7 @@ import com.divafinance.core.model.enums.FeedPostType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 class FeedRepositoryImpl(
     private val db: DivaFinanceDb

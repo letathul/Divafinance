@@ -3,6 +3,9 @@ package com.divafinance.feature.automation
 import platform.Foundation.NSUserActivity
 import platform.Intents.INShortcut
 import platform.Intents.INVoiceShortcutCenter
+// suggestedInvocationPhrase lives on the Intents framework's NSUserActivity
+// category, so cinterop exposes it as an extension rather than a member.
+import platform.Intents.setSuggestedInvocationPhrase
 
 actual class AutomationHandler actual constructor() {
 

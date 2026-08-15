@@ -19,7 +19,7 @@ import org.koin.dsl.module
 val viewModelModule = module {
     single { OcrEngine() }
     single { AutomationHandler() }
-    viewModel { OnboardingViewModel(get(), get()) }
+    viewModel { OnboardingViewModel(get(), get(), get()) }
     viewModel { CardsViewModel(get(), get(), get(), get()) }
     viewModel { TransactionsViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get()) }
@@ -29,5 +29,5 @@ val viewModelModule = module {
     viewModel { MapViewModel(get(), get()) }
     viewModel { ScannerViewModel(get(), get(), get()) }
     viewModel { AutomationViewModel(get()) }
-    viewModel { SettingsViewModel(get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get()) }
 }

@@ -10,6 +10,9 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+        optIn.add("kotlin.time.ExperimentalTime")
+    }
     androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
@@ -23,6 +26,9 @@ kotlin {
         target.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
+            // SQLDelight's native driver goes through SQLiter, whose cinterop
+            // expects the system sqlite3 to be linked into the final binary.
+            linkerOpts.add("-lsqlite3")
         }
     }
 
@@ -67,6 +73,7 @@ kotlin {
             implementation(project(":feature:scanner"))
             implementation(project(":feature:backup"))
             implementation(project(":feature:automation"))
+            implementation(project(":feature:demo"))
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
@@ -114,6 +121,7 @@ android {
     dynamicFeatures += setOf(
         ":dynamic:map_dynamic",
         ":dynamic:scanner_dynamic",
-        ":dynamic:server_dynamic"
+        ":dynamic:server_dynamic",
+        ":dynamic:demo_dynamic"
     )
 }

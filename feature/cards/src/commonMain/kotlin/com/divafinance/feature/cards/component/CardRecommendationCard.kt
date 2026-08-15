@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.engine.CardRecommendation
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.theme.DivaGreen
@@ -33,7 +34,7 @@ fun CardRecommendationCard(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    text = "+${"$%.2f".format(recommendation.estimatedRewardValue)}",
+                    text = "+${"$" + recommendation.estimatedRewardValue.toFixed(2)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = DivaGreen,
                 )
@@ -50,14 +51,14 @@ fun CardRecommendationCard(
             }
 
             Text(
-                text = "Available credit: ${"$%.2f".format(recommendation.availableCredit)}",
+                text = "Available credit: ${"$" + recommendation.availableCredit.toFixed(2)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (recommendation.remainingCap != null) {
+            recommendation.remainingCap?.let { remainingCap ->
                 Text(
-                    text = "Remaining cap: ${"$%.2f".format(recommendation.remainingCap)}",
+                    text = "Remaining cap: ${"$" + remainingCap.toFixed(2)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

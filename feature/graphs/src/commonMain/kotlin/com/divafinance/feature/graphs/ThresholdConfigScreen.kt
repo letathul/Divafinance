@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.ui.component.CategoryChip
 import com.divafinance.core.ui.component.DivaButton
@@ -209,16 +210,16 @@ private fun ThresholdListItem(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = "Limit: ${"%.0f".format(threshold.thresholdPercent)}% of total",
+                    text = "Limit: ${threshold.thresholdPercent.toFixed(0)}% of total",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 data.percentOfThreshold?.let { percentOfThreshold ->
                     Text(
                         text = if (data.isOverThreshold) {
-                            "Over by ${"%.0f".format(percentOfThreshold - 100)}%"
+                            "Over by ${(percentOfThreshold - 100).toFixed(0)}%"
                         } else {
-                            "${"%.0f".format(percentOfThreshold)}% of limit used"
+                            "${percentOfThreshold.toFixed(0)}% of limit used"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (data.isOverThreshold) {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.divafinance.core.common.toFixed
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
@@ -40,7 +41,7 @@ actual fun PlatformMapView(
             Marker(
                 state = MarkerState(position = position),
                 title = spending.name,
-                snippet = "${"$%.2f".format(spending.totalAmount)} (${spending.transactions.size} transactions)",
+                snippet = "${"$" + spending.totalAmount.toFixed(2)} (${spending.transactions.size} transactions)",
                 onClick = {
                     onLocationClick(spending)
                     false

@@ -8,7 +8,7 @@ import com.divafinance.core.model.enums.CardNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 class CardRepositoryImpl(
     private val db: DivaFinanceDb,
@@ -73,7 +73,7 @@ class CardRepositoryImpl(
     override suspend fun updateBalance(id: String, balance: Double) {
         db.creditCardQueries.updateBalance(
             current_balance = balance,
-            updated_at = kotlinx.datetime.Clock.System.now().toString(),
+            updated_at = kotlin.time.Clock.System.now().toString(),
             id = id,
         )
     }

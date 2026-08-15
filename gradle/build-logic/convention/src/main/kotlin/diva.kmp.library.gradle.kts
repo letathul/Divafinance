@@ -8,6 +8,11 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
+    // kotlinx-datetime 0.7 aliases Instant to kotlin.time.Instant, which is still
+    // experimental in Kotlin 2.2; opt in once here rather than at every usage.
+    compilerOptions {
+        optIn.add("kotlin.time.ExperimentalTime")
+    }
     androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)

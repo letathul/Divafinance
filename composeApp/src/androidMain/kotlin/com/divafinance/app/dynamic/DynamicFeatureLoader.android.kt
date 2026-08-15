@@ -15,6 +15,15 @@ actual class DynamicFeatureLoader(context: Context) {
         return splitInstallManager.installedModules.contains(module.moduleName)
     }
 
+    actual suspend fun requestUninstall(module: DynamicModule): Boolean {
+        if (!isInstalled(module)) return true
+        return suspendCancellableCoroutine { continuation ->
+            splitInstallManager.deferredUninstall(listOf(module.moduleName))
+                .addOnSuccessListener { if (continuation.isActive) continuation.resume(true) }
+                .addOnFailureListener { if (continuation.isActive) continuation.resume(false) }
+        }
+    }
+
     actual suspend fun requestInstall(
         module: DynamicModule,
         onProgress: (Float) -> Unit,

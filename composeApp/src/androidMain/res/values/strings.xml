@@ -9,4 +9,5 @@
     <string name="title_map_dynamic">Spending Map</string>
     <string name="title_scanner_dynamic">Receipt Scanner</string>
     <string name="title_server_dynamic">Local Web Server</string>
+    <string name="title_demo_dynamic">Demo Data</string>
 </resources>

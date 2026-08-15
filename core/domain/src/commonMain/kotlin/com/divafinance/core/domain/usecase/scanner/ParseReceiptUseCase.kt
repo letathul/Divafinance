@@ -3,7 +3,7 @@ package com.divafinance.core.domain.usecase.scanner
 import com.divafinance.core.data.repository.ReceiptRepository
 import com.divafinance.core.model.Receipt
 import com.divafinance.core.model.enums.ReceiptStatus
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

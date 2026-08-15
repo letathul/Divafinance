@@ -1,11 +1,12 @@
 package com.divafinance.core.domain.usecase.feed
 
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.data.repository.FeedRepository
 import com.divafinance.core.data.repository.TransactionRepository
 import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.model.enums.TransactionType
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
@@ -33,11 +34,11 @@ class GenerateDailyInsightUseCase(
 
         val title = "Weekly Spending Summary"
         val body = buildString {
-            append("This week you made $txCount transactions totaling ${"%.2f".format(totalSpent)}.")
+            append("This week you made $txCount transactions totaling ${totalSpent.toFixed(2)}.")
             if (topCategory != null) {
                 val catTotal = topCategory.value.sumOf { it.amount }
                 append(" Your top category was ${topCategory.key.displayName}")
-                append(" at ${"%.2f".format(catTotal)}.")
+                append(" at ${catTotal.toFixed(2)}.")
             }
         }
 

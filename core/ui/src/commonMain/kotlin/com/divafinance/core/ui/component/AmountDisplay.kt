@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.theme.DivaGreen
 import com.divafinance.core.ui.theme.DivaRed
 import com.divafinance.core.ui.theme.DivaTheme
@@ -31,7 +32,7 @@ fun AmountDisplay(
         amount < 0 -> "-"
         else -> ""
     }
-    val formatted = "$prefix$currency ${"%.2f".format(kotlin.math.abs(amount))}"
+    val formatted = "$prefix$currency ${kotlin.math.abs(amount).toFixed(2)}"
 
     Text(
         text = formatted,
