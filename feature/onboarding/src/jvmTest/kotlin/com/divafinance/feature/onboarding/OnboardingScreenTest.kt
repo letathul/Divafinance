@@ -10,6 +10,8 @@ import com.divafinance.core.testing.installTestMainDispatcher
 import com.divafinance.core.testing.resetTestMainDispatcher
 import com.divafinance.core.testing.fake.FakeAccountRepository
 import com.divafinance.core.testing.fake.FakeCardRepository
+import com.divafinance.core.testing.fake.FakeLedgerRepository
+import com.divafinance.core.testing.fake.FakePersonRepository
 import com.divafinance.core.testing.fake.FakeFeedRepository
 import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.testing.fake.FakeRewardRepository
@@ -33,6 +35,7 @@ class OnboardingScreenTest {
 
     private val settingsRepo = FakeSettingsRepository()
     private val accountRepo = FakeAccountRepository()
+    private val personRepo = FakePersonRepository()
 
     private fun viewModel() = OnboardingViewModel(
         CompleteOnboardingUseCase(settingsRepo, accountRepo),
@@ -46,6 +49,8 @@ class OnboardingScreenTest {
             receiptRepository = FakeReceiptRepository(),
             feedRepository = FakeFeedRepository(),
             thresholdRepository = FakeThresholdRepository(),
+            personRepository = personRepo,
+            ledgerRepository = FakeLedgerRepository(),
         ),
     )
 

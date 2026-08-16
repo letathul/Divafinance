@@ -3,6 +3,8 @@ package com.divafinance.feature.demo
 import com.divafinance.core.data.repository.AccountRepository
 import com.divafinance.core.data.repository.CardRepository
 import com.divafinance.core.data.repository.FeedRepository
+import com.divafinance.core.data.repository.LedgerRepository
+import com.divafinance.core.data.repository.PersonRepository
 import com.divafinance.core.data.repository.ReceiptRepository
 import com.divafinance.core.data.repository.RewardRepository
 import com.divafinance.core.data.repository.SettingsRepository
@@ -30,6 +32,8 @@ class DemoDataManager(
     private val receiptRepository: ReceiptRepository,
     private val feedRepository: FeedRepository,
     private val thresholdRepository: ThresholdRepository,
+    private val personRepository: PersonRepository,
+    private val ledgerRepository: LedgerRepository,
     private val moduleInstaller: DemoModuleInstaller = DemoModuleInstaller.NoOp,
 ) {
 
@@ -72,6 +76,9 @@ class DemoDataManager(
         data.receipts.forEach { receiptRepository.insert(it) }
         data.feedPosts.forEach { feedRepository.insert(it) }
         data.thresholds.forEach { thresholdRepository.insert(it) }
+        // People before entries: an entry references a person and a transaction.
+        data.people.forEach { personRepository.insert(it) }
+        data.ledgerEntries.forEach { ledgerRepository.insert(it) }
 
         setStatus(DemoStatus.ACTIVE)
         return true
@@ -91,6 +98,18 @@ class DemoDataManager(
             .map { it.id }.filter { it.isDemo() }.toSet()
         val demoCardIds = cardRepository.getAll().first()
             .map { it.id }.filter { it.isDemo() }.toSet()
+
+        // Ledger entries reference both people and transactions, so they go first of all.
+        // Entries the user added against a demo person are swept too: without the person
+        // there is no balance for them to belong to.
+        val demoPersonIds = personRepository.getAll().first()
+            .map { it.id }.filter { it.isDemo() }.toSet()
+
+        ledgerRepository.getAll().first()
+            .filter { it.id.isDemo() || it.personId in demoPersonIds || it.transactionId?.isDemo() == true }
+            .forEach { ledgerRepository.delete(it.id) }
+
+        demoPersonIds.forEach { personRepository.delete(it) }
 
         // Children first: feed posts and receipts point at transactions.
         // Insights the app generated *about* demo spending are swept too — they are not
