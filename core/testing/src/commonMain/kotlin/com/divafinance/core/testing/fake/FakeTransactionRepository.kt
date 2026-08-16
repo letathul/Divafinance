@@ -32,16 +32,19 @@ class FakeTransactionRepository : TransactionRepository {
     override suspend fun getWithLocation(): List<Transaction> =
         transactions.value.filter { it.location != null }
 
+    // Mirrors the real SQL, which subtracts what others owe back. Left summing `amount`,
+    // this fake would keep every domain test passing against semantics the database no
+    // longer has — and it is the only implementation those tests ever see.
     override suspend fun getSpendingByCategory(startDate: LocalDate, endDate: LocalDate): Map<String, Double> =
         transactions.value
             .filter { it.type == TransactionType.DEBIT && it.date in startDate..endDate }
             .groupBy { it.category.name }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount - it.othersShare } }
 
     override suspend fun getTotalSpending(startDate: LocalDate, endDate: LocalDate): Double? =
         transactions.value
             .filter { it.type == TransactionType.DEBIT && it.date in startDate..endDate }
-            .sumOf { it.amount }
+            .sumOf { it.amount - it.othersShare }
             .takeIf { it > 0.0 }
 
     override suspend fun insert(transaction: Transaction) {

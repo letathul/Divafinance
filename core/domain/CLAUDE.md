@@ -1,9 +1,8 @@
 # core/domain
 
-**Purpose:** Business logic. 27 use cases, each a small class with a single
-`operator fun invoke(...)`, plus the `RewardRecommendationEngine` and
-`CategoryPredictionEngine`. Feature modules call use cases; they never call
-repositories through this module.
+**Purpose:** Business logic. 28 use cases, each a small class with a single
+`operator fun invoke(...)`, plus three pure engines and the premium boundary. Feature
+modules call use cases; they never call repositories through this module.
 
 **Gradle:** `:core:domain` · `diva.kmp.library`
 **Depends on:** `:core:model` (`api` — use-case return types), `:core:data`,
@@ -24,8 +23,10 @@ repositories through this module.
 | `usecase/graphs/` | `GetThresholdGraphDataUseCase`, `ConfigureThresholdUseCase` |
 | `usecase/feed/` | `GetFeedPostsUseCase`, `PostTransactionToFeedUseCase`, `GenerateDailyInsightUseCase` |
 | `usecase/backup/` | `ExportBackupUseCase`, `ImportBackupUseCase` |
-| `usecase/location/` | `TagTransactionLocationUseCase`, `GetSpendingByLocationUseCase` |
+| `usecase/location/` | `TagTransactionLocationUseCase`, `GetSpendingByLocationUseCase`, `SuggestNearbyPlacesUseCase` |
 | `usecase/scanner/` | `ParseReceiptUseCase`, `ImportStatementUseCase` |
+| `engine/NearbyPlaceEngine.kt` | `nearby(history, origin, radiusMetres, limit)` — finds shops the user has already spent at near a point, ranked by visits and distance. Their own history is the whole data source: it works offline and sends location nowhere, but a never-visited shop can't be suggested. Pure, like the other two engines. |
+| `premium/PremiumGate.kt` | `interface PremiumGate { isPremium: Flow<Boolean>; isPremiumNow() }` + `SettingsPremiumGate`, reading `UserSettings.KEY_IS_PREMIUM`. **No billing integration** — nothing sets the flag yet; the boundary exists so premium features aren't written against a concrete implementation. |
 
 Behaviours worth knowing before touching them:
 
@@ -53,10 +54,9 @@ Behaviours worth knowing before touching them:
 
 ## Tests
 
-`src/commonTest/` — 28 test files, the densest test coverage in the repo: one per use case
-(except `SetPinUseCase`) plus `RewardRecommendationEngineTest` and
-`CategoryPredictionEngineTest`. They run against the fakes in `:core:testing`, which is
-wired as a `commonTest` dependency.
+`src/commonTest/` — 30 test files, the densest test coverage in the repo: one per use case
+(except `SetPinUseCase`) plus a test per engine. They run against the fakes in
+`:core:testing`, which is wired as a `commonTest` dependency.
 
 ```bash
 ./gradlew :core:domain:jvmTest

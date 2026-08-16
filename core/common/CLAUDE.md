@@ -21,15 +21,16 @@ and every `feature/*` module.
 | `commonMain/.../NumberFormat.kt` | `Double.toFixed(decimals)` / `Float.toFixed(decimals)` — multiplatform stand-in for `"%.2f".format()`, which is JVM-only and breaks the iOS targets. Also `Double.roundToCents()`, half-up and sign-preserving. |
 | `commonMain/.../Result.kt` | `DivaResult<T>` sealed class: `Success` / `Error` / `Loading`, with `map` and `getOrNull` |
 | `commonMain/.../BackupFileInfo.kt` | Name/path/size/mtime record returned by `FileSystem.listBackupFiles()` |
+| `commonMain/.../LocationProvider.kt` | `Coordinates(lat, lng)`, the `LocationSource` interface (`isAvailable`, `hasPermission`, `currentCoordinates`, `describe`), and `expect class LocationProvider : LocationSource`. Backs location capture in `:feature:quickadd`. |
 
 ### Where the actuals live
 
 | Source set | Actuals |
 |------------|---------|
 | `jvmSharedMain/` | `SecurityUtils`, `DispatcherProvider` — plain Java, identical on Android and desktop |
-| `androidMain/` | `FileSystem` — needs `android.content.Context` |
-| `jvmMain/` | `FileSystem` — desktop paths |
-| `iosMain/` | `SecurityUtils`, `FileSystem`, `DispatcherProvider` |
+| `androidMain/` | `FileSystem`, `LocationProvider` — need `android.content.Context` |
+| `jvmMain/` | `FileSystem`, `LocationProvider` (reports unavailable) — desktop |
+| `iosMain/` | `SecurityUtils`, `FileSystem`, `DispatcherProvider`, `LocationProvider` |
 
 ## Conventions / gotchas
 
@@ -45,6 +46,12 @@ and every `feature/*` module.
 - **Round computed amounts with `roundToCents()` before storing, not just when
   rendering.** `0.1 + 0.2` is `0.30000000000000004`; display formatting hides the drift
   but the drifted value is what gets persisted and summed.
+- `LocationSource` methods never throw and are all allowed to return null — a missing
+  permission, disabled provider, absent geocoder, or no fix in time must all degrade to
+  "no location" rather than interrupting an entry. Callers depend on the **interface**,
+  not the `expect class`, which can't be subclassed in tests.
+- Location deliberately uses platform APIs, not `play-services-location`: every module
+  depends on `core:common`, so a GMS dependency here would reach all of them.
 
 ## Tests
 

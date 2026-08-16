@@ -23,4 +23,16 @@ data class Transaction(
     val receiptId: String? = null,
     val isRecurring: Boolean = false,
     val createdAt: Instant,
+    /**
+     * The part of [amount] that other people owe back, from a split bill.
+     *
+     * [amount] stays the full figure the card was charged, so card balances and statement
+     * reconciliation stay correct; spending aggregates subtract this so only the user's
+     * own share counts as consumption.
+     *
+     * Set once when the split is created and **never reduced by repayments** — being paid
+     * back does not retroactively turn a shared bill into your own spending, and treating
+     * it that way would silently rewrite historical reports.
+     */
+    val othersShare: Double = 0.0,
 )

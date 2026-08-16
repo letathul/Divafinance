@@ -27,11 +27,14 @@ class DashboardViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Computed here rather than through sumByCategory/totalSpending, so the same
+    // subtraction has to be repeated — otherwise a split dinner shows its full value on
+    // the home screen and only the user's share in the graphs.
     val totalSpending: StateFlow<Double> = getTransactionsUseCase()
         .map { transactions ->
             transactions
                 .filter { it.type == com.divafinance.core.model.enums.TransactionType.DEBIT }
-                .sumOf { it.amount }
+                .sumOf { it.amount - it.othersShare }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 

@@ -72,6 +72,7 @@ object TestData {
         date: LocalDate = LocalDate(2024, 6, 15),
         merchantName: String? = "Test Merchant",
         location: LocationTag? = null,
+        othersShare: Double = 0.0,
     ) = Transaction(
         id = id,
         accountId = accountId,
@@ -82,6 +83,7 @@ object TestData {
         date = date,
         type = type,
         location = location,
+        othersShare = othersShare,
         createdAt = now,
     )
 

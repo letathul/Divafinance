@@ -77,7 +77,7 @@ class TransactionRepositoryImpl(
     override suspend fun getTotalSpending(startDate: LocalDate, endDate: LocalDate): Double? {
         return db.transactionQueries.totalSpending(startDate.toString(), endDate.toString())
             .executeAsOne()
-            .SUM
+            .total
     }
 
     override suspend fun insert(transaction: Transaction) {
@@ -99,6 +99,7 @@ class TransactionRepositoryImpl(
             receipt_id = transaction.receiptId,
             is_recurring = if (transaction.isRecurring) 1L else 0L,
             created_at = transaction.createdAt.toString(),
+            others_share = transaction.othersShare,
         )
     }
 
@@ -119,6 +120,7 @@ class TransactionRepositoryImpl(
             location_name = transaction.location?.name,
             receipt_id = transaction.receiptId,
             is_recurring = if (transaction.isRecurring) 1L else 0L,
+            others_share = transaction.othersShare,
             id = transaction.id,
         )
     }

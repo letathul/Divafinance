@@ -66,6 +66,9 @@ class BackupRepositoryImpl(
                 },
                 receiptId = row.receipt_id, isRecurring = row.is_recurring == 1L,
                 createdAt = Instant.parse(row.created_at),
+                // Named arguments plus a defaulted field means omitting this compiles
+                // cleanly and writes 0.0 into every backup — silent data loss on export.
+                othersShare = row.others_share,
             )
         }
 
@@ -163,7 +166,7 @@ class BackupRepositoryImpl(
                     type = tx.type.name, latitude = tx.location?.latitude,
                     longitude = tx.location?.longitude, location_name = tx.location?.name,
                     receipt_id = tx.receiptId, is_recurring = if (tx.isRecurring) 1L else 0L,
-                    created_at = tx.createdAt.toString(),
+                    created_at = tx.createdAt.toString(), others_share = tx.othersShare,
                 )
             }
 

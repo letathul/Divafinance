@@ -1,13 +1,14 @@
 # feature/quickadd
 
 **Purpose:** The fast path for logging a transaction — a bottom sheet with a calculator
-keypad, predicted category chips, and merchant autocomplete, reachable from anywhere in
-the app. Optimised for a few taps; anything needing the full form goes to
-`:feature:transactions`.
+keypad, predicted category chips, merchant autocomplete, and optional nearby-shop
+suggestions from device location. Reachable from anywhere in the app and optimised for a
+few taps; anything needing the full form goes to `:feature:transactions`.
 
 **Gradle:** `:feature:quickadd` · `diva.kmp.compose`
 **Depends on:** `:core:model`, `:core:domain`, **`:core:data`** (reads `SettingsRepository`
-for the default card directly), `:core:ui`, `:core:common`
+for the default card directly), `:core:ui`, `:core:common`. Android adds
+`androidx-activity-compose` for the permission launcher.
 
 ## Key files
 
@@ -18,6 +19,7 @@ for the default card directly), `:core:ui`, `:core:common`
 | `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, runs `PredictCategoryUseCase`, and loads recent merchants. `QuickAddSaved` is emitted once per save so the sheet can offer undo. |
 | `QuickAddSheet.kt` | The sheet UI: amount display, keypad, category chips, expandable details |
 | `CalculatorKeypad.kt` | `Key` sealed interface (`Digit` / `Operator` / `Backspace`) over a 4×4 `KEY_ROWS` grid. Replaces the soft keyboard entirely. Operator labels are typographic (`÷ × −`) while the emitted chars are ASCII (`/ * -`). |
+| `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
 
 `QuickAddDay` offers `TODAY` / `YESTERDAY` only — backdating further is the full form's
 job. `SUGGESTED_CATEGORY_COUNT = 5` chips before the full list expands.
@@ -37,11 +39,16 @@ job. `SUGGESTED_CATEGORY_COUNT = 5` chips before the full list expands.
   going out.
 - Undo works by calling `DeleteTransactionUseCase`, which reverses the card-balance
   side effect of `AddTransactionUseCase`. Don't delete through the repository directly.
+- **Location is an optional enrichment and must never block an entry.** No permission, no
+  fix, or an unsupported platform all degrade to "no nearby suggestions" — the sheet still
+  saves. `rememberLocationPermissionRequester` lives here rather than in `core:common`
+  next to `LocationProvider` because prompting needs an Activity result launcher, and
+  `core:common` is a non-Compose module every other module depends on.
 
 ## Tests
 
-`src/jvmTest/` — `QuickAddViewModelTest.kt` and `QuickAddSheetTest.kt` (Compose UI). Uses
-`:core:testing`.
+`src/jvmTest/` — `QuickAddViewModelTest.kt`, `QuickAddSheetTest.kt` (Compose UI), and
+`TestDoubles.kt`. Uses `:core:testing`.
 
 ```bash
 ./gradlew :feature:quickadd:jvmTest

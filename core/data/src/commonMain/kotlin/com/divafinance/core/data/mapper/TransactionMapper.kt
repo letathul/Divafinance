@@ -52,6 +52,7 @@ object TransactionMapper {
         receiptId: String?,
         isRecurring: Boolean,
         createdAt: String,
+        othersShare: Double = 0.0,
     ): Transaction = Transaction(
         id = id,
         accountId = accountId,
@@ -70,6 +71,7 @@ object TransactionMapper {
         receiptId = receiptId,
         isRecurring = isRecurring,
         createdAt = Instant.parse(createdAt),
+        othersShare = othersShare,
     )
 
     fun toMap(transaction: Transaction): Map<String, Any?> = mapOf(
@@ -90,6 +92,7 @@ object TransactionMapper {
         "receipt_id" to transaction.receiptId,
         "is_recurring" to transaction.isRecurring,
         "created_at" to transaction.createdAt.toString(),
+        "others_share" to transaction.othersShare,
     )
 }
 
@@ -111,6 +114,7 @@ fun DivaTransaction.toDomain(): Transaction = TransactionMapper.toDomain(
     receiptId = receipt_id,
     isRecurring = is_recurring == 1L,
     createdAt = created_at,
+    othersShare = others_share,
 )
 
 fun SelectWithLocation.toDomain(): Transaction = TransactionMapper.toDomain(
@@ -131,4 +135,5 @@ fun SelectWithLocation.toDomain(): Transaction = TransactionMapper.toDomain(
     receiptId = receipt_id,
     isRecurring = is_recurring == 1L,
     createdAt = created_at,
+    othersShare = others_share,
 )
