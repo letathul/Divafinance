@@ -1,5 +1,7 @@
 package com.divafinance.core.data.mapper
 
+import com.divafinance.core.database.DivaTransaction
+import com.divafinance.core.database.SelectWithLocation
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.SpendingCategory
@@ -7,7 +9,30 @@ import com.divafinance.core.model.enums.TransactionType
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 
+/**
+ * The single authority for turning a stored transaction row into a [Transaction].
+ *
+ * SQLDelight generates a distinct row type per query shape — `selectWithLocation` narrows
+ * latitude/longitude to non-null, so it does not share [DivaTransaction]. Both row types
+ * funnel through [toDomain] so the mapping body exists exactly once.
+ */
 object TransactionMapper {
+
+    /**
+     * Categories are read back by name, so a renamed or removed enum constant would make
+     * every historical row unreadable. Unknown names degrade to [SpendingCategory.OTHER]
+     * rather than throwing the way `valueOf` does.
+     */
+    fun categoryOf(name: String): SpendingCategory =
+        SpendingCategory.entries.firstOrNull { it.name == name } ?: SpendingCategory.OTHER
+
+    /**
+     * `type` drives whether a row counts as spending. An unrecognised value means the row is
+     * corrupt; treating it as a debit keeps it visible in spending totals instead of silently
+     * inflating income.
+     */
+    fun typeOf(name: String): TransactionType =
+        TransactionType.entries.firstOrNull { it.name == name } ?: TransactionType.DEBIT
 
     fun toDomain(
         id: String,
@@ -33,12 +58,12 @@ object TransactionMapper {
         cardId = cardId,
         amount = amount,
         currency = currency,
-        category = SpendingCategory.valueOf(category),
+        category = categoryOf(category),
         subcategory = subcategory,
         merchantName = merchantName,
         note = note,
         date = LocalDate.parse(date),
-        type = TransactionType.valueOf(type),
+        type = typeOf(type),
         location = if (latitude != null && longitude != null) {
             LocationTag(latitude, longitude, locationName)
         } else null,
@@ -67,3 +92,43 @@ object TransactionMapper {
         "created_at" to transaction.createdAt.toString(),
     )
 }
+
+fun DivaTransaction.toDomain(): Transaction = TransactionMapper.toDomain(
+    id = id,
+    accountId = account_id,
+    cardId = card_id,
+    amount = amount,
+    currency = currency,
+    category = category,
+    subcategory = subcategory,
+    merchantName = merchant_name,
+    note = note,
+    date = date,
+    type = type,
+    latitude = latitude,
+    longitude = longitude,
+    locationName = location_name,
+    receiptId = receipt_id,
+    isRecurring = is_recurring == 1L,
+    createdAt = created_at,
+)
+
+fun SelectWithLocation.toDomain(): Transaction = TransactionMapper.toDomain(
+    id = id,
+    accountId = account_id,
+    cardId = card_id,
+    amount = amount,
+    currency = currency,
+    category = category,
+    subcategory = subcategory,
+    merchantName = merchant_name,
+    note = note,
+    date = date,
+    type = type,
+    latitude = latitude,
+    longitude = longitude,
+    locationName = location_name,
+    receiptId = receipt_id,
+    isRecurring = is_recurring == 1L,
+    createdAt = created_at,
+)

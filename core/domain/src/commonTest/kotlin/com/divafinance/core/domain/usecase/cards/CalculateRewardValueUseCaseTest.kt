@@ -1,7 +1,7 @@
 package com.divafinance.core.domain.usecase.cards
 
-import com.divafinance.core.domain.fake.FakeSettingsRepository
-import com.divafinance.core.domain.fake.TestData
+import com.divafinance.core.testing.fake.FakeSettingsRepository
+import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.model.enums.RewardType
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

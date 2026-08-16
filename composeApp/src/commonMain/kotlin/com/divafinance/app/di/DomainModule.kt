@@ -14,6 +14,7 @@ import com.divafinance.core.domain.usecase.graphs.ConfigureThresholdUseCase
 import com.divafinance.core.domain.usecase.graphs.GetThresholdGraphDataUseCase
 import com.divafinance.core.domain.usecase.location.GetSpendingByLocationUseCase
 import com.divafinance.core.domain.usecase.location.TagTransactionLocationUseCase
+import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.domain.usecase.onboarding.CompleteOnboardingUseCase
 import com.divafinance.core.domain.usecase.onboarding.InitializeDatabaseUseCase
 import com.divafinance.core.domain.usecase.onboarding.SetPinUseCase
@@ -36,15 +37,16 @@ val domainModule = module {
 
     // Transactions
     factory { AddTransactionUseCase(get(), get()) }
+    factory { DeleteTransactionUseCase(get(), get()) }
     factory { GetTransactionsUseCase(get()) }
     factory { GetSpendingByCategoryUseCase(get()) }
     factory { GetHighImpactTransactionsUseCase(get(), get()) }
 
     // Onboarding
-    factory { CompleteOnboardingUseCase(get()) }
+    factory { CompleteOnboardingUseCase(get(), get()) }
     factory { ValidatePinUseCase(get()) }
     factory { SetPinUseCase(get()) }
-    factory { InitializeDatabaseUseCase(get()) }
+    factory { InitializeDatabaseUseCase(get(), get()) }
 
     // Backup
     factory { ExportBackupUseCase(get()) }

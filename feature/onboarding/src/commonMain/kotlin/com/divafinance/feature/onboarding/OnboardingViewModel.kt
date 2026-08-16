@@ -131,6 +131,8 @@ class OnboardingViewModel(
             completeOnboardingUseCase(
                 baseCurrency = current.selectedCurrency,
                 defaultLocation = current.defaultLocation.ifBlank { null },
+                accountName = current.accountName,
+                accountType = current.accountType,
             )
 
             val demoFailed = if (withDemo) {

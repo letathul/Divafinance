@@ -1,7 +1,7 @@
 package com.divafinance.core.domain.usecase.onboarding
 
 import com.divafinance.core.common.SecurityUtils
-import com.divafinance.core.domain.fake.FakeSettingsRepository
+import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.model.UserSettings
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

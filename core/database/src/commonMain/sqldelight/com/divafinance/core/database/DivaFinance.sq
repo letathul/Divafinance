@@ -59,6 +59,13 @@ CREATE TABLE DivaTransaction (
     created_at TEXT NOT NULL
 );
 
+-- Every transaction query filters or sorts on date, and the list/graph screens filter on
+-- category. Merchant is indexed for the distinct-merchant suggestion lookup and prefix
+-- autocomplete (a leading-wildcard LIKE will not use it).
+CREATE INDEX IF NOT EXISTS idx_txn_date ON DivaTransaction(date);
+CREATE INDEX IF NOT EXISTS idx_txn_category ON DivaTransaction(category);
+CREATE INDEX IF NOT EXISTS idx_txn_merchant ON DivaTransaction(merchant_name);
+
 CREATE TABLE Receipt (
     id TEXT NOT NULL PRIMARY KEY,
     transaction_id TEXT REFERENCES DivaTransaction(id),

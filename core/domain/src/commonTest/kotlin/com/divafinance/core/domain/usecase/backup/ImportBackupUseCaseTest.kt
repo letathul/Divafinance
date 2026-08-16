@@ -1,6 +1,6 @@
 package com.divafinance.core.domain.usecase.backup
 
-import com.divafinance.core.domain.fake.FakeBackupRepository
+import com.divafinance.core.testing.fake.FakeBackupRepository
 import com.divafinance.core.model.BackupArchive
 import kotlinx.coroutines.test.runTest
 import kotlin.time.Clock

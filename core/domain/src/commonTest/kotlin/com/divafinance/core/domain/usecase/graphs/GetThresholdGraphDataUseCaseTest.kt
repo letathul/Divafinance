@@ -1,8 +1,8 @@
 package com.divafinance.core.domain.usecase.graphs
 
-import com.divafinance.core.domain.fake.FakeThresholdRepository
-import com.divafinance.core.domain.fake.FakeTransactionRepository
-import com.divafinance.core.domain.fake.TestData
+import com.divafinance.core.testing.fake.FakeThresholdRepository
+import com.divafinance.core.testing.fake.FakeTransactionRepository
+import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.model.enums.SpendingCategory
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate

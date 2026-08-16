@@ -11,6 +11,12 @@ sqldelight {
     databases {
         create("DivaFinanceDb") {
             packageName.set("com.divafinance.core.database")
+            // Committed schema snapshots. `1.db` captures the shape shipped before any
+            // migration existed, so it must never be regenerated after a .sq edit.
+            schemaOutputDirectory.set(file("src/commonMain/sqldelight/databases"))
+            // Fails the build if the .sqm files do not reproduce the .sq schema, which is the
+            // only thing standing between a schema edit and a bricked upgrade.
+            verifyMigrations.set(true)
         }
     }
 }

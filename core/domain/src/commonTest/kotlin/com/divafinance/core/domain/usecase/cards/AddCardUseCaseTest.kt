@@ -1,8 +1,8 @@
 package com.divafinance.core.domain.usecase.cards
 
-import com.divafinance.core.domain.fake.FakeCardRepository
-import com.divafinance.core.domain.fake.FakeRewardRepository
-import com.divafinance.core.domain.fake.TestData
+import com.divafinance.core.testing.fake.FakeCardRepository
+import com.divafinance.core.testing.fake.FakeRewardRepository
+import com.divafinance.core.testing.fake.TestData
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

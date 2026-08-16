@@ -1,7 +1,7 @@
 package com.divafinance.core.domain.usecase.transactions
 
-import com.divafinance.core.domain.fake.FakeTransactionRepository
-import com.divafinance.core.domain.fake.TestData
+import com.divafinance.core.testing.fake.FakeTransactionRepository
+import com.divafinance.core.testing.fake.TestData
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

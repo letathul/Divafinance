@@ -1,6 +1,6 @@
 package com.divafinance.core.domain.usecase.backup
 
-import com.divafinance.core.domain.fake.FakeBackupRepository
+import com.divafinance.core.testing.fake.FakeBackupRepository
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

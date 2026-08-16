@@ -1,0 +1,12 @@
+-- v1 -> v2
+--
+-- The project's first migration. Until now the schema had only ever been created fresh via
+-- Schema.create(), and the generated migrate() was an empty body — so an upgrade silently
+-- committed a new user_version while leaving the old schema in place.
+--
+-- Indices only. CREATE INDEX inside a .sq file runs exclusively as part of Schema.create(),
+-- so existing installs would never get them without this. The matching statements in
+-- DivaFinance.sq cover fresh installs.
+CREATE INDEX IF NOT EXISTS idx_txn_date ON DivaTransaction(date);
+CREATE INDEX IF NOT EXISTS idx_txn_category ON DivaTransaction(category);
+CREATE INDEX IF NOT EXISTS idx_txn_merchant ON DivaTransaction(merchant_name);

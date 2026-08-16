@@ -1,6 +1,6 @@
 package com.divafinance.core.domain.usecase.scanner
 
-import com.divafinance.core.domain.fake.FakeReceiptRepository
+import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.model.enums.ReceiptStatus
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

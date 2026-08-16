@@ -1,4 +1,4 @@
-package com.divafinance.core.domain.fake
+package com.divafinance.core.testing.fake
 
 import com.divafinance.core.data.repository.ReceiptRepository
 import com.divafinance.core.model.Receipt

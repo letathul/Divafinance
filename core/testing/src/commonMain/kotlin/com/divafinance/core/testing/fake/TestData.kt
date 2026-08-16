@@ -1,4 +1,4 @@
-package com.divafinance.core.domain.fake
+package com.divafinance.core.testing.fake
 
 import com.divafinance.core.model.*
 import com.divafinance.core.model.enums.*
@@ -26,6 +26,22 @@ object TestData {
         currentBalance = currentBalance,
         rewardRules = rewardRules,
         isActive = isActive,
+        createdAt = now,
+        updatedAt = now,
+    )
+
+    fun account(
+        id: String = "acc-1",
+        name: String = "Test Account",
+        type: AccountType = AccountType.CHECKING,
+        currency: String = "USD",
+        balance: Double = 0.0,
+    ) = Account(
+        id = id,
+        name = name,
+        type = type,
+        currency = currency,
+        balance = balance,
         createdAt = now,
         updatedAt = now,
     )
