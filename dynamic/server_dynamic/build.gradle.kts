@@ -11,4 +11,5 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":server"))
     implementation(libs.koin.android)
+    implementation(libs.kotlinx.coroutines.android)
 }

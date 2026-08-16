@@ -38,6 +38,9 @@ fun SettingsScreen(
     isServerRunning: Boolean = false,
     onToggleServer: (Boolean) -> Unit = {},
     serverPort: Int = 8080,
+    /** Set once the socket is bound; this is the address to open on another device. */
+    serverUrl: String? = null,
+    serverError: String? = null,
     isDemoActive: Boolean = false,
     isRemovingDemo: Boolean = false,
     onRemoveDemo: () -> Unit = {},
@@ -152,8 +155,13 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Text(
-                                if (isServerRunning) "Running on port $serverPort"
-                                else "Start to access from browser",
+                                when {
+                                    // The URL only exists once the socket is bound, so
+                                    // its absence while "running" means still starting.
+                                    serverUrl != null -> "Open $serverUrl"
+                                    isServerRunning -> "Starting on port $serverPort…"
+                                    else -> "Start to access from browser"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -161,6 +169,23 @@ fun SettingsScreen(
                         Switch(
                             checked = isServerRunning,
                             onCheckedChange = onToggleServer,
+                        )
+                    }
+                    if (serverError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            serverError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    if (serverUrl != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Sign in with your app PIN. Both devices must be on the " +
+                                "same Wi-Fi network.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

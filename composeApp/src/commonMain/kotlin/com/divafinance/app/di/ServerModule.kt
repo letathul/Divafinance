@@ -14,6 +14,7 @@ val serverModule = module {
             rewardRepository = get(),
             transactionRepository = get(),
             webResources = WebResourceProvider.loadResources(),
+            addressResolver = get(),
         )
     }
 }

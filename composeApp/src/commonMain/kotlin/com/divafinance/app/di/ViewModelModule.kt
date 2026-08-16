@@ -29,5 +29,5 @@ val viewModelModule = module {
     viewModel { MapViewModel(get(), get()) }
     viewModel { ScannerViewModel(get(), get(), get()) }
     viewModel { AutomationViewModel(get()) }
-    viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get()) }
 }

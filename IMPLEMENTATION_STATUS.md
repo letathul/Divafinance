@@ -6,7 +6,7 @@
 |-------|-----------|---------|
 | Language | Kotlin | 2.1.10 |
 | UI | Compose Multiplatform | 1.7.3 |
-| Local Server | Ktor Server (CIO engine) | *(stub only)* |
+| Local Server | Ktor Server (CIO engine) | 3.0.3 |
 | Architecture | Clean Architecture + MVVM | — |
 | Persistence | SQLDelight | 2.0.2 |
 | DI | Koin | 4.0.0 |
@@ -49,7 +49,7 @@ Divafinance/
 │   ├── map_dynamic/    # Android on-demand: Google Maps
 │   ├── scanner_dynamic/# Android on-demand: ML Kit
 │   └── server_dynamic/ # Android on-demand: Ktor server
-├── server/             # Embedded Ktor server (stub)
+├── server/             # Embedded Ktor server
 ├── composeApp/         # Shared app shell + navigation + DI
 └── iosApp/             # Xcode project wrapper
 ```
@@ -176,12 +176,26 @@ Divafinance/
 - [ ] Wire `dynamic:map-dynamic` module with SplitInstallManager download flow
 - [ ] MapViewModel
 
-### Increment 13: Embedded Ktor Server (Feature F) + Dynamic Delivery — PENDING ⬜
+### Increment 13: Embedded Ktor Server (Feature F) + Dynamic Delivery — DONE ✅
 
-- [ ] DivaServer with CIO engine, PIN auth, API routes
-- [ ] Embedded responsive HTML/JS/CSS web UI
-- [ ] Wire `dynamic:server-dynamic` module
-- [ ] Server foreground service (Android)
+- [x] DivaServer with CIO engine — binds off-thread and reports Stopped/Starting/Running/Failed
+      through a `StateFlow`, so a refused port surfaces in the UI instead of being swallowed
+- [x] PIN auth via Ktor's `Authentication` + `session<DivaSession>` provider guarding every
+      `/api` route (replaces a hand-rolled routing interceptor)
+- [x] API routes: `/api/cards`, `/api/cards/{id}`, `/api/transactions`, `/api/transactions/{id}`,
+      `/api/graphs/spending`; `/auth/session|login|logout`
+- [x] Embedded responsive HTML/JS/CSS web UI served from Kotlin constants (portable to iOS)
+- [x] `LocalAddressResolver` — Settings shows the Wi-Fi address to open. Android asks
+      ConnectivityManager which network is `TRANSPORT_WIFI` rather than scanning the
+      interface list, where a carrier's `172.x` cellular address is enumerated first and
+      reports as site-local despite being reachable from nothing (iOS returns null →
+      falls back to localhost)
+- [x] Wire `dynamic:server_dynamic` module — split names corrected to match the Gradle project
+      names, `SplitCompat.install` added so split code is loadable without an app restart
+- [x] Server foreground service (Android) with `specialUse` FGS type + live notification;
+      `ForegroundServerLauncher` falls back to an in-process server when the split is absent
+- [x] `DivaServerTest` (JVM): serves the UI, rejects `/api` without a session, accepts the PIN,
+      unlocks on cookie, revokes on logout, and reports a bind failure
 
 ### Increment 14: Receipt Scanning & Statement Import (Feature H) + Dynamic Delivery — PENDING ⬜
 
@@ -222,12 +236,12 @@ Divafinance/
 | 10 | Backup & Restore | ✅ Done |
 | 11 | Social Feed & Daily Bot | ✅ Done |
 | 12 | Spending Map + Dynamic Delivery | ⬜ Pending |
-| 13 | Embedded Ktor Server + Dynamic Delivery | ⬜ Pending |
+| 13 | Embedded Ktor Server + Dynamic Delivery | ✅ Done |
 | 14 | Receipt Scanning + Dynamic Delivery | ⬜ Pending |
 | 15 | Native Automations | ⬜ Pending |
 | 16 | Integration Testing & Polish | ⬜ Pending |
 
-**Progress: 11 / 16 increments complete (69%)**
+**Progress: 12 / 16 increments complete (75%)**
 
 ---
 

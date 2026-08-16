@@ -24,7 +24,6 @@ import com.divafinance.feature.graphs.GraphsViewModel
 import com.divafinance.feature.graphs.ThresholdConfigScreen
 import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.map.SpendingMapScreen
-import com.divafinance.server.DivaServer
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.scanner.ScannerViewModel
@@ -33,7 +32,6 @@ import com.divafinance.feature.settings.SettingsViewModel
 import com.divafinance.feature.transactions.AddTransactionScreen
 import com.divafinance.feature.transactions.TransactionListScreen
 import com.divafinance.feature.transactions.TransactionsViewModel
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 object DivaRoutes {
@@ -173,7 +171,6 @@ fun DivaNavHost(
             FeedScreen(viewModel = feedViewModel)
         }
         composable(DivaRoutes.SETTINGS) {
-            val divaServer = koinInject<DivaServer>()
             val settingsViewModel: SettingsViewModel = koinViewModel()
             val settingsState by settingsViewModel.uiState.collectAsState()
             SettingsScreen(
@@ -186,10 +183,11 @@ fun DivaNavHost(
                 onNavigateToAutomation = {
                     navController.navigate(DivaRoutes.AUTOMATION)
                 },
-                isServerRunning = divaServer.isRunning(),
-                onToggleServer = { enabled ->
-                    if (enabled) divaServer.start() else divaServer.stop()
-                },
+                isServerRunning = settingsState.isServerRunning,
+                serverPort = settingsState.serverPort,
+                serverUrl = settingsState.serverUrl,
+                serverError = settingsState.serverError,
+                onToggleServer = settingsViewModel::toggleServer,
                 isDemoActive = settingsState.isDemoActive,
                 isRemovingDemo = settingsState.isRemovingDemo,
                 onRemoveDemo = settingsViewModel::removeDemoData,

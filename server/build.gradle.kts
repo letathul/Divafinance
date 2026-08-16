@@ -25,9 +25,18 @@ kotlin {
             implementation(libs.ktor.server.auth)
             implementation(libs.ktor.serialization.kotlinx.json)
 
-            implementation(libs.kotlinx.coroutines.core)
+            // `api` because DivaServer.state is a StateFlow in its public surface.
+            api(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
+        }
+        // Runs on the JVM, where CIO can bind a real socket — the only place the
+        // request/response path can be exercised end to end.
+        androidUnitTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.content.negotiation)
         }
     }
 }
