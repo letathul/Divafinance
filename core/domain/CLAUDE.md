@@ -1,6 +1,6 @@
 # core/domain
 
-**Purpose:** Business logic. 28 use cases, each a small class with a single
+**Purpose:** Business logic. 27 use cases, each a small class with a single
 `operator fun invoke(...)`, plus the `RewardRecommendationEngine` and
 `CategoryPredictionEngine`. Feature modules call use cases; they never call
 repositories through this module.
@@ -53,9 +53,10 @@ Behaviours worth knowing before touching them:
 
 ## Tests
 
-`src/commonTest/` — 25 test files, the densest test coverage in the repo: one per use case
-(except `SetPinUseCase`) plus `RewardRecommendationEngineTest`. They run against the fakes
-in `:core:testing`, which is wired as a `commonTest` dependency.
+`src/commonTest/` — 28 test files, the densest test coverage in the repo: one per use case
+(except `SetPinUseCase`) plus `RewardRecommendationEngineTest` and
+`CategoryPredictionEngineTest`. They run against the fakes in `:core:testing`, which is
+wired as a `commonTest` dependency.
 
 ```bash
 ./gradlew :core:domain:jvmTest

@@ -4,8 +4,12 @@ import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
 import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
+import com.divafinance.core.common.Coordinates
+import com.divafinance.core.domain.premium.PremiumGate
+import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
+import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
@@ -43,6 +47,8 @@ class QuickAddViewModelTest {
     private val cardRepo = FakeCardRepository()
     private val feedRepo = FakeFeedRepository()
     private val settingsRepo = FakeSettingsRepository()
+    private var premiumGate = FakePremiumGate(premium = false)
+    private var locationSource = FakeLocationSource(coordinates = null)
 
     private fun viewModel() = QuickAddViewModel(
         AddTransactionUseCase(txRepo, cardRepo),
@@ -51,6 +57,8 @@ class QuickAddViewModelTest {
         SuggestMerchantsUseCase(txRepo),
         GetAllCardsUseCase(cardRepo),
         PostTransactionToFeedUseCase(feedRepo),
+        SuggestNearbyPlacesUseCase(txRepo, premiumGate),
+        locationSource,
         settingsRepo,
     )
 
@@ -413,6 +421,187 @@ class QuickAddViewModelTest {
         vm.onMerchantSuggestionPicked("Blue Bottle")
 
         assertEquals("Blue Bottle", vm.uiState.value.merchantName)
+        assertEquals(SpendingCategory.DINING, vm.uiState.value.category)
+    }
+
+    // --- location -----------------------------------------------------------
+
+    @Test
+    fun capturesNoLocationUntilTheToggleIsTurnedOn() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("15")
+        vm.save()
+
+        assertNull(txRepo.getAll().first().single().location)
+    }
+
+    @Test
+    fun capturesAndStoresTheLocationOnceEnabled() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        locationSource.description = "Trafalgar Square"
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+
+        assertEquals("Trafalgar Square", vm.uiState.value.locationName)
+
+        vm.type("15")
+        vm.save()
+
+        val stored = assertNotNull(txRepo.getAll().first().single().location)
+        assertEquals(51.5, stored.latitude)
+        assertEquals("Trafalgar Square", stored.name)
+    }
+
+    /** A denial must leave the switch off rather than on and silently capturing nothing. */
+    @Test
+    fun turnsTheToggleBackOffWhenPermissionIsRefused() = runTest {
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = false)
+
+        assertFalse(vm.uiState.value.locationEnabled)
+        assertTrue(vm.uiState.value.locationUnavailable)
+        assertNull(vm.uiState.value.location)
+    }
+
+    @Test
+    fun reportsUnavailableWhenNoFixArrives() = runTest {
+        locationSource.coordinates = null
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+
+        assertTrue(vm.uiState.value.locationUnavailable)
+        assertFalse(vm.uiState.value.locationEnabled)
+    }
+
+    /** No geocoding backend is common; a position without a name is still worth keeping. */
+    @Test
+    fun keepsCoordinatesEvenWhenTheyCannotBeNamed() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        locationSource.description = null
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.type("15")
+        vm.save()
+
+        val stored = assertNotNull(txRepo.getAll().first().single().location)
+        assertEquals(51.5, stored.latitude)
+        assertNull(stored.name)
+    }
+
+    @Test
+    fun theCapturedNameStaysEditable() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        locationSource.description = "Some Street"
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.onLocationNameChange("Blue Bottle Coffee")
+        vm.type("15")
+        vm.save()
+
+        assertEquals(
+            "Blue Bottle Coffee",
+            txRepo.getAll().first().single().location?.name,
+        )
+    }
+
+    @Test
+    fun turningTheToggleOffDiscardsTheCapture() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        assertNotNull(vm.uiState.value.location)
+
+        vm.onLocationToggled(enabled = false, permissionGranted = true)
+
+        assertNull(vm.uiState.value.location)
+        assertEquals("", vm.uiState.value.locationName)
+    }
+
+    /**
+     * A typed place name with no fix must not be saved as (0,0) — that is a real point in
+     * the Atlantic and would show up on the spending map.
+     */
+    @Test
+    fun doesNotInventCoordinatesForANameWithoutAFix() = runTest {
+        val vm = viewModel()
+        vm.onLocationNameChange("Somewhere")
+        vm.type("15")
+        vm.save()
+
+        assertNull(txRepo.getAll().first().single().location)
+    }
+
+    // --- nearby places (premium) --------------------------------------------
+
+    @Test
+    fun suggestsNoNearbyShopsWithoutPremium() = runTest {
+        premiumGate = FakePremiumGate(premium = false)
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(
+                    id = "1",
+                    merchantName = "Blue Bottle",
+                    location = LocationTag(51.5, -0.12),
+                )
+            )
+        )
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+
+        assertEquals(emptyList(), vm.uiState.value.nearbyPlaces)
+    }
+
+    @Test
+    fun suggestsNearbyShopsForPremium() = runTest {
+        premiumGate = FakePremiumGate(premium = true)
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(
+                    id = "1",
+                    merchantName = "Blue Bottle",
+                    location = LocationTag(51.5, -0.12),
+                )
+            )
+        )
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+
+        assertEquals(listOf("Blue Bottle"), vm.uiState.value.nearbyPlaces.map { it.name })
+    }
+
+    @Test
+    fun pickingANearbyShopFillsBothPlaceAndMerchant() = runTest {
+        premiumGate = FakePremiumGate(premium = true)
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(
+                    id = "1",
+                    category = SpendingCategory.DINING,
+                    merchantName = "Blue Bottle",
+                    location = LocationTag(51.5, -0.12),
+                )
+            )
+        )
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.onNearbyPlacePicked(vm.uiState.value.nearbyPlaces.single())
+
+        assertEquals("Blue Bottle", vm.uiState.value.merchantName)
+        assertEquals("Blue Bottle", vm.uiState.value.locationName)
         assertEquals(SpendingCategory.DINING, vm.uiState.value.category)
     }
 

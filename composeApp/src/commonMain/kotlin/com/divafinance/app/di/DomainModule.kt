@@ -15,6 +15,9 @@ import com.divafinance.core.domain.usecase.graphs.GetThresholdGraphDataUseCase
 import com.divafinance.core.domain.usecase.location.GetSpendingByLocationUseCase
 import com.divafinance.core.domain.usecase.location.TagTransactionLocationUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
+import com.divafinance.core.domain.premium.PremiumGate
+import com.divafinance.core.domain.premium.SettingsPremiumGate
+import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.domain.usecase.onboarding.CompleteOnboardingUseCase
@@ -40,6 +43,8 @@ val domainModule = module {
     // Transactions
     factory { AddTransactionUseCase(get(), get()) }
     factory { DeleteTransactionUseCase(get(), get()) }
+    single<PremiumGate> { SettingsPremiumGate(get()) }
+    factory { SuggestNearbyPlacesUseCase(get(), get()) }
     factory { PredictCategoryUseCase(get()) }
     factory { SuggestMerchantsUseCase(get()) }
     factory { GetTransactionsUseCase(get()) }

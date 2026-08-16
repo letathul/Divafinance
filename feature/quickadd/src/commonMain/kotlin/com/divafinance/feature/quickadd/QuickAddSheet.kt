@@ -24,7 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Switch
 import com.divafinance.core.common.toFixed
+import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryChip
@@ -47,6 +49,7 @@ fun QuickAddSheet(
 ) {
     val state by viewModel.uiState.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val permissionRequester = rememberLocationPermissionRequester()
 
     LaunchedEffect(Unit) { viewModel.onOpened() }
 
@@ -72,6 +75,18 @@ fun QuickAddSheet(
             onNoteChange = viewModel::onNoteChange,
             onCardChange = viewModel::onCardChange,
             onDayChange = viewModel::onDayChange,
+            onLocationToggled = { enabled ->
+                if (enabled) {
+                    // Only ever prompted from an explicit opt-in, never on sheet open.
+                    permissionRequester.request { granted ->
+                        viewModel.onLocationToggled(enabled = true, permissionGranted = granted)
+                    }
+                } else {
+                    viewModel.onLocationToggled(enabled = false, permissionGranted = false)
+                }
+            },
+            onLocationNameChange = viewModel::onLocationNameChange,
+            onNearbyPlacePicked = viewModel::onNearbyPlacePicked,
             onSave = viewModel::save,
         )
     }
@@ -79,24 +94,28 @@ fun QuickAddSheet(
 
 /**
  * Stateless body, split out so it can be driven directly from tests and previews without
- * a ViewModel or a sheet host.
+ * a ViewModel or a sheet host. Callbacks default to no-ops for exactly that reason; the
+ * real call site above passes every one.
  */
 @Composable
 internal fun QuickAddSheetContent(
     state: QuickAddUiState,
-    onDigit: (Char) -> Unit,
-    onOperator: (Char) -> Unit,
-    onBackspace: () -> Unit,
-    onTypeChange: (TransactionType) -> Unit,
-    onCategoryChange: (SpendingCategory) -> Unit,
-    onToggleAllCategories: () -> Unit,
-    onToggleDetails: () -> Unit,
-    onMerchantChange: (String) -> Unit,
-    onMerchantSuggestionPicked: (String) -> Unit,
-    onNoteChange: (String) -> Unit,
-    onCardChange: (String?) -> Unit,
-    onDayChange: (QuickAddDay) -> Unit,
-    onSave: () -> Unit,
+    onDigit: (Char) -> Unit = {},
+    onOperator: (Char) -> Unit = {},
+    onBackspace: () -> Unit = {},
+    onTypeChange: (TransactionType) -> Unit = {},
+    onCategoryChange: (SpendingCategory) -> Unit = {},
+    onToggleAllCategories: () -> Unit = {},
+    onToggleDetails: () -> Unit = {},
+    onMerchantChange: (String) -> Unit = {},
+    onMerchantSuggestionPicked: (String) -> Unit = {},
+    onNoteChange: (String) -> Unit = {},
+    onCardChange: (String?) -> Unit = {},
+    onDayChange: (QuickAddDay) -> Unit = {},
+    onLocationToggled: (Boolean) -> Unit = {},
+    onLocationNameChange: (String) -> Unit = {},
+    onNearbyPlacePicked: (NearbyPlace) -> Unit = {},
+    onSave: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -128,6 +147,13 @@ internal fun QuickAddSheetContent(
             onMerchantSuggestionPicked = onMerchantSuggestionPicked,
             onNoteChange = onNoteChange,
             onCardChange = onCardChange,
+        )
+
+        LocationSection(
+            state = state,
+            onLocationToggled = onLocationToggled,
+            onLocationNameChange = onLocationNameChange,
+            onNearbyPlacePicked = onNearbyPlacePicked,
         )
 
         state.error?.let {
@@ -233,6 +259,72 @@ private fun DayRow(day: QuickAddDay, onDayChange: (QuickAddDay) -> Unit) {
             )
         }
     }
+}
+
+/**
+ * Location is opt-in per entry and never blocks saving. Turning the switch on is what
+ * triggers the OS prompt; everything below only appears once there is a fix.
+ */
+@Composable
+private fun LocationSection(
+    state: QuickAddUiState,
+    onLocationToggled: (Boolean) -> Unit,
+    onLocationNameChange: (String) -> Unit,
+    onNearbyPlacePicked: (NearbyPlace) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Add location", style = MaterialTheme.typography.labelLarge)
+        Switch(
+            checked = state.locationEnabled,
+            onCheckedChange = onLocationToggled,
+        )
+    }
+
+    if (state.isLocatingNow) {
+        Text(
+            text = "Finding your location…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (state.locationUnavailable) {
+        Text(
+            text = "Location isn't available. You can still save without it.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (state.location == null) return
+
+    // Premium: shops from the user's own history near this point.
+    if (state.nearbyPlaces.isNotEmpty()) {
+        Text("Nearby", style = MaterialTheme.typography.labelLarge)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            state.nearbyPlaces.forEach { place ->
+                CategoryChip(
+                    label = place.name,
+                    selected = state.locationName == place.name,
+                    onClick = { onNearbyPlacePicked(place) },
+                )
+            }
+        }
+    }
+
+    // Whatever was reverse-geocoded is a starting point, not the final answer.
+    DivaTextField(
+        value = state.locationName,
+        onValueChange = onLocationNameChange,
+        label = "Place",
+    )
 }
 
 @Composable

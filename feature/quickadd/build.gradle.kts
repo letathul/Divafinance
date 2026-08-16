@@ -19,6 +19,10 @@ kotlin {
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.kotlinx.datetime)
         }
+        androidMain.dependencies {
+            // Runtime permission requests need an Activity result launcher.
+            implementation(libs.androidx.activity.compose)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }

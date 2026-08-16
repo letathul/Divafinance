@@ -3,16 +3,21 @@ package com.divafinance.feature.quickadd
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.common.ExpressionEvaluator
+import com.divafinance.core.common.Coordinates
+import com.divafinance.core.common.LocationSource
 import com.divafinance.core.common.UuidGenerator
 import com.divafinance.core.common.roundToCents
 import com.divafinance.core.data.repository.SettingsRepository
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
+import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
+import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.CreditCard
+import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.SpendingCategory
@@ -56,6 +61,15 @@ data class QuickAddUiState(
     val day: QuickAddDay = QuickAddDay.TODAY,
     /** Set once the user picks a category, after which prediction stops overriding it. */
     val categoryPickedManually: Boolean = false,
+    /** Off until the user turns it on. Location is never captured silently. */
+    val locationEnabled: Boolean = false,
+    val isLocatingNow: Boolean = false,
+    /** Captured position, if any. The name is freely editable afterwards. */
+    val location: LocationTag? = null,
+    val locationName: String = "",
+    /** Premium: shops from the user's own history near [location]. */
+    val nearbyPlaces: List<NearbyPlace> = emptyList(),
+    val locationUnavailable: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
 ) {
@@ -67,6 +81,20 @@ data class QuickAddUiState(
         get() = ExpressionEvaluator.evaluate(expression)?.roundToCents()?.takeIf { it > 0.0 }
 
     val canSave: Boolean get() = committedAmount != null && !isSaving
+
+    /**
+     * What gets persisted: the captured fix, with whatever name the user settled on.
+     *
+     * A name without coordinates is deliberately not storable. `LocationTag` requires both,
+     * the mapper drops rows missing either, and `selectWithLocation` filters on non-null
+     * coordinates — so synthesising `(0.0, 0.0)` to carry a bare name would put a false
+     * point in the Atlantic on the spending map. The name field is only offered once a fix
+     * exists, so there is nothing to lose here.
+     */
+    fun locationForSaving(): LocationTag? {
+        val fix = location ?: return null
+        return fix.copy(name = locationName.trim().takeIf { it.isNotEmpty() } ?: fix.name)
+    }
 }
 
 /** Emitted once per successful save so the sheet can offer an undo. */
@@ -91,6 +119,8 @@ class QuickAddViewModel(
     private val suggestMerchantsUseCase: SuggestMerchantsUseCase,
     getAllCardsUseCase: GetAllCardsUseCase,
     private val postTransactionToFeedUseCase: PostTransactionToFeedUseCase,
+    private val suggestNearbyPlacesUseCase: SuggestNearbyPlacesUseCase,
+    private val locationSource: LocationSource,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
@@ -102,6 +132,9 @@ class QuickAddViewModel(
 
     /** Cancelled on each keystroke so only the latest merchant query lands. */
     private var suggestionJob: Job? = null
+
+    /** Cancelled when the toggle flips, so an abandoned fix cannot land later. */
+    private var locationJob: Job? = null
 
     private val cards: StateFlow<List<CreditCard>> = getAllCardsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -217,6 +250,86 @@ class QuickAddViewModel(
 
     fun onDayChange(day: QuickAddDay) = _uiState.update { it.copy(day = day) }
 
+    // --- location -----------------------------------------------------------
+
+    /**
+     * Turns location capture on or off for this entry.
+     *
+     * [permissionGranted] is what the caller learned from the OS prompt. A denial turns
+     * the toggle straight back off rather than leaving it on and silently capturing
+     * nothing, so the switch always reflects reality.
+     */
+    fun onLocationToggled(enabled: Boolean, permissionGranted: Boolean) {
+        if (!enabled || !permissionGranted) {
+            _uiState.update {
+                it.copy(
+                    locationEnabled = false,
+                    isLocatingNow = false,
+                    location = null,
+                    locationName = "",
+                    nearbyPlaces = emptyList(),
+                    locationUnavailable = enabled && !permissionGranted,
+                )
+            }
+            return
+        }
+
+        _uiState.update {
+            it.copy(locationEnabled = true, isLocatingNow = true, locationUnavailable = false)
+        }
+        captureLocation()
+    }
+
+    private fun captureLocation() {
+        locationJob?.cancel()
+        locationJob = viewModelScope.launch {
+            val coordinates = runCatching { locationSource.currentCoordinates() }.getOrNull()
+            if (coordinates == null) {
+                // No fix, no provider, or permission revoked between prompt and read.
+                _uiState.update {
+                    it.copy(isLocatingNow = false, locationUnavailable = true, locationEnabled = false)
+                }
+                return@launch
+            }
+
+            // Reverse geocoding is best-effort — plenty of devices have no backend for it,
+            // and a position without a name is still worth keeping.
+            val described = runCatching { locationSource.describe(coordinates) }.getOrNull()
+            val tag = LocationTag(coordinates.latitude, coordinates.longitude, described)
+
+            _uiState.update {
+                it.copy(
+                    isLocatingNow = false,
+                    location = tag,
+                    // Never clobber a name the user has already typed.
+                    locationName = it.locationName.ifBlank { described.orEmpty() },
+                )
+            }
+
+            val places = runCatching { suggestNearbyPlacesUseCase(tag) }.getOrDefault(emptyList())
+            _uiState.update { it.copy(nearbyPlaces = places) }
+        }
+    }
+
+    /** The captured name is a suggestion, not a fact — it stays editable. */
+    fun onLocationNameChange(name: String) =
+        _uiState.update { it.copy(locationName = name) }
+
+    /**
+     * Accepting a nearby shop fills in the merchant too, and re-runs prediction, since a
+     * known shop is the strongest category signal available.
+     */
+    fun onNearbyPlacePicked(place: NearbyPlace) {
+        _uiState.update {
+            it.copy(
+                locationName = place.name,
+                merchantName = place.name,
+                location = it.location ?: place.location,
+            )
+        }
+        refreshSuggestions()
+    }
+
     fun reset() {
         _uiState.value = QuickAddUiState(cards = cards.value)
         _saved.value = null
@@ -252,6 +365,7 @@ class QuickAddViewModel(
                 note = state.note.ifBlank { null },
                 date = dateFor(state.day, now.toLocalDateTime(TimeZone.currentSystemDefault()).date),
                 type = state.type,
+                location = state.locationForSaving(),
                 createdAt = now,
             )
 

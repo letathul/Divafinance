@@ -2,6 +2,8 @@ package com.divafinance.app.di
 
 import com.divafinance.app.dynamic.DynamicFeatureLoader
 import com.divafinance.core.common.FileSystem
+import com.divafinance.core.common.LocationProvider
+import com.divafinance.core.common.LocationSource
 import com.divafinance.core.database.DatabaseDriverFactory
 import com.divafinance.server.InProcessServerLauncher
 import com.divafinance.server.LocalAddressResolver
@@ -14,6 +16,7 @@ actual fun platformModule(): Module = module {
     single { DatabaseDriverFactory() }
     single { DynamicFeatureLoader() }
     single { FileSystem() }
+    single<LocationSource> { LocationProvider() }
     // No split delivery and no foreground services on iOS — the app process is the
     // server's whole lifetime.
     single<ServerLauncher> { InProcessServerLauncher(get()) }

@@ -22,7 +22,7 @@ All under `src/commonMain/kotlin/com/divafinance/core/data/`.
 | `AccountRepository` | `AccountRepositoryImpl` | Accounts |
 | `CardRepository` | `CardRepositoryImpl` | Credit cards; `getById` also loads the card's reward rules via `RewardRepository` |
 | `RewardRepository` | `RewardRepositoryImpl` | Reward rules per card |
-| `TransactionRepository` | `TransactionRepositoryImpl` | Transactions + category/date aggregate queries |
+| `TransactionRepository` | `TransactionRepositoryImpl` | Transactions, category/date aggregates, `getWithLocation()`, and `getKnownMerchants()` (distinct merchants, most-used first — backs quick-add autocomplete) |
 | `ReceiptRepository` | `ReceiptRepositoryImpl` | Scanned receipts |
 | `FeedRepository` | `FeedRepositoryImpl` | Feed posts |
 | `ThresholdRepository` | `ThresholdRepositoryImpl` | Per-category spending thresholds |

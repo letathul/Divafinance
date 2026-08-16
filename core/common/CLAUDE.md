@@ -18,7 +18,7 @@ and every `feature/*` module.
 | `commonMain/.../FileSystem.kt` | `expect class` — backup directory, read/write text, list/delete backup files. Backs `:feature:backup`. |
 | `commonMain/.../UuidGenerator.kt` | ID generation for new entities |
 | `commonMain/.../ExpressionEvaluator.kt` | Evaluates `+ - * /` over decimal literals with standard precedence, for the quick-add keypad (`"12+8.50"`, `"120/3"`). No parentheses — the keypad can't produce them. Returns `null` for anything not acceptable as an amount, including division by zero. |
-| `commonMain/.../NumberFormat.kt` | `Double.toFixed(decimals)` — multiplatform stand-in for `"%.2f".format()`, which is JVM-only and breaks the iOS targets |
+| `commonMain/.../NumberFormat.kt` | `Double.toFixed(decimals)` / `Float.toFixed(decimals)` — multiplatform stand-in for `"%.2f".format()`, which is JVM-only and breaks the iOS targets. Also `Double.roundToCents()`, half-up and sign-preserving. |
 | `commonMain/.../Result.kt` | `DivaResult<T>` sealed class: `Success` / `Error` / `Loading`, with `map` and `getOrNull` |
 | `commonMain/.../BackupFileInfo.kt` | Name/path/size/mtime record returned by `FileSystem.listBackupFiles()` |
 
@@ -42,6 +42,9 @@ and every `feature/*` module.
 - `DivaResult` is used at repository/use-case boundaries. Don't introduce a second result
   type; Kotlin's stdlib `Result` is deliberately not used here because `Loading` is a
   needed state.
+- **Round computed amounts with `roundToCents()` before storing, not just when
+  rendering.** `0.1 + 0.2` is `0.30000000000000004`; display formatting hides the drift
+  but the drifted value is what gets persisted and summed.
 
 ## Tests
 

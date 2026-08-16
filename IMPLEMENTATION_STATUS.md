@@ -1,22 +1,29 @@
 # Diva Finance — Implementation Status
 
+> Chronological build log of which increments are done. For module-level orientation —
+> what a module is for and which files matter — see the root `CLAUDE.md` and the
+> per-module `CLAUDE.md` files.
+
 ## Tech Stack (Actual)
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Language | Kotlin | 2.1.10 |
-| UI | Compose Multiplatform | 1.7.3 |
+| Language | Kotlin | 2.2.10 |
+| UI | Compose Multiplatform | 1.9.3 |
 | Local Server | Ktor Server (CIO engine) | 3.0.3 |
 | Architecture | Clean Architecture + MVVM | — |
 | Persistence | SQLDelight | 2.0.2 |
-| DI | Koin | 4.0.0 |
-| Navigation | Jetpack Navigation Compose for Multiplatform | 2.8.0-alpha10 |
-| Serialization | kotlinx.serialization | 1.7.3 |
+| DI | Koin | 4.1.1 |
+| Navigation | Jetpack Navigation Compose for Multiplatform | 2.9.0 |
+| Serialization | kotlinx.serialization | 1.9.0 |
 | Coroutines | kotlinx.coroutines | 1.9.0 |
-| Android Gradle Plugin | AGP | 8.7.3 |
+| Android Gradle Plugin | AGP | 8.13.2 |
 | Security | PBKDF2 PIN hashing (expect/actual) | — |
 
-> **Note:** Plan originally specified newer versions (Kotlin 2.4.10, AGP 9.0, Navigation 3, etc.) but the actual implementation uses the versions above due to compatibility constraints at the time of development. iOS targets are currently commented out; Android is the active target.
+> **Note:** `gradle/libs.versions.toml` is the single source of truth for versions — read
+> it rather than this table if they disagree. The plan originally specified newer versions
+> (Kotlin 2.4.10, AGP 9.0, Navigation 3, etc.); the above is what compatibility
+> constraints actually allowed. Android and iOS targets are both active.
 
 ---
 
@@ -30,25 +37,29 @@ Divafinance/
 │   ├── common/         # Expect/actual utilities (UuidGenerator, SecurityUtils, etc.)
 │   ├── database/       # SQLDelight schema + drivers
 │   ├── data/           # Repository interfaces + implementations
-│   ├── domain/         # Use cases + RewardRecommendationEngine
+│   ├── domain/         # Use cases + reward/category engines
 │   ├── ui/             # Design system (DivaTheme, reusable components)
-│   └── network/        # Shared DTOs + API route constants
+│   ├── network/        # Shared DTOs + API route constants
+│   └── testing/        # Repository fakes + test data (test-only)
 ├── feature/
-│   ├── onboarding/     # 6-step wizard
+│   ├── onboarding/     # 7-step wizard
 │   ├── dashboard/      # Home dashboard
 │   ├── cards/          # Card CRUD + reward rules + best-card
-│   ├── transactions/   # Transaction list + add
-│   ├── graphs/         # Financial charts (stub)
-│   ├── feed/           # Social feed (stub)
-│   ├── settings/       # App settings (stub)
-│   ├── map/            # Spending map (stub)
-│   ├── scanner/        # Receipt scanner (stub)
-│   ├── backup/         # Backup/restore (stub)
-│   └── automation/     # Native automations (stub)
+│   ├── transactions/   # Transaction list + detail + add
+│   ├── quickadd/       # Quick-add sheet with calculator keypad
+│   ├── graphs/         # Financial charts + thresholds
+│   ├── feed/           # Activity feed + daily bot insight
+│   ├── settings/       # App settings + embedded-server control
+│   ├── map/            # Spending map (+ list fallback)
+│   ├── scanner/        # Receipt OCR + CSV statement import
+│   ├── backup/         # Backup/restore
+│   ├── automation/     # Native automations (placeholder handler)
+│   └── demo/           # Demo dataset + guided tour
 ├── dynamic/
 │   ├── map_dynamic/    # Android on-demand: Google Maps
 │   ├── scanner_dynamic/# Android on-demand: ML Kit
-│   └── server_dynamic/ # Android on-demand: Ktor server
+│   ├── server_dynamic/ # Android on-demand: Ktor server + foreground service
+│   └── demo_dynamic/   # Android on-demand: demo tour
 ├── server/             # Embedded Ktor server
 ├── composeApp/         # Shared app shell + navigation + DI
 └── iosApp/             # Xcode project wrapper
