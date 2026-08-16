@@ -9,6 +9,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.savedstate.read
 import com.divafinance.feature.automation.AutomationScreen
+import com.divafinance.feature.activity.ActivityScreen
+import com.divafinance.feature.activity.ActivityViewModel
 import com.divafinance.feature.backup.BackupRestoreScreen
 import com.divafinance.feature.backup.BackupViewModel
 import com.divafinance.feature.cards.AddEditCardScreen
@@ -42,6 +44,7 @@ object DivaRoutes {
     const val CARD_ADD = "cards/add"
     const val CARD_EDIT = "cards/edit"
     const val BEST_CARD = "cards/best"
+    const val ACTIVITY = "activity"
     const val TRANSACTIONS = "transactions"
     const val TRANSACTION_ADD = "transactions/add"
     const val FEED = "feed"
@@ -159,6 +162,11 @@ fun DivaNavHost(
                 onBack = { navController.popBackStack() },
                 viewModel = transactionsViewModel,
             )
+        }
+
+        composable(DivaRoutes.ACTIVITY) {
+            val activityViewModel: ActivityViewModel = koinViewModel()
+            ActivityScreen(viewModel = activityViewModel)
         }
 
         composable(DivaRoutes.FEED) {

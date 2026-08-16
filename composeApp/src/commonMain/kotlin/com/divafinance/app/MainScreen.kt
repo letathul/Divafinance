@@ -7,11 +7,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.List
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -49,14 +47,18 @@ private data class BottomNavItem(
     val unselectedIcon: ImageVector,
 )
 
+// Three tabs, not five. Spending, debts and insights were the same reverse-chronological
+// list read three ways, so they merged into Activity rather than each taking a slot — at
+// five items the labels no longer fit a 360dp screen.
 private val bottomNavItems = listOf(
     BottomNavItem(DivaRoutes.DASHBOARD, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-    BottomNavItem(DivaRoutes.TRANSACTIONS, "Transactions", Icons.Filled.List, Icons.Outlined.List),
-    BottomNavItem(DivaRoutes.FEED, "Feed", Icons.Filled.Notifications, Icons.Outlined.Notifications),
+    BottomNavItem(DivaRoutes.ACTIVITY, "Activity", Icons.Filled.List, Icons.Outlined.List),
     BottomNavItem(DivaRoutes.SETTINGS, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
-private val bottomNavRoutes = bottomNavItems.map { it.route }.toSet() + DivaRoutes.CARDS
+// Routes that keep the bar visible without being tabs themselves.
+private val bottomNavRoutes = bottomNavItems.map { it.route }.toSet() +
+    DivaRoutes.CARDS + DivaRoutes.TRANSACTIONS + DivaRoutes.FEED
 
 @Composable
 fun MainScreen() {

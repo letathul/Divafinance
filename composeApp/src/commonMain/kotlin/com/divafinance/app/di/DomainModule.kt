@@ -16,6 +16,7 @@ import com.divafinance.core.domain.usecase.location.GetSpendingByLocationUseCase
 import com.divafinance.core.domain.usecase.location.TagTransactionLocationUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.domain.premium.PremiumGate
+import com.divafinance.core.domain.usecase.activity.GetActivityUseCase
 import com.divafinance.core.domain.usecase.people.GetPeopleBalancesUseCase
 import com.divafinance.core.domain.premium.SettingsPremiumGate
 import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
@@ -68,6 +69,9 @@ val domainModule = module {
 
     // People
     factory { GetPeopleBalancesUseCase(get(), get()) }
+
+    // Activity
+    factory { GetActivityUseCase(get(), get(), get(), get()) }
 
     // Location
     factory { TagTransactionLocationUseCase(get()) }

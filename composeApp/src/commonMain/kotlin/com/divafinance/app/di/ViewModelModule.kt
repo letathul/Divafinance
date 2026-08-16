@@ -1,5 +1,6 @@
 package com.divafinance.app.di
 
+import com.divafinance.feature.activity.ActivityViewModel
 import com.divafinance.feature.backup.BackupViewModel
 import com.divafinance.feature.cards.CardsViewModel
 import com.divafinance.feature.feed.FeedViewModel
@@ -24,6 +25,7 @@ val viewModelModule = module {
     viewModel { CardsViewModel(get(), get(), get(), get()) }
     viewModel { TransactionsViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get()) }
+    viewModel { ActivityViewModel(get(), get()) }
     viewModel { QuickAddViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { GraphsViewModel(get(), get(), get()) }
     viewModel { BackupViewModel(get(), get(), get()) }
