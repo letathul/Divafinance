@@ -26,7 +26,7 @@ val viewModelModule = module {
     viewModel { TransactionsViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get()) }
     viewModel { ActivityViewModel(get(), get()) }
-    viewModel { QuickAddViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { QuickAddViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { GraphsViewModel(get(), get(), get()) }
     viewModel { BackupViewModel(get(), get(), get()) }
     viewModel { FeedViewModel(get(), get()) }

@@ -18,6 +18,7 @@ import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.domain.premium.PremiumGate
 import com.divafinance.core.domain.usecase.activity.GetActivityUseCase
 import com.divafinance.core.domain.usecase.people.GetPeopleBalancesUseCase
+import com.divafinance.core.domain.usecase.people.SaveSplitTransactionUseCase
 import com.divafinance.core.domain.premium.SettingsPremiumGate
 import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
@@ -69,6 +70,7 @@ val domainModule = module {
 
     // People
     factory { GetPeopleBalancesUseCase(get(), get()) }
+    factory { SaveSplitTransactionUseCase(get(), get(), get()) }
 
     // Activity
     factory { GetActivityUseCase(get(), get(), get(), get()) }

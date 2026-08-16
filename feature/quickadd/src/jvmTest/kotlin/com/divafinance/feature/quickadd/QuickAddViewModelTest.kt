@@ -7,6 +7,7 @@ import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.common.Coordinates
 import com.divafinance.core.domain.premium.PremiumGate
 import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
+import com.divafinance.core.domain.usecase.people.SaveSplitTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.LocationTag
@@ -15,6 +16,7 @@ import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeLedgerRepository
+import com.divafinance.core.testing.fake.FakePersonRepository
 import com.divafinance.core.testing.fake.FakeFeedRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
@@ -51,6 +53,7 @@ class QuickAddViewModelTest {
     private val settingsRepo = FakeSettingsRepository()
     private var premiumGate = FakePremiumGate(premium = false)
     private var locationSource = FakeLocationSource(coordinates = null)
+    private val personRepo = FakePersonRepository()
 
     private fun viewModel() = QuickAddViewModel(
         AddTransactionUseCase(txRepo, cardRepo),
@@ -60,6 +63,10 @@ class QuickAddViewModelTest {
         GetAllCardsUseCase(cardRepo),
         PostTransactionToFeedUseCase(feedRepo),
         SuggestNearbyPlacesUseCase(txRepo, premiumGate),
+        SaveSplitTransactionUseCase(
+            AddTransactionUseCase(txRepo, cardRepo), personRepo, ledgerRepo,
+        ),
+        personRepo,
         locationSource,
         settingsRepo,
     )
@@ -424,6 +431,144 @@ class QuickAddViewModelTest {
 
         assertEquals("Blue Bottle", vm.uiState.value.merchantName)
         assertEquals(SpendingCategory.DINING, vm.uiState.value.category)
+    }
+
+    // --- split ---------------------------------------------------------------
+
+    @Test
+    fun splittingIsOffUntilTurnedOn() = runTest {
+        val vm = viewModel()
+        vm.type("120")
+
+        assertNull(vm.uiState.value.split)
+    }
+
+    @Test
+    fun dividesTheBillBetweenEveryoneIncludingYou() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("120")
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Alex")
+
+        assertEquals(40.0, vm.uiState.value.splitOwnShare)
+        assertEquals(120.0, vm.uiState.value.splitTotal)
+    }
+
+    @Test
+    fun addsTipOnTopOfTheKeypadAmount() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("100")
+        vm.onTipPercentChange(20.0)
+        vm.onAddSplitPerson("Sam")
+
+        // 100 + 20 tip, halved.
+        assertEquals(120.0, vm.uiState.value.splitTotal)
+        assertEquals(60.0, vm.uiState.value.splitOwnShare)
+    }
+
+    @Test
+    fun doesNotAddTheSamePersonTwice() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("  sam  ")
+
+        assertEquals(1, vm.uiState.value.splitWith.size)
+    }
+
+    @Test
+    fun ignoresABlankName() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("   ")
+
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+    }
+
+    @Test
+    fun removesSomeoneFromTheBill() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onRemoveSplitPerson("Sam")
+
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+    }
+
+    @Test
+    fun turningSplittingOffClearsItsState() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onTipPercentChange(15.0)
+        vm.onSplitToggled(false)
+
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+        assertEquals(0.0, vm.uiState.value.tipPercent)
+        assertNull(vm.uiState.value.split)
+    }
+
+    /** The whole point: the card is charged the lot, but only your share is spending. */
+    @Test
+    fun savesTheFullBillWithOnlyYourShareAsSpending() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("120")
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Alex")
+        vm.save()
+
+        val stored = txRepo.getAll().first().single()
+        assertEquals(120.0, stored.amount)
+        assertEquals(80.0, stored.othersShare)
+        assertEquals(40.0, stored.amount - stored.othersShare)
+    }
+
+    @Test
+    fun savingASplitCreatesADebtPerPerson() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("120")
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Alex")
+        vm.save()
+
+        val entries = ledgerRepo.getAll().first()
+        assertEquals(2, entries.size)
+        assertTrue(entries.all { it.amount == 40.0 })
+        assertEquals(setOf("Sam", "Alex"), personRepo.getAll().first().map { it.name }.toSet())
+    }
+
+    /** Splitting with nobody is just an ordinary transaction. */
+    @Test
+    fun aSplitWithNoOneElseCreatesNoDebts() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("40")
+        vm.save()
+
+        assertEquals(0, ledgerRepo.count())
+        assertEquals(0.0, txRepo.getAll().first().single().othersShare)
+    }
+
+    /** An uneven division must still add back up to what was charged. */
+    @Test
+    fun anUnevenSplitStillReconciles() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("100")
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Alex")
+        vm.save()
+
+        val stored = txRepo.getAll().first().single()
+        val owed = ledgerRepo.getAll().first().sumOf { it.amount }
+        assertEquals(100.0, stored.amount)
+        assertEquals(stored.othersShare, owed)
+        // 33.34 kept, 33.33 owed by each.
+        assertEquals(33.34, stored.amount - stored.othersShare)
     }
 
     // --- location -----------------------------------------------------------

@@ -20,17 +20,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Switch
 import com.divafinance.core.common.toFixed
+import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryChip
 import com.divafinance.core.ui.component.DivaButton
+import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
 
 /**
@@ -87,6 +92,10 @@ fun QuickAddSheet(
             },
             onLocationNameChange = viewModel::onLocationNameChange,
             onNearbyPlacePicked = viewModel::onNearbyPlacePicked,
+            onSplitToggled = viewModel::onSplitToggled,
+            onTipPercentChange = viewModel::onTipPercentChange,
+            onAddSplitPerson = { name -> viewModel.onAddSplitPerson(name) },
+            onRemoveSplitPerson = viewModel::onRemoveSplitPerson,
             onSave = viewModel::save,
         )
     }
@@ -115,6 +124,10 @@ internal fun QuickAddSheetContent(
     onLocationToggled: (Boolean) -> Unit = {},
     onLocationNameChange: (String) -> Unit = {},
     onNearbyPlacePicked: (NearbyPlace) -> Unit = {},
+    onSplitToggled: (Boolean) -> Unit = {},
+    onTipPercentChange: (Double) -> Unit = {},
+    onAddSplitPerson: (String) -> Unit = {},
+    onRemoveSplitPerson: (String) -> Unit = {},
     onSave: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -147,6 +160,14 @@ internal fun QuickAddSheetContent(
             onMerchantSuggestionPicked = onMerchantSuggestionPicked,
             onNoteChange = onNoteChange,
             onCardChange = onCardChange,
+        )
+
+        SplitSection(
+            state = state,
+            onSplitToggled = onSplitToggled,
+            onTipPercentChange = onTipPercentChange,
+            onAddSplitPerson = onAddSplitPerson,
+            onRemoveSplitPerson = onRemoveSplitPerson,
         )
 
         LocationSection(
@@ -258,6 +279,157 @@ private fun DayRow(day: QuickAddDay, onDayChange: (QuickAddDay) -> Unit) {
                 onClick = { onDayChange(option) },
             )
         }
+    }
+}
+
+/** Common tip rates, so the usual case is one tap. */
+private val TIP_PRESETS = listOf(0.0, 10.0, 12.5, 15.0, 18.0, 20.0)
+
+/**
+ * Splitting a bill. The keypad amount is the subtotal from the receipt; the tip is added
+ * on top, and the whole lot is divided.
+ */
+@Composable
+private fun SplitSection(
+    state: QuickAddUiState,
+    onSplitToggled: (Boolean) -> Unit,
+    onTipPercentChange: (Double) -> Unit,
+    onAddSplitPerson: (String) -> Unit,
+    onRemoveSplitPerson: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Split this bill", style = MaterialTheme.typography.labelLarge)
+        Switch(checked = state.splitEnabled, onCheckedChange = onSplitToggled)
+    }
+
+    if (!state.splitEnabled) return
+
+    Text("Tip", style = MaterialTheme.typography.labelMedium)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+    ) {
+        TIP_PRESETS.forEach { percent ->
+            CategoryChip(
+                label = if (percent == 0.0) "No tip" else "${percent.toFixed(if (percent % 1.0 == 0.0) 0 else 1)}%",
+                selected = state.tipPercent == percent,
+                onClick = { onTipPercentChange(percent) },
+            )
+        }
+    }
+
+    Text("Split with", style = MaterialTheme.typography.labelMedium)
+
+    // People already on this bill; tapping one takes them off again.
+    if (state.splitWith.isNotEmpty()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            state.splitWith.forEach { person ->
+                CategoryChip(
+                    label = "${person.name}  ×",
+                    selected = true,
+                    onClick = { onRemoveSplitPerson(person.name) },
+                )
+            }
+        }
+    }
+
+    // Everyone known who is not already on the bill.
+    val available = state.peopleSuggestions.filterNot { known ->
+        state.splitWith.any { it.name.equals(known.name, ignoreCase = true) }
+    }
+    if (available.isNotEmpty()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            available.forEach { person ->
+                CategoryChip(label = person.name, onClick = { onAddSplitPerson(person.name) })
+            }
+        }
+    }
+
+    NewSplitPersonField(onAdd = onAddSplitPerson)
+
+    SplitBreakdown(state)
+}
+
+/** Adds someone who is not in the list yet. */
+@Composable
+private fun NewSplitPersonField(onAdd: (String) -> Unit) {
+    var typed by remember { mutableStateOf("") }
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DivaTextField(
+            value = typed,
+            onValueChange = { typed = it },
+            label = "Add someone",
+            modifier = Modifier.weight(1f),
+        )
+        CategoryChip(
+            label = "Add",
+            selected = typed.isNotBlank(),
+            onClick = {
+                onAdd(typed)
+                typed = ""
+            },
+        )
+    }
+}
+
+/** The numbers, so the division is checkable before it is saved. */
+@Composable
+private fun SplitBreakdown(state: QuickAddUiState) {
+    val split = state.split
+    if (split == null) {
+        Text(
+            text = "Enter an amount to split.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    DivaCard {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (split.tipMinor > 0L) {
+                BreakdownRow("Tip", split.tipMinor.toMajorUnits())
+            }
+            BreakdownRow("Total charged", split.totalMinor.toMajorUnits(), emphasise = true)
+            BreakdownRow("Your share", split.payerShareMinor.toMajorUnits(), emphasise = true)
+
+            split.shares.drop(1).forEach { share ->
+                BreakdownRow(share.participant.name, share.amountMinor.toMajorUnits())
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreakdownRow(label: String, amount: Double, emphasise: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = if (emphasise) MaterialTheme.typography.bodyMedium
+            else MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            text = amount.toFixed(2),
+            style = if (emphasise) MaterialTheme.typography.bodyMedium
+            else MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

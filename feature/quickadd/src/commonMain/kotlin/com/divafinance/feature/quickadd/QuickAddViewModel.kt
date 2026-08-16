@@ -7,6 +7,15 @@ import com.divafinance.core.common.Coordinates
 import com.divafinance.core.common.LocationSource
 import com.divafinance.core.common.UuidGenerator
 import com.divafinance.core.common.roundToCents
+import com.divafinance.core.common.toMajorUnits
+import com.divafinance.core.common.toMinorUnits
+import com.divafinance.core.data.repository.PersonRepository
+import com.divafinance.core.domain.engine.BillSplitEngine
+import com.divafinance.core.domain.engine.SplitParticipant
+import com.divafinance.core.domain.engine.SplitResult
+import com.divafinance.core.domain.usecase.people.SaveSplitTransactionUseCase
+import com.divafinance.core.domain.usecase.people.SplitShareInput
+import com.divafinance.core.model.Person
 import com.divafinance.core.data.repository.SettingsRepository
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
 import com.divafinance.core.domain.engine.NearbyPlace
@@ -70,6 +79,12 @@ data class QuickAddUiState(
     /** Premium: shops from the user's own history near [location]. */
     val nearbyPlaces: List<NearbyPlace> = emptyList(),
     val locationUnavailable: Boolean = false,
+    /** Off by default; the keypad amount becomes the bill subtotal once on. */
+    val splitEnabled: Boolean = false,
+    val tipPercent: Double = 0.0,
+    /** Other people on the bill. The payer is implicit and always included. */
+    val splitWith: List<SplitPerson> = emptyList(),
+    val peopleSuggestions: List<Person> = emptyList(),
     val isSaving: Boolean = false,
     val error: String? = null,
 ) {
@@ -80,7 +95,32 @@ data class QuickAddUiState(
     val committedAmount: Double?
         get() = ExpressionEvaluator.evaluate(expression)?.roundToCents()?.takeIf { it > 0.0 }
 
-    val canSave: Boolean get() = committedAmount != null && !isSaving
+    val canSave: Boolean get() = committedAmount != null && !isSaving && (!splitEnabled || split != null)
+
+    /**
+     * The live breakdown, or null when the split cannot be computed.
+     *
+     * Derived rather than stored so it can never disagree with the amount, the tip or the
+     * participant list.
+     */
+    val split: SplitResult?
+        get() {
+            if (!splitEnabled) return null
+            val subtotal = committedAmount ?: return null
+            return BillSplitEngine().split(
+                subtotalMinor = subtotal.toMinorUnits(),
+                // Index 0 is the payer, which is what makes them absorb the odd penny.
+                participants = listOf(SplitParticipant(personId = null, name = "You")) +
+                    splitWith.map { SplitParticipant(it.personId, it.name) },
+                tipPercent = tipPercent,
+            )
+        }
+
+    /** What the card is actually charged: the bill plus tip. */
+    val splitTotal: Double? get() = split?.totalMinor?.toMajorUnits()
+
+    /** The user's own consumption, which is all that reaches spending reports. */
+    val splitOwnShare: Double? get() = split?.payerShareMinor?.toMajorUnits()
 
     /**
      * What gets persisted: the captured fix, with whatever name the user settled on.
@@ -96,6 +136,12 @@ data class QuickAddUiState(
         return fix.copy(name = locationName.trim().takeIf { it.isNotEmpty() } ?: fix.name)
     }
 }
+
+/** Someone else on a split bill. [personId] is null until they are matched or created. */
+data class SplitPerson(
+    val personId: String?,
+    val name: String,
+)
 
 /** Emitted once per successful save so the sheet can offer an undo. */
 data class QuickAddSaved(
@@ -120,6 +166,8 @@ class QuickAddViewModel(
     getAllCardsUseCase: GetAllCardsUseCase,
     private val postTransactionToFeedUseCase: PostTransactionToFeedUseCase,
     private val suggestNearbyPlacesUseCase: SuggestNearbyPlacesUseCase,
+    private val saveSplitTransactionUseCase: SaveSplitTransactionUseCase,
+    private val personRepository: PersonRepository,
     private val locationSource: LocationSource,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
@@ -339,6 +387,49 @@ class QuickAddViewModel(
         _saved.value = null
     }
 
+    // --- split ---------------------------------------------------------------
+
+    /**
+     * Turns splitting on or off. The keypad amount becomes the bill subtotal, and the tip
+     * is added on top of it — so the figure on the keypad stays the one from the receipt.
+     */
+    fun onSplitToggled(enabled: Boolean) {
+        _uiState.update {
+            if (enabled) {
+                it.copy(splitEnabled = true, error = null)
+            } else {
+                it.copy(splitEnabled = false, splitWith = emptyList(), tipPercent = 0.0, error = null)
+            }
+        }
+        if (enabled) loadPeopleSuggestions()
+    }
+
+    fun onTipPercentChange(percent: Double) =
+        _uiState.update { it.copy(tipPercent = percent.coerceAtLeast(0.0)) }
+
+    /** Adding the same person twice would double their share, so names are deduplicated. */
+    fun onAddSplitPerson(name: String, personId: String? = null) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+
+        _uiState.update { state ->
+            val alreadyThere = state.splitWith.any { it.name.equals(trimmed, ignoreCase = true) }
+            if (alreadyThere) state
+            else state.copy(splitWith = state.splitWith + SplitPerson(personId, trimmed))
+        }
+    }
+
+    fun onRemoveSplitPerson(name: String) = _uiState.update { state ->
+        state.copy(splitWith = state.splitWith.filterNot { it.name.equals(name, ignoreCase = true) })
+    }
+
+    private fun loadPeopleSuggestions() {
+        viewModelScope.launch {
+            val people = runCatching { personRepository.getActive().first() }.getOrDefault(emptyList())
+            _uiState.update { it.copy(peopleSuggestions = people) }
+        }
+    }
+
     // --- save / undo --------------------------------------------------------
 
     fun save() {
@@ -354,11 +445,18 @@ class QuickAddViewModel(
             _uiState.update { it.copy(isSaving = true, error = null) }
 
             val now = Clock.System.now()
+            val split = state.split
+
+            // A split is charged the whole bill including tip; `othersShare` is what keeps
+            // the other people's portions out of the user's own spending totals.
+            val chargedAmount = split?.totalMinor?.toMajorUnits() ?: amount
+            val othersShare = split?.othersShareMinor?.toMajorUnits() ?: 0.0
+
             val transaction = Transaction(
                 id = UuidGenerator.generate(),
                 accountId = defaultAccountId(),
                 cardId = state.selectedCardId,
-                amount = amount,
+                amount = chargedAmount,
                 currency = setting(UserSettings.KEY_BASE_CURRENCY) ?: "USD",
                 category = state.category,
                 merchantName = state.merchantName.ifBlank { null },
@@ -367,10 +465,23 @@ class QuickAddViewModel(
                 type = state.type,
                 location = state.locationForSaving(),
                 createdAt = now,
+                othersShare = othersShare,
             )
 
             try {
-                addTransactionUseCase(transaction)
+                if (split != null) {
+                    // Drops the payer at index 0; only other people become debts.
+                    val shares = split.shares.drop(1).map { share ->
+                        SplitShareInput(
+                            personId = share.participant.personId,
+                            name = share.participant.name,
+                            amount = share.amountMinor.toMajorUnits(),
+                        )
+                    }
+                    saveSplitTransactionUseCase(transaction, shares)
+                } else {
+                    addTransactionUseCase(transaction)
+                }
             } catch (e: Exception) {
                 // Previously this was unguarded, which left the form stuck on "Saving...".
                 _uiState.update {
