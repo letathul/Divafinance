@@ -48,6 +48,6 @@ interface LocationSource {
  *
  * Callers depend on the interface, not this class: an `expect class` cannot be subclassed,
  * so anything taking `LocationProvider` directly would be impossible to exercise in a test
- * on a target whose actual always reports unavailable.1
+ * on a target whose actual always reports unavailable.
  */
 expect class LocationProvider : LocationSource
