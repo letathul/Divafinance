@@ -1,0 +1,30 @@
+selectAll:
+SELECT * FROM LedgerEntry ORDER BY date DESC, created_at DESC;
+
+selectByPersonId:
+SELECT * FROM LedgerEntry WHERE person_id = ? ORDER BY date DESC, created_at DESC;
+
+selectByTransactionId:
+SELECT * FROM LedgerEntry WHERE transaction_id = ?;
+
+insert:
+INSERT INTO LedgerEntry(id, person_id, amount, currency, kind, note, date, transaction_id, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE LedgerEntry SET person_id = ?, amount = ?, currency = ?, kind = ?, note = ?, date = ?, transaction_id = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM LedgerEntry WHERE id = ?;
+
+-- Removing a split transaction has to take its entries with it, or the debts outlive the
+-- spend that created them.
+deleteByTransactionId:
+DELETE FROM LedgerEntry WHERE transaction_id = ?;
+
+deleteByPersonId:
+DELETE FROM LedgerEntry WHERE person_id = ?;
+
+count:
+SELECT COUNT(*) FROM LedgerEntry;

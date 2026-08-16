@@ -87,6 +87,39 @@ object TestData {
         createdAt = now,
     )
 
+    fun person(
+        id: String = "person-1",
+        name: String = "Sam",
+        note: String? = null,
+        isArchived: Boolean = false,
+    ) = Person(
+        id = id,
+        name = name,
+        note = note,
+        isArchived = isArchived,
+        createdAt = now,
+        updatedAt = now,
+    )
+
+    fun ledgerEntry(
+        id: String = "ledger-1",
+        personId: String = "person-1",
+        amount: Double = 25.0,
+        kind: LedgerEntryKind = LedgerEntryKind.LENT,
+        note: String? = null,
+        date: LocalDate = LocalDate(2024, 6, 15),
+        transactionId: String? = null,
+    ) = LedgerEntry(
+        id = id,
+        personId = personId,
+        amount = amount,
+        kind = kind,
+        note = note,
+        date = date,
+        transactionId = transactionId,
+        createdAt = now,
+    )
+
     fun threshold(
         id: String = "thresh-1",
         category: SpendingCategory = SpendingCategory.DINING,

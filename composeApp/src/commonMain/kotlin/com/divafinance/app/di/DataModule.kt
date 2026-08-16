@@ -8,6 +8,10 @@ import com.divafinance.core.data.repository.CardRepository
 import com.divafinance.core.data.repository.CardRepositoryImpl
 import com.divafinance.core.data.repository.FeedRepository
 import com.divafinance.core.data.repository.FeedRepositoryImpl
+import com.divafinance.core.data.repository.LedgerRepository
+import com.divafinance.core.data.repository.LedgerRepositoryImpl
+import com.divafinance.core.data.repository.PersonRepository
+import com.divafinance.core.data.repository.PersonRepositoryImpl
 import com.divafinance.core.data.repository.ReceiptRepository
 import com.divafinance.core.data.repository.ReceiptRepositoryImpl
 import com.divafinance.core.data.repository.RewardRepository
@@ -35,4 +39,6 @@ val dataModule = module {
     single<FeedRepository> { FeedRepositoryImpl(get()) }
     single<BackupRepository> { BackupRepositoryImpl(get()) }
     single<ThresholdRepository> { ThresholdRepositoryImpl(get()) }
+    single<PersonRepository> { PersonRepositoryImpl(get()) }
+    single<LedgerRepository> { LedgerRepositoryImpl(get()) }
 }

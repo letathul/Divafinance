@@ -1,9 +1,11 @@
 package com.divafinance.core.domain.usecase.transactions
 
 import com.divafinance.core.testing.fake.FakeCardRepository
+import com.divafinance.core.testing.fake.FakeLedgerRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.model.enums.TransactionType
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,8 +15,9 @@ class DeleteTransactionUseCaseTest {
 
     private val txRepo = FakeTransactionRepository()
     private val cardRepo = FakeCardRepository()
+    private val ledgerRepo = FakeLedgerRepository()
     private val addUseCase = AddTransactionUseCase(txRepo, cardRepo)
-    private val useCase = DeleteTransactionUseCase(txRepo, cardRepo)
+    private val useCase = DeleteTransactionUseCase(txRepo, cardRepo, ledgerRepo)
 
     @Test
     fun deletesTransaction() = runTest {
@@ -64,6 +67,40 @@ class DeleteTransactionUseCaseTest {
         useCase("tx-1")
 
         assertEquals(100.0, cardRepo.getById("c1")?.currentBalance)
+    }
+
+    /** A split's debts must not outlive the spend that created them. */
+    @Test
+    fun removesTheLedgerEntriesOfASplitTransaction() = runTest {
+        txRepo.insert(TestData.transaction(id = "dinner", cardId = null))
+        ledgerRepo.setEntries(
+            listOf(
+                TestData.ledgerEntry(id = "l1", personId = "p1", transactionId = "dinner"),
+                TestData.ledgerEntry(id = "l2", personId = "p2", transactionId = "dinner"),
+                TestData.ledgerEntry(id = "l3", personId = "p1", transactionId = null),
+            )
+        )
+
+        useCase("dinner")
+
+        // The standalone loan is untouched; only the split's entries go.
+        assertEquals(listOf("l3"), ledgerRepo.getAll().first().map { it.id })
+    }
+
+    /**
+     * The card lookup returns early when the card is gone, so ledger cleanup has to happen
+     * before it or a deleted card would strand the debts.
+     */
+    @Test
+    fun removesLedgerEntriesEvenWhenTheCardIsMissing() = runTest {
+        txRepo.insert(TestData.transaction(id = "dinner", cardId = "deleted-card"))
+        ledgerRepo.setEntries(
+            listOf(TestData.ledgerEntry(id = "l1", personId = "p1", transactionId = "dinner"))
+        )
+
+        useCase("dinner")
+
+        assertEquals(0, ledgerRepo.count())
     }
 
     @Test

@@ -9,7 +9,7 @@ class FakeBackupRepository : BackupRepository {
     var lastImport: BackupArchive? = null
     var lastReplaceExisting: Boolean = false
     var exportArchive: BackupArchive = BackupArchive(
-        version = 1,
+        version = BackupArchive.CURRENT_VERSION,
         createdAt = Clock.System.now(),
         accounts = emptyList(),
         creditCards = emptyList(),

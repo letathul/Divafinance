@@ -14,6 +14,7 @@ import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.testing.fake.FakeCardRepository
+import com.divafinance.core.testing.fake.FakeLedgerRepository
 import com.divafinance.core.testing.fake.FakeFeedRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
@@ -45,6 +46,7 @@ class QuickAddViewModelTest {
 
     private val txRepo = FakeTransactionRepository()
     private val cardRepo = FakeCardRepository()
+    private val ledgerRepo = FakeLedgerRepository()
     private val feedRepo = FakeFeedRepository()
     private val settingsRepo = FakeSettingsRepository()
     private var premiumGate = FakePremiumGate(premium = false)
@@ -52,7 +54,7 @@ class QuickAddViewModelTest {
 
     private fun viewModel() = QuickAddViewModel(
         AddTransactionUseCase(txRepo, cardRepo),
-        DeleteTransactionUseCase(txRepo, cardRepo),
+        DeleteTransactionUseCase(txRepo, cardRepo, ledgerRepo),
         PredictCategoryUseCase(txRepo),
         SuggestMerchantsUseCase(txRepo),
         GetAllCardsUseCase(cardRepo),
