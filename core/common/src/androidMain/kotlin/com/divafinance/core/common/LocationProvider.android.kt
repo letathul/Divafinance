@@ -20,6 +20,12 @@ private const val MAX_CACHED_AGE_MS = 2 * 60 * 1000L
 /** An entry must not stall waiting for GPS; without a fix by now, save without one. */
 private const val FRESH_FIX_TIMEOUT_MS = 8_000L
 
+/**
+ * Budget per provider, so a silent one cannot consume the whole allowance and starve the
+ * fallback. Two providers at 4s each fit inside [FRESH_FIX_TIMEOUT_MS].
+ */
+private const val PER_PROVIDER_TIMEOUT_MS = 4_000L
+
 actual class LocationProvider(private val context: Context) : LocationSource {
 
     // Resolved through the platform rather than ContextCompat: core:common is depended on
@@ -27,7 +33,14 @@ actual class LocationProvider(private val context: Context) : LocationSource {
     private val locationManager: LocationManager?
         get() = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
-    override fun isAvailable(): Boolean = locationManager != null
+    /**
+     * Whether the device could produce a position at all — location services on, with at
+     * least one provider enabled. Not the same question as [hasPermission].
+     */
+    override fun isAvailable(): Boolean {
+        val manager = locationManager ?: return false
+        return enabledProviders(manager).isNotEmpty()
+    }
 
     override fun hasPermission(): Boolean {
         // Coarse is enough to identify a shop; fine is better but not required.
@@ -52,7 +65,7 @@ actual class LocationProvider(private val context: Context) : LocationSource {
     /** Newest sufficiently recent fix across providers. */
     private fun lastKnownFix(manager: LocationManager): Location? {
         val now = System.currentTimeMillis()
-        return enabledProviders(manager)
+        return usableProviders(manager)
             .mapNotNull { provider ->
                 @Suppress("MissingPermission")
                 runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
@@ -61,9 +74,23 @@ actual class LocationProvider(private val context: Context) : LocationSource {
             .maxByOrNull { it.time }
     }
 
+    /**
+     * Asks each usable provider in turn and takes the first fix.
+     *
+     * Trying only the preferred provider is what made this fail in practice: GPS is listed
+     * first by accuracy, but indoors — a shop, a restaurant, exactly where a receipt gets
+     * typed — it frequently never fixes, so the request would sit until the timeout and
+     * return nothing even though the network provider had a position all along.
+     */
     private suspend fun freshFix(manager: LocationManager): Location? {
-        val provider = enabledProviders(manager).firstOrNull() ?: return null
+        for (provider in usableProviders(manager)) {
+            val fix = withTimeoutOrNull(PER_PROVIDER_TIMEOUT_MS) { singleFix(manager, provider) }
+            if (fix != null) return fix
+        }
+        return null
+    }
 
+    private suspend fun singleFix(manager: LocationManager, provider: String): Location? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             suspendCancellableCoroutine { continuation ->
                 val signal = CancellationSignal()
@@ -94,10 +121,18 @@ actual class LocationProvider(private val context: Context) : LocationSource {
         }
     }
 
-    /** GPS first when enabled, then network — ordered by accuracy, not availability. */
-    private fun enabledProviders(manager: LocationManager): List<String> =
-        listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+    /** Sources that exist and are switched on, regardless of permission. */
+    private fun enabledProviders(manager: LocationManager): List<PositioningSource> =
+        PositioningSource.entries.filter { source ->
+            runCatching { manager.isProviderEnabled(source.androidProvider) }.getOrDefault(false)
+        }
+
+    /** Ordering and permission filtering live in [usablePositioningSources], which is tested. */
+    private fun usableProviders(manager: LocationManager): List<String> =
+        usablePositioningSources(
+            enabled = enabledProviders(manager).toSet(),
+            fineLocationGranted = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION),
+        ).map { it.androidProvider }
 
     override suspend fun describe(coordinates: Coordinates): String? {
         // Absent on AOSP builds and anything without a geocoding backend.
@@ -153,3 +188,9 @@ private class SingleUpdateListener(
 }
 
 private fun Location.toCoordinates() = Coordinates(latitude, longitude)
+
+private val PositioningSource.androidProvider: String
+    get() = when (this) {
+        PositioningSource.NETWORK -> LocationManager.NETWORK_PROVIDER
+        PositioningSource.SATELLITE -> LocationManager.GPS_PROVIDER
+    }

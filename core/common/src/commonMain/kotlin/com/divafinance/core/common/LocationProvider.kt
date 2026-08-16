@@ -44,6 +44,34 @@ interface LocationSource {
 }
 
 /**
+ * Ways a device can work out where it is, in the order this app prefers to ask.
+ *
+ * Network first is deliberate and is not an accuracy judgement: this only needs to know
+ * roughly which shop the user is standing in. The network provider answers in about a
+ * second and works indoors — a shop, a restaurant, exactly where a receipt gets typed —
+ * whereas satellite positioning is more precise but frequently never fixes inside a
+ * building, which would leave the request timing out with nothing.
+ *
+ * Android only. CoreLocation picks for itself, so the iOS actual has no equivalent.
+ */
+internal enum class PositioningSource { NETWORK, SATELLITE }
+
+/**
+ * Which sources are worth asking, best first.
+ *
+ * [fineLocationGranted] excludes satellite positioning when false: querying it with only
+ * coarse permission throws, and that exception was being swallowed and reported as "no
+ * location" — so granting Android's "Approximate" option produced nothing at all.
+ */
+internal fun usablePositioningSources(
+    enabled: Set<PositioningSource>,
+    fineLocationGranted: Boolean,
+): List<PositioningSource> =
+    PositioningSource.entries
+        .filter { it in enabled }
+        .filter { it != PositioningSource.SATELLITE || fineLocationGranted }
+
+/**
  * The platform implementation of [LocationSource].
  *
  * Callers depend on the interface, not this class: an `expect class` cannot be subclassed,

@@ -46,27 +46,34 @@ actual class LocationProvider : LocationSource {
      */
     private var pendingDelegate: SingleFixDelegate? = null
 
+    /**
+     * One manager for the lifetime of the provider, rather than one per call.
+     *
+     * `CLLocationManager` expects to be created and used on a thread with a run loop, and
+     * creating a throwaway one inside a non-suspending method meant it was built on
+     * whatever thread happened to call [hasPermission]. This is a Koin singleton created
+     * during DI setup on the main thread, so the instance is made once, there.
+     */
+    private val manager: CLLocationManager by lazy { CLLocationManager() }
+
     override fun isAvailable(): Boolean = CLLocationManager.locationServicesEnabled()
 
     override fun hasPermission(): Boolean {
-        val status = CLLocationManager().authorizationStatus
+        val status = manager.authorizationStatus
         return status == kCLAuthorizationStatusAuthorizedWhenInUse ||
             status == kCLAuthorizationStatusAuthorizedAlways
     }
 
-    override suspend fun currentCoordinates(): Coordinates? {
-        if (!hasPermission()) return null
+    override suspend fun currentCoordinates(): Coordinates? = withContext(Dispatchers.Main) {
+        // Checked on Main alongside everything else that touches the manager.
+        if (!hasPermission()) return@withContext null
 
-        return withContext(Dispatchers.Main) {
-            val manager = CLLocationManager()
+        // A recent cached fix avoids waking the hardware for an entry being typed now.
+        manager.location?.takeIf { it.isRecent() }?.let { return@withContext it.toCoordinates() }
 
-            // A recent cached fix avoids waking the hardware for an entry that is being
-            // typed right now.
-            manager.location?.takeIf { it.isRecent() }?.let { return@withContext it.toCoordinates() }
-
-            withTimeoutOrNull(FIX_TIMEOUT_MS) { requestSingleFix(manager) }?.toCoordinates()
-                .also { pendingDelegate = null }
-        }
+        val fix = withTimeoutOrNull(FIX_TIMEOUT_MS) { requestSingleFix(manager) }
+        pendingDelegate = null
+        fix?.toCoordinates()
     }
 
     /**
