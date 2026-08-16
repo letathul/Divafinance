@@ -41,3 +41,17 @@ fun Double.toFixed(decimals: Int): String {
 
 /** [toFixed] for Float-typed values, e.g. chart percentages. */
 fun Float.toFixed(decimals: Int): String = toDouble().toFixed(decimals)
+
+/**
+ * Snaps a computed value to whole cents.
+ *
+ * Binary floating point cannot represent most decimal fractions, so arithmetic on entered
+ * amounts drifts: `0.1 + 0.2` is `0.30000000000000004`. Display formatting hides that, but
+ * the drift is still what gets persisted and summed, so round before storing rather than
+ * only when rendering.
+ */
+fun Double.roundToCents(): Double {
+    if (!isFinite()) return this
+    val scaled = floor(abs(this) * 100.0 + 0.5) / 100.0
+    return if (this < 0) -scaled else scaled
+}

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
@@ -12,13 +13,19 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,8 +35,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.compose.rememberNavController
 import com.divafinance.core.domain.usecase.onboarding.InitializeDatabaseUseCase
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.component.LoadingIndicator
+import com.divafinance.feature.quickadd.QuickAddSheet
+import com.divafinance.feature.quickadd.QuickAddViewModel
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 private data class BottomNavItem(
     val route: String,
@@ -78,7 +89,36 @@ fun MainScreen() {
 
     val showBottomBar = currentRoute in bottomNavRoutes
 
+    val quickAddViewModel: QuickAddViewModel = koinViewModel()
+    var showQuickAdd by remember { mutableStateOf(false) }
+    val saved by quickAddViewModel.saved.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // The sheet lives here rather than in a feature screen so both Home and Transactions
+    // reach it without either depending on the other.
+    LaunchedEffect(saved) {
+        val justSaved = saved ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Added ${justSaved.amount.toFixed(2)} · ${justSaved.category.displayName}",
+            actionLabel = "Undo",
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            quickAddViewModel.undo()
+        } else {
+            quickAddViewModel.consumeSaved()
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            if (showBottomBar) {
+                FloatingActionButton(onClick = { showQuickAdd = true }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add transaction")
+                }
+            }
+        },
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
@@ -112,6 +152,13 @@ fun MainScreen() {
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier.padding(innerPadding),
+        )
+    }
+
+    if (showQuickAdd) {
+        QuickAddSheet(
+            onDismiss = { showQuickAdd = false },
+            viewModel = quickAddViewModel,
         )
     }
 }

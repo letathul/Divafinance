@@ -151,12 +151,7 @@ fun DivaNavHost(
         }
 
         composable(DivaRoutes.TRANSACTIONS) {
-            TransactionListScreen(
-                onAddTransaction = {
-                    navController.navigate(DivaRoutes.TRANSACTION_ADD)
-                },
-                viewModel = transactionsViewModel,
-            )
+            TransactionListScreen(viewModel = transactionsViewModel)
         }
 
         composable(DivaRoutes.TRANSACTION_ADD) {

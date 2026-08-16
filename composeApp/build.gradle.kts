@@ -66,6 +66,7 @@ kotlin {
             implementation(project(":feature:dashboard"))
             implementation(project(":feature:cards"))
             implementation(project(":feature:transactions"))
+            implementation(project(":feature:quickadd"))
             implementation(project(":feature:graphs"))
             implementation(project(":feature:feed"))
             implementation(project(":feature:settings"))

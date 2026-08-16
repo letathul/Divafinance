@@ -9,6 +9,7 @@ import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.onboarding.OnboardingViewModel
 import com.divafinance.feature.automation.AutomationHandler
 import com.divafinance.feature.automation.AutomationViewModel
+import com.divafinance.feature.quickadd.QuickAddViewModel
 import com.divafinance.feature.scanner.ScannerViewModel
 import com.divafinance.feature.scanner.ocr.OcrEngine
 import com.divafinance.feature.settings.SettingsViewModel
@@ -23,6 +24,7 @@ val viewModelModule = module {
     viewModel { CardsViewModel(get(), get(), get(), get()) }
     viewModel { TransactionsViewModel(get(), get(), get(), get()) }
     viewModel { DashboardViewModel(get(), get()) }
+    viewModel { QuickAddViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { GraphsViewModel(get(), get(), get()) }
     viewModel { BackupViewModel(get(), get(), get()) }
     viewModel { FeedViewModel(get(), get()) }

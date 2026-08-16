@@ -15,11 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,7 +44,6 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun TransactionListScreen(
-    onAddTransaction: () -> Unit = {},
     viewModel: TransactionsViewModel = koinViewModel(),
 ) {
     val transactions by viewModel.filteredTransactions.collectAsState()
@@ -104,20 +101,8 @@ fun TransactionListScreen(
                 TransactionItem(transaction = transaction)
             }
 
+            // Clears the global quick-add FAB that MainScreen overlays.
             item { Spacer(Modifier.height(72.dp)) }
-        }
-
-        FloatingActionButton(
-            onClick = {
-                viewModel.resetForm()
-                onAddTransaction()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Transaction")
         }
     }
 }
