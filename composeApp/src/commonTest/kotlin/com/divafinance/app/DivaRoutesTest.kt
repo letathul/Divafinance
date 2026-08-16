@@ -15,6 +15,7 @@ class DivaRoutesTest {
         assertEquals("cards/edit", DivaRoutes.CARD_EDIT)
         assertEquals("cards/best", DivaRoutes.BEST_CARD)
         assertEquals("activity", DivaRoutes.ACTIVITY)
+        assertEquals("people/{personId}", DivaRoutes.PERSON_DETAIL)
         assertEquals("transactions", DivaRoutes.TRANSACTIONS)
         assertEquals("transactions/add", DivaRoutes.TRANSACTION_ADD)
         assertEquals("feed", DivaRoutes.FEED)

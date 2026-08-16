@@ -11,6 +11,8 @@ import androidx.savedstate.read
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.activity.ActivityScreen
 import com.divafinance.feature.activity.ActivityViewModel
+import com.divafinance.feature.activity.PersonDetailScreen
+import com.divafinance.feature.activity.PersonDetailViewModel
 import com.divafinance.feature.backup.BackupRestoreScreen
 import com.divafinance.feature.backup.BackupViewModel
 import com.divafinance.feature.cards.AddEditCardScreen
@@ -35,6 +37,7 @@ import com.divafinance.feature.transactions.AddTransactionScreen
 import com.divafinance.feature.transactions.TransactionListScreen
 import com.divafinance.feature.transactions.TransactionsViewModel
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 object DivaRoutes {
     const val ONBOARDING = "onboarding"
@@ -45,6 +48,7 @@ object DivaRoutes {
     const val CARD_EDIT = "cards/edit"
     const val BEST_CARD = "cards/best"
     const val ACTIVITY = "activity"
+    const val PERSON_DETAIL = "people/{personId}"
     const val TRANSACTIONS = "transactions"
     const val TRANSACTION_ADD = "transactions/add"
     const val FEED = "feed"
@@ -57,6 +61,8 @@ object DivaRoutes {
     const val AUTOMATION = "automation"
 
     fun cardDetail(cardId: String) = "cards/$cardId"
+
+    fun personDetail(personId: String) = "people/$personId"
 }
 
 @Composable
@@ -166,7 +172,23 @@ fun DivaNavHost(
 
         composable(DivaRoutes.ACTIVITY) {
             val activityViewModel: ActivityViewModel = koinViewModel()
-            ActivityScreen(viewModel = activityViewModel)
+            ActivityScreen(
+                onPersonClick = { personId ->
+                    navController.navigate(DivaRoutes.personDetail(personId))
+                },
+                viewModel = activityViewModel,
+            )
+        }
+
+        composable(DivaRoutes.PERSON_DETAIL) { backStackEntry ->
+            val personId = backStackEntry.arguments?.read { getStringOrNull("personId") }
+                ?: return@composable
+            val detailViewModel: PersonDetailViewModel =
+                koinViewModel(key = personId) { parametersOf(personId) }
+            PersonDetailScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = detailViewModel,
+            )
         }
 
         composable(DivaRoutes.FEED) {
