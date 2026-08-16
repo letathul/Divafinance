@@ -10,12 +10,14 @@ import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
 import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
-import com.divafinance.core.domain.usecase.transactions.GetTransactionsUseCase
+import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
+import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,11 +48,14 @@ data class QuickAddUiState(
     val suggestedCategories: List<SpendingCategory> = emptyList(),
     val showAllCategories: Boolean = false,
     val merchantName: String = "",
+    val merchantSuggestions: List<String> = emptyList(),
     val note: String = "",
     val showDetails: Boolean = false,
     val selectedCardId: String? = null,
     val cards: List<CreditCard> = emptyList(),
     val day: QuickAddDay = QuickAddDay.TODAY,
+    /** Set once the user picks a category, after which prediction stops overriding it. */
+    val categoryPickedManually: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
 ) {
@@ -82,7 +87,8 @@ data class QuickAddSaved(
 class QuickAddViewModel(
     private val addTransactionUseCase: AddTransactionUseCase,
     private val deleteTransactionUseCase: DeleteTransactionUseCase,
-    private val getTransactionsUseCase: GetTransactionsUseCase,
+    private val predictCategoryUseCase: PredictCategoryUseCase,
+    private val suggestMerchantsUseCase: SuggestMerchantsUseCase,
     getAllCardsUseCase: GetAllCardsUseCase,
     private val postTransactionToFeedUseCase: PostTransactionToFeedUseCase,
     private val settingsRepository: SettingsRepository,
@@ -93,6 +99,9 @@ class QuickAddViewModel(
 
     private val _saved = MutableStateFlow<QuickAddSaved?>(null)
     val saved: StateFlow<QuickAddSaved?> = _saved.asStateFlow()
+
+    /** Cancelled on each keystroke so only the latest merchant query lands. */
+    private var suggestionJob: Job? = null
 
     private val cards: StateFlow<List<CreditCard>> = getAllCardsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -111,12 +120,14 @@ class QuickAddViewModel(
     fun onOpened() {
         viewModelScope.launch {
             val defaultCardId = setting(UserSettings.KEY_DEFAULT_CARD_ID)
-            val ranked = rankCategoriesByUse()
+            val predicted = predictCategoryUseCase(limit = SUGGESTED_CATEGORY_COUNT)
+            val recentMerchants = suggestMerchantsUseCase()
             _uiState.update {
                 it.copy(
                     selectedCardId = defaultCardId,
-                    suggestedCategories = ranked,
-                    category = ranked.firstOrNull() ?: SpendingCategory.OTHER,
+                    suggestedCategories = predicted,
+                    category = predicted.firstOrNull() ?: SpendingCategory.OTHER,
+                    merchantSuggestions = recentMerchants,
                 )
             }
         }
@@ -148,14 +159,57 @@ class QuickAddViewModel(
     }
 
     fun onCategoryChange(category: SpendingCategory) =
-        _uiState.update { it.copy(category = category) }
+        _uiState.update { it.copy(category = category, categoryPickedManually = true) }
 
     fun onToggleAllCategories() =
         _uiState.update { it.copy(showAllCategories = !it.showAllCategories) }
 
     fun onToggleDetails() = _uiState.update { it.copy(showDetails = !it.showDetails) }
 
-    fun onMerchantChange(name: String) = _uiState.update { it.copy(merchantName = name) }
+    /**
+     * Typing a merchant both narrows the autocomplete list and re-runs the category
+     * prediction, since a known shop is by far the strongest signal available.
+     */
+    fun onMerchantChange(name: String) {
+        _uiState.update { it.copy(merchantName = name) }
+        refreshSuggestions()
+    }
+
+    /** Accepting a suggestion should behave exactly like having typed it in full. */
+    fun onMerchantSuggestionPicked(name: String) {
+        _uiState.update { it.copy(merchantName = name) }
+        refreshSuggestions()
+    }
+
+    /**
+     * Re-runs prediction against what has been entered so far. The user's own pick is
+     * never overridden — only the offered chips move.
+     */
+    private fun refreshSuggestions() {
+        suggestionJob?.cancel()
+        suggestionJob = viewModelScope.launch {
+            val state = _uiState.value
+            val merchant = state.merchantName.ifBlank { null }
+            val predicted = predictCategoryUseCase(
+                merchantName = merchant,
+                amount = state.committedAmount,
+                limit = SUGGESTED_CATEGORY_COUNT,
+            )
+            val merchants = suggestMerchantsUseCase(state.merchantName)
+            _uiState.update {
+                it.copy(
+                    suggestedCategories = predicted,
+                    merchantSuggestions = merchants,
+                    // Only move the selection while the user has not made one of their own.
+                    category = if (it.categoryPickedManually) {
+                        it.category
+                    } else {
+                        predicted.firstOrNull() ?: it.category
+                    },
+                )
+            }
+        }
+    }
 
     fun onNoteChange(note: String) = _uiState.update { it.copy(note = note) }
 
@@ -252,37 +306,6 @@ class QuickAddViewModel(
         QuickAddDay.YESTERDAY -> today.minusDays(1)
     }
 
-    /**
-     * Most-used categories first, so the common case is one tap.
-     *
-     * Frequency only — Phase 2 replaces this with a real predictor that also weighs
-     * merchant, time of day and location. Padded to a fixed size so a new install still
-     * gets a full row of chips instead of an empty one.
-     */
-    private suspend fun rankCategoriesByUse(): List<SpendingCategory> {
-        val history = runCatching { getTransactionsUseCase().first() }.getOrDefault(emptyList())
-        val byFrequency = history
-            .groupingBy { it.category }
-            .eachCount()
-            .entries
-            .sortedByDescending { it.value }
-            .map { it.key }
-
-        return (byFrequency + DEFAULT_CATEGORY_ORDER)
-            .distinct()
-            .take(SUGGESTED_CATEGORY_COUNT)
-    }
-
-    private companion object {
-        /** Fallback ordering for an empty history: the categories people log most. */
-        val DEFAULT_CATEGORY_ORDER = listOf(
-            SpendingCategory.GROCERIES,
-            SpendingCategory.DINING,
-            SpendingCategory.TRANSPORTATION,
-            SpendingCategory.SHOPPING,
-            SpendingCategory.ENTERTAINMENT,
-        )
-    }
 }
 
 /** kotlinx-datetime has no `minusDays` on LocalDate in this version. */

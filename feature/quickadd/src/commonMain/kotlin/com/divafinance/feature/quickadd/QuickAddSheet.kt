@@ -68,6 +68,7 @@ fun QuickAddSheet(
             onToggleAllCategories = viewModel::onToggleAllCategories,
             onToggleDetails = viewModel::onToggleDetails,
             onMerchantChange = viewModel::onMerchantChange,
+            onMerchantSuggestionPicked = viewModel::onMerchantSuggestionPicked,
             onNoteChange = viewModel::onNoteChange,
             onCardChange = viewModel::onCardChange,
             onDayChange = viewModel::onDayChange,
@@ -91,6 +92,7 @@ internal fun QuickAddSheetContent(
     onToggleAllCategories: () -> Unit,
     onToggleDetails: () -> Unit,
     onMerchantChange: (String) -> Unit,
+    onMerchantSuggestionPicked: (String) -> Unit,
     onNoteChange: (String) -> Unit,
     onCardChange: (String?) -> Unit,
     onDayChange: (QuickAddDay) -> Unit,
@@ -123,6 +125,7 @@ internal fun QuickAddSheetContent(
             state = state,
             onToggleDetails = onToggleDetails,
             onMerchantChange = onMerchantChange,
+            onMerchantSuggestionPicked = onMerchantSuggestionPicked,
             onNoteChange = onNoteChange,
             onCardChange = onCardChange,
         )
@@ -237,6 +240,7 @@ private fun DetailsSection(
     state: QuickAddUiState,
     onToggleDetails: () -> Unit,
     onMerchantChange: (String) -> Unit,
+    onMerchantSuggestionPicked: (String) -> Unit,
     onNoteChange: (String) -> Unit,
     onCardChange: (String?) -> Unit,
 ) {
@@ -252,6 +256,22 @@ private fun DetailsSection(
         onValueChange = onMerchantChange,
         label = "Merchant",
     )
+
+    // Shops repeat, so offering past ones saves most of the typing — and picking one
+    // sharpens the category prediction at the same time.
+    if (state.merchantSuggestions.isNotEmpty()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            state.merchantSuggestions.forEach { suggestion ->
+                CategoryChip(
+                    label = suggestion,
+                    onClick = { onMerchantSuggestionPicked(suggestion) },
+                )
+            }
+        }
+    }
     DivaTextField(
         value = state.note,
         onValueChange = onNoteChange,

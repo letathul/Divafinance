@@ -58,6 +58,15 @@ class FakeTransactionRepository : TransactionRepository {
 
     override suspend fun count(): Long = transactions.value.size.toLong()
 
+    override suspend fun getKnownMerchants(): List<String> =
+        transactions.value
+            .mapNotNull { it.merchantName?.trim()?.takeIf(String::isNotEmpty) }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .map { it.key }
+
     fun setTransactions(list: List<Transaction>) {
         transactions.value = list
     }

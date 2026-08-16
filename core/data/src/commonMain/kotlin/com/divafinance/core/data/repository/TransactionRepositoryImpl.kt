@@ -59,6 +59,12 @@ class TransactionRepositoryImpl(
             .map { it.toDomain() }
     }
 
+    override suspend fun getKnownMerchants(): List<String> {
+        return db.transactionQueries.selectDistinctMerchants()
+            .executeAsList()
+            .map { it.name }
+    }
+
     override suspend fun getSpendingByCategory(
         startDate: LocalDate,
         endDate: LocalDate

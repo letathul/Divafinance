@@ -163,6 +163,7 @@ private object FakeTransactionRepository : TransactionRepository {
         endDate: LocalDate,
     ): List<Transaction> = emptyList()
     override suspend fun getWithLocation(): List<Transaction> = emptyList()
+    override suspend fun getKnownMerchants(): List<String> = emptyList()
     override suspend fun getSpendingByCategory(startDate: LocalDate, endDate: LocalDate): Map<String, Double> =
         emptyMap()
     override suspend fun getTotalSpending(startDate: LocalDate, endDate: LocalDate): Double? = null

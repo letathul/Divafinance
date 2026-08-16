@@ -97,6 +97,8 @@ class FakeTransactionRepository : TransactionRepository {
         endDate: LocalDate,
     ) = emptyList<Transaction>()
     override suspend fun getWithLocation() = items.value.filter { it.location != null }
+    override suspend fun getKnownMerchants() =
+        items.value.mapNotNull { it.merchantName }.distinct()
     override suspend fun getSpendingByCategory(startDate: LocalDate, endDate: LocalDate) =
         emptyMap<String, Double>()
     override suspend fun getTotalSpending(startDate: LocalDate, endDate: LocalDate): Double? = null

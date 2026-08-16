@@ -33,7 +33,7 @@ class QuickAddSheetTest {
     @Test
     fun startsAtZero() = runComposeUiTest {
         setContent {
-            DivaTheme { QuickAddSheetContent(QuickAddUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+            DivaTheme { QuickAddSheetContent(QuickAddUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
         }
         onNodeWithText("0.00").assertIsDisplayed()
     }
@@ -41,7 +41,7 @@ class QuickAddSheetTest {
     @Test
     fun saveIsDisabledWithoutAnAmount() = runComposeUiTest {
         setContent {
-            DivaTheme { QuickAddSheetContent(QuickAddUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+            DivaTheme { QuickAddSheetContent(QuickAddUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
         }
         onNodeWithText("Save").assertIsNotEnabled()
     }
@@ -51,7 +51,7 @@ class QuickAddSheetTest {
         setContent {
             DivaTheme {
                 QuickAddSheetContent(
-                    QuickAddUiState(expression = "12"), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+                    QuickAddUiState(expression = "12"), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
                 )
             }
         }
@@ -63,7 +63,7 @@ class QuickAddSheetTest {
         setContent {
             DivaTheme {
                 QuickAddSheetContent(
-                    QuickAddUiState(expression = "12+8.50"), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+                    QuickAddUiState(expression = "12+8.50"), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
                 )
             }
         }
@@ -77,7 +77,7 @@ class QuickAddSheetTest {
         setContent {
             DivaTheme {
                 QuickAddSheetContent(
-                    QuickAddUiState(expression = "12+"), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+                    QuickAddUiState(expression = "12+"), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
                 )
             }
         }
@@ -96,7 +96,8 @@ class QuickAddSheetTest {
                     onOperator = harness::operator,
                     onBackspace = harness::backspace,
                     onTypeChange = {}, onCategoryChange = {}, onToggleAllCategories = {},
-                    onToggleDetails = {}, onMerchantChange = {}, onNoteChange = {},
+                    onToggleDetails = {}, onMerchantChange = {}, onMerchantSuggestionPicked = {},
+                    onNoteChange = {},
                     onCardChange = {}, onDayChange = {}, onSave = {},
                 )
             }
@@ -121,7 +122,8 @@ class QuickAddSheetTest {
                     onOperator = harness::operator,
                     onBackspace = harness::backspace,
                     onTypeChange = {}, onCategoryChange = {}, onToggleAllCategories = {},
-                    onToggleDetails = {}, onMerchantChange = {}, onNoteChange = {},
+                    onToggleDetails = {}, onMerchantChange = {}, onMerchantSuggestionPicked = {},
+                    onNoteChange = {},
                     onCardChange = {}, onDayChange = {}, onSave = {},
                 )
             }
@@ -143,7 +145,7 @@ class QuickAddSheetTest {
                         suggestedCategories = listOf(SpendingCategory.GAS, SpendingCategory.DINING),
                         category = SpendingCategory.GAS,
                     ),
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
                 )
             }
         }
@@ -155,7 +157,7 @@ class QuickAddSheetTest {
     @Test
     fun detailsAreHiddenUntilExpanded() = runComposeUiTest {
         setContent {
-            DivaTheme { QuickAddSheetContent(QuickAddUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+            DivaTheme { QuickAddSheetContent(QuickAddUiState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
         }
         onNodeWithText("Add details").assertIsDisplayed()
     }
@@ -166,7 +168,7 @@ class QuickAddSheetTest {
             DivaTheme {
                 QuickAddSheetContent(
                     QuickAddUiState(error = "Enter an amount greater than zero"),
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
                 )
             }
         }

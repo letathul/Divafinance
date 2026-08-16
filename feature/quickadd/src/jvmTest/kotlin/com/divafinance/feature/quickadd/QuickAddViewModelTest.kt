@@ -4,7 +4,8 @@ import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
 import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
-import com.divafinance.core.domain.usecase.transactions.GetTransactionsUseCase
+import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
+import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
@@ -46,7 +47,8 @@ class QuickAddViewModelTest {
     private fun viewModel() = QuickAddViewModel(
         AddTransactionUseCase(txRepo, cardRepo),
         DeleteTransactionUseCase(txRepo, cardRepo),
-        GetTransactionsUseCase(txRepo),
+        PredictCategoryUseCase(txRepo),
+        SuggestMerchantsUseCase(txRepo),
         GetAllCardsUseCase(cardRepo),
         PostTransactionToFeedUseCase(feedRepo),
         settingsRepo,
@@ -326,6 +328,92 @@ class QuickAddViewModelTest {
 
         assertEquals(5, vm.uiState.value.suggestedCategories.size)
         assertEquals(SpendingCategory.GROCERIES, vm.uiState.value.category)
+    }
+
+    /** The whole point of the predictor: a known shop should pick its own category. */
+    @Test
+    fun typingAKnownMerchantSwitchesThePredictedCategory() = runTest {
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(id = "1", category = SpendingCategory.GROCERIES, merchantName = "Tesco"),
+                TestData.transaction(id = "2", category = SpendingCategory.GROCERIES, merchantName = "Tesco"),
+                TestData.transaction(id = "3", category = SpendingCategory.GROCERIES, merchantName = "Tesco"),
+                TestData.transaction(id = "4", category = SpendingCategory.DINING, merchantName = "Blue Bottle"),
+            )
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+        assertEquals(SpendingCategory.GROCERIES, vm.uiState.value.category)
+
+        vm.onMerchantChange("Blue Bottle")
+
+        assertEquals(SpendingCategory.DINING, vm.uiState.value.category)
+    }
+
+    /** Prediction assists; it must never overrule a choice the user already made. */
+    @Test
+    fun doesNotOverrideACategoryThePersonPickedThemselves() = runTest {
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(id = "1", category = SpendingCategory.DINING, merchantName = "Blue Bottle"),
+            )
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.onCategoryChange(SpendingCategory.HEALTHCARE)
+        vm.onMerchantChange("Blue Bottle")
+
+        assertEquals(SpendingCategory.HEALTHCARE, vm.uiState.value.category)
+    }
+
+    @Test
+    fun offersRecentMerchantsBeforeAnythingIsTyped() = runTest {
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(id = "1", merchantName = "Tesco"),
+                TestData.transaction(id = "2", merchantName = "Tesco"),
+                TestData.transaction(id = "3", merchantName = "Costa"),
+            )
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+
+        assertEquals(listOf("Tesco", "Costa"), vm.uiState.value.merchantSuggestions)
+    }
+
+    @Test
+    fun narrowsMerchantSuggestionsAsYouType() = runTest {
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(id = "1", merchantName = "Tesco"),
+                TestData.transaction(id = "2", merchantName = "Costa"),
+            )
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.onMerchantChange("cos")
+
+        assertEquals(listOf("Costa"), vm.uiState.value.merchantSuggestions)
+    }
+
+    @Test
+    fun pickingASuggestionFillsTheMerchantField() = runTest {
+        txRepo.setTransactions(
+            listOf(
+                TestData.transaction(id = "1", category = SpendingCategory.DINING, merchantName = "Blue Bottle"),
+            )
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.onMerchantSuggestionPicked("Blue Bottle")
+
+        assertEquals("Blue Bottle", vm.uiState.value.merchantName)
+        assertEquals(SpendingCategory.DINING, vm.uiState.value.category)
     }
 
     @Test
