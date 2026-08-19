@@ -1,9 +1,11 @@
 package com.divafinance.core.ui.component
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -71,12 +73,17 @@ fun SectionHeader(
 /**
  * Selected state inverts fore- and background together rather than tinting, so contrast
  * never drops below the resting state.
+ *
+ * [onLongPress] is optional and receives the index that was held. It is a way to offer a
+ * fuller choice than the visible segments without spending a row on a second control.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SegmentedControl(
     options: List<String>,
     selectedIndex: Int,
     modifier: Modifier = Modifier,
+    onLongPress: ((Int) -> Unit)? = null,
     onSelect: (Int) -> Unit,
 ) {
     Row(
@@ -95,7 +102,18 @@ fun SegmentedControl(
                     .background(
                         if (on) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent
                     )
-                    .clickable { onSelect(i) }
+                    .then(
+                        // `clickable` when there is nothing to hold for, so the plain case
+                        // keeps its shorter press-to-fire timing.
+                        if (onLongPress == null) {
+                            Modifier.clickable { onSelect(i) }
+                        } else {
+                            Modifier.combinedClickable(
+                                onLongClick = { onLongPress(i) },
+                                onClick = { onSelect(i) },
+                            )
+                        }
+                    )
                     .padding(horizontal = Space.pad, vertical = Space.sm),
             ) {
                 Text(

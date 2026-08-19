@@ -27,7 +27,7 @@ screens, no ViewModels, and no business logic.
 | `DivaButton.kt` | Filled + outlined primary buttons, pill-shaped |
 | `DivaCard.kt` | The standard surface: tonal fill, large corner, 12% hairline border, **no elevation** |
 | `GlassSurface.kt` | Translucent capsule with a specular top edge — the tab bar and icon buttons |
-| `Foundations.kt` | `Meta`, `SectionHeader`, `SegmentedControl`, `BudgetTrack`, `StatPill`, `Numeric`, `Hairline` |
+| `Foundations.kt` | `Meta`, `SectionHeader`, `SegmentedControl` (optional `onLongPress` per segment, for offering more than the visible options), `BudgetTrack`, `StatPill`, `Numeric`, `Hairline` |
 | `CategoryVisuals.kt` | `SpendingCategory.color` / `.icon`, `CategoryTile`, `CategoryDot`, `CategoryPickerItem` |
 | `LedgerRow.kt` | `DayHeader` + `TransactionRow` — the ledger's two building blocks |
 | `MomentCard.kt` | The feed's full-width "post" for a split or notable spend |

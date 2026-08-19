@@ -1,11 +1,15 @@
 package com.divafinance.feature.quickadd
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +27,8 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -122,7 +128,9 @@ fun AddExpenseScreen(
             onLocationPromptDismissed = viewModel::onLocationPromptDismissed,
             onLocationNameChange = viewModel::onLocationNameChange,
             onNearbyPlacePicked = viewModel::onNearbyPlacePicked,
+            onLocationCleared = viewModel::onLocationCleared,
             onSplitToggled = viewModel::onSplitToggled,
+            onSplitCountChange = viewModel::onSplitCountChange,
             onTipPercentChange = viewModel::onTipPercentChange,
             onAddSplitPerson = { name -> viewModel.onAddSplitPerson(name) },
             onRemoveSplitPerson = viewModel::onRemoveSplitPerson,
@@ -185,7 +193,9 @@ internal fun AddExpenseContent(
     onLocationPromptDismissed: () -> Unit = {},
     onLocationNameChange: (String) -> Unit = {},
     onNearbyPlacePicked: (NearbyPlace) -> Unit = {},
+    onLocationCleared: () -> Unit = {},
     onSplitToggled: (Boolean) -> Unit = {},
+    onSplitCountChange: (Int) -> Unit = {},
     onTipPercentChange: (Double) -> Unit = {},
     onAddSplitPerson: (String) -> Unit = {},
     onRemoveSplitPerson: (String) -> Unit = {},
@@ -209,7 +219,13 @@ internal fun AddExpenseContent(
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AmountDisplay(state, onWhereTapped)
+        AmountDisplay(
+            state = state,
+            onWhereTapped = onWhereTapped,
+            onLocationNameChange = onLocationNameChange,
+            onNearbyPlacePicked = onNearbyPlacePicked,
+            onLocationCleared = onLocationCleared,
+        )
 
         AccountSelector(state, onCardChange)
 
@@ -235,18 +251,14 @@ internal fun AddExpenseContent(
             onNoteChange = onNoteChange,
         )
 
+        SplitSelector(state, onSplitCountChange)
+
         SplitSection(
             state = state,
             onSplitToggled = onSplitToggled,
             onTipPercentChange = onTipPercentChange,
             onAddSplitPerson = onAddSplitPerson,
             onRemoveSplitPerson = onRemoveSplitPerson,
-        )
-
-        LocationSection(
-            state = state,
-            onLocationNameChange = onLocationNameChange,
-            onNearbyPlacePicked = onNearbyPlacePicked,
         )
 
         state.error?.let {
@@ -273,7 +285,13 @@ internal fun AddExpenseContent(
  * while the total updates underneath.
  */
 @Composable
-private fun AmountDisplay(state: QuickAddUiState, onWhereTapped: () -> Unit) {
+private fun AmountDisplay(
+    state: QuickAddUiState,
+    onWhereTapped: () -> Unit,
+    onLocationNameChange: (String) -> Unit,
+    onNearbyPlacePicked: (NearbyPlace) -> Unit,
+    onLocationCleared: () -> Unit,
+) {
     val amount = state.previewAmount
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = Space.sm, bottom = Space.xs),
@@ -305,7 +323,13 @@ private fun AmountDisplay(state: QuickAddUiState, onWhereTapped: () -> Unit) {
                 )
             }
             Spacer(modifier = Modifier.padding(4.dp))
-            WhereLine(state, onWhereTapped)
+            WhereLine(
+                state = state,
+                onWhereTapped = onWhereTapped,
+                onLocationNameChange = onLocationNameChange,
+                onNearbyPlacePicked = onNearbyPlacePicked,
+                onLocationCleared = onLocationCleared,
+            )
         }
     }
 }
@@ -313,49 +337,177 @@ private fun AmountDisplay(state: QuickAddUiState, onWhereTapped: () -> Unit) {
 /**
  * The caption under the amount, and the whole of the location UI's entry point.
  *
- * One control does three jobs depending on what has been settled — opt in, grant, refresh
- * — because to the user they are all "tell the app where I am". It reads as a label until
- * tapped, which is why it carries a pin and a spelled-out content description: nothing
- * else marks it as interactive.
+ * One control does every location job there is, choosing by what has already been settled
+ * — opt in, grant, capture, then name — because to the user they are all "tell the app
+ * where I am". It reads as a label until tapped, which is why it carries a pin and a
+ * spelled-out content description: nothing else marks it as interactive.
+ *
+ * Once there is a fix the tap opens [PlaceDialog] instead of silently re-reading the
+ * position: with coordinates already in hand the open question is what the place is
+ * called, and the nearby shops from the user's own history are the best answers to it.
+ * Re-reading moves inside that dialog, where it is one button among the alternatives.
+ *
+ * Holding the line gives the two things a tap cannot: the same editor, named as such, and
+ * removal. Removing has no other home — it is rare, and it is the one location action that
+ * throws something away, so a menu that has to be asked for is the right weight for it.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun WhereLine(state: QuickAddUiState, onWhereTapped: () -> Unit) {
+private fun WhereLine(
+    state: QuickAddUiState,
+    onWhereTapped: () -> Unit,
+    onLocationNameChange: (String) -> Unit,
+    onNearbyPlacePicked: (NearbyPlace) -> Unit,
+    onLocationCleared: () -> Unit,
+) {
+    var naming by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+
     val place = state.locationName.ifBlank { state.merchantName }
     val label = when {
         state.isLocatingNow -> "Finding you…"
         place.isNotBlank() -> place
+        // Worth saying rather than falling back to "Where?", which would read as though
+        // nothing had been tried yet.
+        state.locationUnavailable -> "Location unavailable"
         else -> "Where?"
     }
 
-    Row(
-        modifier = Modifier
-            .clip(Pill)
-            .clickable(onClick = onWhereTapped)
-            .padding(horizontal = Space.sm, vertical = Space.xs),
-        horizontalArrangement = Arrangement.spacedBy(Space.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Outlined.LocationOn,
-            contentDescription = if (state.location == null) {
-                "Add where you are"
-            } else {
-                "Update where you are"
+    if (naming) {
+        PlaceDialog(
+            state = state,
+            onLocationNameChange = onLocationNameChange,
+            onNearbyPlacePicked = {
+                naming = false
+                onNearbyPlacePicked(it)
             },
-            tint = if (state.location != null) MaterialTheme.colorScheme.primary else diva.muted,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = label,
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (state.location != null) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                diva.muted
-            },
+            onFindAgain = onWhereTapped,
+            onDismiss = { naming = false },
         )
     }
+
+    // The menu anchors to the line, so it has to share a Box with it.
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(Pill)
+                .combinedClickable(
+                    // Nothing to edit or remove until there is a fix, so a hold with none
+                    // stays silent rather than opening a menu of two dead options.
+                    onLongClick = { if (state.location != null) menuOpen = true },
+                    onClick = { if (state.location == null) onWhereTapped() else naming = true },
+                )
+                .padding(horizontal = Space.sm, vertical = Space.xs),
+            horizontalArrangement = Arrangement.spacedBy(Space.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.LocationOn,
+                contentDescription = if (state.location == null) {
+                    "Add where you are"
+                } else {
+                    "Update where you are"
+                },
+                tint = if (state.location != null) MaterialTheme.colorScheme.primary else diva.muted,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = label,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (state.location != null) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    diva.muted
+                },
+            )
+        }
+
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("Edit place") },
+                onClick = {
+                    menuOpen = false
+                    naming = true
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Remove place") },
+                onClick = {
+                    menuOpen = false
+                    onLocationCleared()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Naming the place, once there is a fix to name.
+ *
+ * The nearby list is the point of it: shops from the user's own history within reach of
+ * this position, which is both a faster answer than typing and a better one — picking one
+ * fills the merchant in too and sharpens the category prediction. The geocoder's guess is
+ * only a starting point, so the field stays editable underneath, and re-reading the
+ * position is a button here rather than a second gesture on the line.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlaceDialog(
+    state: QuickAddUiState,
+    onLocationNameChange: (String) -> Unit,
+    onNearbyPlacePicked: (NearbyPlace) -> Unit,
+    onFindAgain: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Where are you?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                if (state.nearbyPlaces.isNotEmpty()) {
+                    Text("Nearby", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        state.nearbyPlaces.forEach { place ->
+                            CategoryChip(
+                                label = place.name,
+                                selected = state.locationName == place.name,
+                                onClick = { onNearbyPlacePicked(place) },
+                            )
+                        }
+                    }
+                }
+
+                DivaTextField(
+                    value = state.locationName,
+                    onValueChange = onLocationNameChange,
+                    label = "Place",
+                )
+
+                if (state.locationUnavailable) {
+                    Text(
+                        text = "Couldn't read your position just now. The entry saves fine " +
+                            "without it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        },
+        dismissButton = {
+            // Stays open on purpose: the refreshed fix brings a new nearby list with it,
+            // and that list is what the user came here for.
+            TextButton(onClick = onFindAgain, enabled = !state.isLocatingNow) {
+                Text(if (state.isLocatingNow) "Finding…" else "Find me again")
+            }
+        },
+    )
 }
 
 /**
@@ -501,6 +653,101 @@ private fun DayRow(day: QuickAddDay, onDayChange: (QuickAddDay) -> Unit) {
             )
         }
     }
+}
+
+/** The counts offered without asking. Anything else is a long press away. */
+private val SPLIT_PRESETS = listOf(0, 1, 2, 3)
+
+/** Everything the long-press sheet offers, since a table of twelve is still a real bill. */
+private val SPLIT_CHOICES = (0..12).toList()
+
+private fun splitLabel(others: Int): String =
+    if (others == 0) "Just me" else "Split with $others"
+
+/**
+ * How many ways the bill goes, in the same segmented control the card selector uses —
+ * because "who is paying" and "how many are sharing" are the same kind of decision, made
+ * at the same moment, and neither is worth a trip into the details section.
+ *
+ * The visible segments cover the common table sizes; holding any of them opens the full
+ * range, so a larger group costs one extra gesture instead of a permanently wider control.
+ * Picking a number here needs no names: it divides the bill and keeps the other shares out
+ * of the user's own spending. Naming people, in the split section below, is the separate
+ * choice to also track what they owe.
+ */
+@Composable
+private fun SplitSelector(state: QuickAddUiState, onSplitCountChange: (Int) -> Unit) {
+    // Income arrives whole; there is nobody to share it with.
+    if (state.type != TransactionType.DEBIT) return
+
+    var picking by remember { mutableStateOf(false) }
+    val selected = state.splitOthers
+    // A count chosen from the dialog joins the presets, so it stays visible and selected.
+    val options = (SPLIT_PRESETS + selected).distinct().sorted()
+
+    // Wrapped so the dialog's zero-size node stays inside this composable: emitted a level
+    // up it would land in a `spacedBy` column and open a 12dp gap while the dialog is up.
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            SegmentedControl(
+                options = options.map(::splitLabel),
+                selectedIndex = options.indexOf(selected).coerceAtLeast(0),
+                onLongPress = { picking = true },
+                onSelect = { onSplitCountChange(options[it]) },
+            )
+        }
+
+        if (picking) {
+            SplitCountDialog(
+                selected = selected,
+                onPick = {
+                    picking = false
+                    onSplitCountChange(it)
+                },
+                onDismiss = { picking = false },
+            )
+        }
+    }
+}
+
+/** The full range, reached by holding the selector. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SplitCountDialog(selected: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Split with how many?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text(
+                    "The bill is divided evenly between you and everyone you count here. " +
+                        "Only your own share reaches your spending totals.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Wraps rather than scrolls: a number hidden off the edge of a dialog is
+                // a number nobody finds.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SPLIT_CHOICES.forEach { count ->
+                        CategoryChip(
+                            label = if (count == 0) "Just me" else count.toString(),
+                            selected = count == selected,
+                            onClick = { onPick(count) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 /** Common tip rates, so the usual case is one tap. */
@@ -658,53 +905,6 @@ private fun BreakdownRow(label: String, amount: Double, emphasise: Boolean = fal
             },
         )
     }
-}
-
-/**
- * Everything that only makes sense once there is a fix. There is no switch here any more:
- * the place line under the amount is the single entry point, so this section is the tail
- * of that interaction rather than a control of its own — and it stays empty, taking no
- * height at all, until location has actually been used.
- */
-@Composable
-private fun LocationSection(
-    state: QuickAddUiState,
-    onLocationNameChange: (String) -> Unit,
-    onNearbyPlacePicked: (NearbyPlace) -> Unit,
-) {
-    if (state.locationUnavailable) {
-        Text(
-            text = "Location isn't available. You can still save without it.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-
-    if (state.location == null) return
-
-    // Premium: shops from the user's own history near this point.
-    if (state.nearbyPlaces.isNotEmpty()) {
-        Text("Nearby", style = MaterialTheme.typography.labelLarge)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-        ) {
-            state.nearbyPlaces.forEach { place ->
-                CategoryChip(
-                    label = place.name,
-                    selected = state.locationName == place.name,
-                    onClick = { onNearbyPlacePicked(place) },
-                )
-            }
-        }
-    }
-
-    // Whatever was reverse-geocoded is a starting point, not the final answer.
-    DivaTextField(
-        value = state.locationName,
-        onValueChange = onLocationNameChange,
-        label = "Place",
-    )
 }
 
 @Composable

@@ -106,6 +106,12 @@ data class QuickAddUiState(
     val tipPercent: Double = 0.0,
     /** Other people on the bill. The payer is implicit and always included. */
     val splitWith: List<SplitPerson> = emptyList(),
+    /**
+     * How many other people share the bill when nobody has been named — the quick
+     * "split three ways" path. Naming people takes over from it, so this only ever
+     * describes heads the app has no person record for.
+     */
+    val splitWithCount: Int = 0,
     val peopleSuggestions: List<Person> = emptyList(),
     val isSaving: Boolean = false,
     val error: String? = null,
@@ -118,6 +124,13 @@ data class QuickAddUiState(
         get() = ExpressionEvaluator.evaluate(expression)?.roundToCents()?.takeIf { it > 0.0 }
 
     val canSave: Boolean get() = committedAmount != null && !isSaving && (!splitEnabled || split != null)
+
+    /**
+     * How many people other than the payer are on this bill, named or not. The single
+     * number the selector shows, and the one figure the two split paths agree on.
+     */
+    val splitOthers: Int
+        get() = if (!splitEnabled) 0 else maxOf(splitWith.size, splitWithCount)
 
     /**
      * The live breakdown, or null when the split cannot be computed.
@@ -133,9 +146,22 @@ data class QuickAddUiState(
                 subtotalMinor = subtotal.toMinorUnits(),
                 // Index 0 is the payer, which is what makes them absorb the odd penny.
                 participants = listOf(SplitParticipant(personId = null, name = "You")) +
-                    splitWith.map { SplitParticipant(it.personId, it.name) },
+                    splitParticipants(),
                 tipPercent = tipPercent,
             )
+        }
+
+    /**
+     * Everyone but the payer. Named people win outright: an unnamed head is a share the
+     * user simply does not want counted as their own, and there is nobody to owe it, so
+     * the two kinds are never mixed in one bill.
+     */
+    private fun splitParticipants(): List<SplitParticipant> =
+        if (splitWith.isNotEmpty()) {
+            splitWith.map { SplitParticipant(it.personId, it.name) }
+        } else {
+            // Numbered from 2 because the payer is person 1 on the bill.
+            (1..splitWithCount).map { SplitParticipant(personId = null, name = "Person ${it + 1}") }
         }
 
     /** What the card is actually charged: the bill plus tip. */
@@ -441,6 +467,27 @@ class QuickAddViewModel(
         }
     }
 
+    /**
+     * Takes the place off this entry entirely.
+     *
+     * Cancels any read still in flight, or a fix landing a moment later would put back the
+     * place the user just removed. `locationUnavailable` clears with it: nothing failed
+     * here, so the line goes back to asking rather than apologising.
+     */
+    fun onLocationCleared() {
+        locationJob?.cancel()
+        _uiState.update {
+            it.copy(
+                isLocatingNow = false,
+                location = null,
+                locationName = "",
+                locationNameEdited = false,
+                nearbyPlaces = emptyList(),
+                locationUnavailable = false,
+            )
+        }
+    }
+
     /** The captured name is a suggestion, not a fact — it stays editable. */
     fun onLocationNameChange(name: String) =
         _uiState.update { it.copy(locationName = name, locationNameEdited = true) }
@@ -498,10 +545,40 @@ class QuickAddViewModel(
             if (enabled) {
                 it.copy(splitEnabled = true, error = null)
             } else {
-                it.copy(splitEnabled = false, splitWith = emptyList(), tipPercent = 0.0, error = null)
+                it.copy(
+                    splitEnabled = false,
+                    splitWith = emptyList(),
+                    splitWithCount = 0,
+                    tipPercent = 0.0,
+                    error = null,
+                )
             }
         }
         if (enabled) loadPeopleSuggestions()
+    }
+
+    /**
+     * The quick path: [others] people share the bill, and none of them need naming.
+     *
+     * Zero turns splitting off entirely. Picking a number that does not match the named
+     * list replaces it, because the number is the more recent statement of intent — but
+     * picking the number the named list already adds up to leaves those names alone.
+     */
+    fun onSplitCountChange(others: Int) {
+        val count = others.coerceAtLeast(0)
+        if (count == 0) {
+            onSplitToggled(false)
+            return
+        }
+        _uiState.update { state ->
+            state.copy(
+                splitEnabled = true,
+                splitWithCount = count,
+                splitWith = if (state.splitWith.size == count) state.splitWith else emptyList(),
+                error = null,
+            )
+        }
+        loadPeopleSuggestions()
     }
 
     fun onTipPercentChange(percent: Double) =
@@ -514,13 +591,20 @@ class QuickAddViewModel(
 
         _uiState.update { state ->
             val alreadyThere = state.splitWith.any { it.name.equals(trimmed, ignoreCase = true) }
-            if (alreadyThere) state
-            else state.copy(splitWith = state.splitWith + SplitPerson(personId, trimmed))
+            if (alreadyThere) {
+                state
+            } else {
+                // The named list is now the whole bill, so the count follows it rather
+                // than leaving unnamed heads behind that nobody could be billed for.
+                val people = state.splitWith + SplitPerson(personId, trimmed)
+                state.copy(splitWith = people, splitWithCount = people.size)
+            }
         }
     }
 
     fun onRemoveSplitPerson(name: String) = _uiState.update { state ->
-        state.copy(splitWith = state.splitWith.filterNot { it.name.equals(name, ignoreCase = true) })
+        val people = state.splitWith.filterNot { it.name.equals(name, ignoreCase = true) }
+        state.copy(splitWith = people, splitWithCount = people.size)
     }
 
     private fun loadPeopleSuggestions() {
@@ -569,7 +653,7 @@ class QuickAddViewModel(
             )
 
             try {
-                if (split != null) {
+                if (split != null && state.splitWith.isNotEmpty()) {
                     // Drops the payer at index 0; only other people become debts.
                     val shares = split.shares.drop(1).map { share ->
                         SplitShareInput(
@@ -580,6 +664,9 @@ class QuickAddViewModel(
                     }
                     saveSplitTransactionUseCase(transaction, shares)
                 } else {
+                    // Either no split at all, or one with nobody named: unnamed heads owe
+                    // nothing back, so `othersShare` alone keeps their portion out of the
+                    // user's spending without inventing people to hold a debt.
                     addTransactionUseCase(transaction)
                 }
             } catch (e: Exception) {

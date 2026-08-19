@@ -567,6 +567,83 @@ class QuickAddViewModelTest {
         assertEquals(0.0, txRepo.getAll().first().single().othersShare)
     }
 
+    @Test
+    fun removingThePlaceLeavesTheEntryWithoutOne() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        val vm = viewModel()
+        vm.onLocationCaptureModeChosen(LocationCaptureMode.ALWAYS)
+        vm.onLocationRationaleAccepted()
+        vm.onLocationPermissionResult(granted = true)
+        assertNotNull(vm.uiState.value.location)
+
+        vm.onLocationCleared()
+
+        assertNull(vm.uiState.value.location)
+        assertEquals("", vm.uiState.value.locationName)
+        assertEquals(emptyList(), vm.uiState.value.nearbyPlaces)
+    }
+
+    // --- splitting by number ------------------------------------------------
+
+    @Test
+    fun splittingByNumberDividesWithoutNamingAnyone() = runTest {
+        val vm = viewModel()
+        vm.onSplitCountChange(2)
+        vm.type("120")
+
+        assertEquals(2, vm.uiState.value.splitOthers)
+        assertEquals(40.0, vm.uiState.value.splitOwnShare)
+        assertEquals(120.0, vm.uiState.value.splitTotal)
+    }
+
+    /** Nobody was named, so nobody owes anything — but the share is still not your spend. */
+    @Test
+    fun anUnnamedSplitKeepsTheOtherSharesOutOfSpendingWithoutCreatingPeople() = runTest {
+        val vm = viewModel()
+        vm.onSplitCountChange(2)
+        vm.type("120")
+        vm.save()
+
+        val stored = txRepo.getAll().first().single()
+        assertEquals(120.0, stored.amount)
+        assertEquals(80.0, stored.othersShare)
+        assertEquals(0, ledgerRepo.count())
+        assertTrue(personRepo.getAll().first().isEmpty())
+    }
+
+    @Test
+    fun pickingZeroTurnsSplittingOff() = runTest {
+        val vm = viewModel()
+        vm.onSplitCountChange(3)
+        vm.type("120")
+        vm.onSplitCountChange(0)
+
+        assertEquals(0, vm.uiState.value.splitOthers)
+        assertNull(vm.uiState.value.split)
+    }
+
+    /** Naming someone is the more specific statement, so it replaces the bare count. */
+    @Test
+    fun namingSomeoneTakesOverFromTheNumber() = runTest {
+        val vm = viewModel()
+        vm.onSplitCountChange(3)
+        vm.onAddSplitPerson("Sam")
+
+        assertEquals(1, vm.uiState.value.splitOthers)
+        assertEquals(listOf("Sam"), vm.uiState.value.splitWith.map { it.name })
+    }
+
+    /** Re-picking the count the names already add up to must not throw them away. */
+    @Test
+    fun pickingTheCountTheNamesAlreadyMakeKeepsThem() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onSplitCountChange(1)
+
+        assertEquals(listOf("Sam"), vm.uiState.value.splitWith.map { it.name })
+    }
+
     /** An uneven division must still add back up to what was charged. */
     @Test
     fun anUnevenSplitStillReconciles() = runTest {

@@ -1,8 +1,9 @@
 # feature/quickadd
 
 **Purpose:** The centre tab-bar button — a **full-screen** flow for logging a transaction,
-with a calculator keypad, an account segmented control, category tiles, merchant
-autocomplete, splits, and optional nearby-shop suggestions from device location.
+with a calculator keypad, an account segmented control, a split-count segmented control,
+category tiles, merchant autocomplete, splits, and optional location capture with
+nearby-shop suggestions.
 Optimised for a few taps; everything beyond the amount has a usable default.
 
 **Gradle:** `:feature:quickadd` · `diva.kmp.compose`
@@ -17,7 +18,7 @@ for the default card directly), `:core:ui`, `:core:common`. Android adds
 | File | What it does |
 |------|--------------|
 | `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, runs `PredictCategoryUseCase`, and loads recent merchants. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
-| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Top bar (close / title / scan), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then split, location and details sections. `WhereLine` — the caption under the amount — is the entire entry point for location. `AddExpenseContent` is the stateless body tests drive directly. |
+| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Top bar (close / title / scan), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then the details, `SplitSelector` and split sections. `WhereLine` — the caption under the amount — is the entire entry point for location, and `PlaceDialog` behind it is the whole of the rest. `AddExpenseContent` is the stateless body tests drive directly. |
 | `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
 
 The keypad now lives in **`:core:ui`** (`component/CalculatorKeypad.kt`) — the add screen
@@ -30,6 +31,31 @@ job. `SUGGESTED_CATEGORY_COUNT = 5` chips before the full list expands.
 
 ## Conventions / gotchas
 
+- **Two split paths, never mixed.** `SplitSelector` is the quick one: the same segmented
+  control `AccountSelector` uses, labelled `Just me` / `Split with N`, with a **long press**
+  on any segment opening the full range (`SplitCountDialog`, 0–12). It sets
+  `splitWithCount` and needs no names — unnamed heads owe nothing back, so the save goes
+  through `AddTransactionUseCase` with `othersShare` set and writes no ledger entries. The
+  slow path is naming people in `SplitSection`, which does create debts. Naming someone
+  collapses `splitWithCount` onto `splitWith.size`, and picking a count that disagrees with
+  the named list replaces it — `splitParticipants()` therefore never has to reconcile the
+  two, which matters because `SaveSplitTransactionUseCase` requires the shares it is given
+  to add up to `othersShare` exactly. `splitOthers` is the one number the UI reads.
+- **There is no location section.** `WhereLine` and the dialog behind it are all the
+  location UI there is, and which one a gesture gets depends on what has been settled:
+
+  | | no fix yet | fix captured |
+  |---|---|---|
+  | **tap** | `onWhereTapped` — opt in, grant, capture | `PlaceDialog` |
+  | **hold** | nothing | menu: *Edit place* / *Remove place* |
+
+  `PlaceDialog` is where the nearby shops live — `SuggestNearbyPlacesUseCase` output as
+  chips, picking one filling the merchant in too — over the editable `Place` field and a
+  *Find me again* button, which deliberately leaves the dialog open because the refreshed
+  fix brings a new nearby list with it. Removal (`onLocationCleared`) has no other home: it
+  is the one location action that throws something away, so it sits behind the hold, and it
+  cancels `locationJob` because a fix landing a moment later would otherwise put back the
+  place the user just removed.
 - **This ViewModel deliberately does not reuse `TransactionsViewModel`.** That one is
   hoisted at NavHost scope and shares form state between the list and full-add screens,
   relying on callers to `resetForm()` first. The sheet is reachable from anywhere, so it
