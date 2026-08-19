@@ -8,6 +8,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
+import com.divafinance.core.model.LocationTag
+import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.ui.theme.DivaTheme
 import kotlin.test.Test
@@ -160,6 +162,95 @@ class AddExpenseScreenTest {
             DivaTheme { AddExpenseContent(QuickAddUiState()) }
         }
         onNodeWithText("Add details").assertIsDisplayed()
+    }
+
+    // --- the place line -----------------------------------------------------
+
+    @Test
+    fun asksWhereWhenNothingHasBeenCaptured() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(QuickAddUiState()) }
+        }
+        onNodeWithText("Where?").assertIsDisplayed()
+    }
+
+    /** The switch is gone: the place line is now the only way in. */
+    @Test
+    fun offersNoSeparateLocationSwitch() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(QuickAddUiState()) }
+        }
+        onNodeWithText("Add location").assertDoesNotExist()
+    }
+
+    @Test
+    fun tappingWhereAsksForALocation() = runComposeUiTest {
+        var tapped = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(QuickAddUiState(), onWhereTapped = { tapped++ })
+            }
+        }
+        onNodeWithText("Where?").performClick()
+
+        assertEquals(1, tapped)
+    }
+
+    /** Once there is a fix the line becomes the place, and stays tappable to re-read it. */
+    @Test
+    fun theCapturedPlaceReplacesTheQuestionAndStillTaps() = runComposeUiTest {
+        var tapped = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(
+                        location = LocationTag(51.5, -0.12),
+                        locationName = "Trafalgar Square",
+                    ),
+                    onWhereTapped = { tapped++ },
+                )
+            }
+        }
+        onNodeWithText("Where?").assertDoesNotExist()
+        // By description, not text: the editable "Place" field carries the same name.
+        onNodeWithContentDescription("Update where you are").performClick()
+
+        assertEquals(1, tapped)
+    }
+
+    @Test
+    fun offersTheCaptureChoiceOnFirstUse() = runComposeUiTest {
+        var chosen: LocationCaptureMode? = null
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(locationPrompt = LocationPrompt.CHOICE),
+                    onLocationCaptureModeChosen = { chosen = it },
+                )
+            }
+        }
+        onNodeWithText("Remember where you spend?").assertIsDisplayed()
+        onNodeWithText("Every time").performClick()
+
+        assertEquals(LocationCaptureMode.ALWAYS, chosen)
+    }
+
+    /** The system dialog cannot say why, so this must appear before it, not after. */
+    @Test
+    fun explainsItselfBeforeTheOsPrompt() = runComposeUiTest {
+        var accepted = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(locationPrompt = LocationPrompt.RATIONALE),
+                    onLocationRationaleAccepted = { accepted++ },
+                )
+            }
+        }
+        onNodeWithText("Location permission").assertIsDisplayed()
+        onNodeWithText("Continue").performClick()
+
+        assertEquals(1, accepted)
     }
 
     @Test

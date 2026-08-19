@@ -29,6 +29,7 @@ import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.UserSettings
+import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import kotlinx.coroutines.Job
@@ -55,6 +56,15 @@ enum class QuickAddDay(val label: String) {
     YESTERDAY("Yesterday"),
 }
 
+/** What the sheet is asking the user about location, if anything. */
+enum class LocationPrompt {
+    /** First run only: capture on every entry, or only when the place line is tapped. */
+    CHOICE,
+
+    /** Why we want the position, shown before the OS prompt rather than instead of it. */
+    RATIONALE,
+}
+
 data class QuickAddUiState(
     val expression: String = "",
     val type: TransactionType = TransactionType.DEBIT,
@@ -70,12 +80,24 @@ data class QuickAddUiState(
     val day: QuickAddDay = QuickAddDay.TODAY,
     /** Set once the user picks a category, after which prediction stops overriding it. */
     val categoryPickedManually: Boolean = false,
-    /** Off until the user turns it on. Location is never captured silently. */
-    val locationEnabled: Boolean = false,
+    /** Null until the user has been asked; nothing is captured while it is null. */
+    val locationCaptureMode: LocationCaptureMode? = null,
+    /** The dialog currently in front of the sheet, if any. */
+    val locationPrompt: LocationPrompt? = null,
+    /** What the last OS prompt answered. Drives whether the rationale is shown again. */
+    val locationPermissionGranted: Boolean = false,
+    /**
+     * Bumped whenever the OS prompt should be launched. The launcher belongs to the
+     * screen — Android needs an Activity result contract — so this is how a ViewModel
+     * decision reaches it, as a value rather than an event the screen could miss.
+     */
+    val permissionRequestNonce: Int = 0,
     val isLocatingNow: Boolean = false,
     /** Captured position, if any. The name is freely editable afterwards. */
     val location: LocationTag? = null,
     val locationName: String = "",
+    /** Set once the user edits the name, after which a re-read stops overwriting it. */
+    val locationNameEdited: Boolean = false,
     /** Premium: shops from the user's own history near [location]. */
     val nearbyPlaces: List<NearbyPlace> = emptyList(),
     val locationUnavailable: Boolean = false,
@@ -201,6 +223,7 @@ class QuickAddViewModel(
     fun onOpened() {
         viewModelScope.launch {
             val defaultCardId = setting(UserSettings.KEY_DEFAULT_CARD_ID)
+            val captureMode = locationCaptureMode()
             val predicted = predictCategoryUseCase(limit = SUGGESTED_CATEGORY_COUNT)
             val recentMerchants = suggestMerchantsUseCase()
             _uiState.update {
@@ -209,10 +232,24 @@ class QuickAddViewModel(
                     suggestedCategories = predicted,
                     category = predicted.firstOrNull() ?: SpendingCategory.OTHER,
                     merchantSuggestions = recentMerchants,
+                    locationCaptureMode = captureMode,
+                    // ALWAYS was chosen explicitly, so opening the sheet is the ask. The
+                    // prompt is silent once permission is held, which it is by then —
+                    // the choice dialog walks through the rationale and the OS prompt.
+                    permissionRequestNonce = if (captureMode == LocationCaptureMode.ALWAYS) {
+                        it.permissionRequestNonce + 1
+                    } else {
+                        it.permissionRequestNonce
+                    },
                 )
             }
         }
     }
+
+    /** Unparseable values are treated as never-asked rather than as a capture default. */
+    private suspend fun locationCaptureMode(): LocationCaptureMode? =
+        setting(UserSettings.KEY_LOCATION_CAPTURE_MODE)
+            ?.let { stored -> LocationCaptureMode.entries.firstOrNull { it.name == stored } }
 
     // --- keypad ------------------------------------------------------------
 
@@ -301,30 +338,74 @@ class QuickAddViewModel(
     // --- location -----------------------------------------------------------
 
     /**
-     * Turns location capture on or off for this entry.
-     *
-     * [permissionGranted] is what the caller learned from the OS prompt. A denial turns
-     * the toggle straight back off rather than leaving it on and silently capturing
-     * nothing, so the switch always reflects reality.
+     * The place line was tapped. Which of the three things happens depends only on what
+     * has already been settled, so the same tap works as a first-run opt-in, as a
+     * permission request, and as a refresh once a fix is already on screen.
      */
-    fun onLocationToggled(enabled: Boolean, permissionGranted: Boolean) {
-        if (!enabled || !permissionGranted) {
+    fun onWhereTapped() {
+        val state = _uiState.value
+        when {
+            // Never been asked. Consent to the idea comes before consent to the OS prompt.
+            state.locationCaptureMode == null ->
+                _uiState.update { it.copy(locationPrompt = LocationPrompt.CHOICE) }
+
+            // Explain before the system dialog, which cannot say why we are asking.
+            !state.locationPermissionGranted ->
+                _uiState.update { it.copy(locationPrompt = LocationPrompt.RATIONALE) }
+
+            else -> beginCapture()
+        }
+    }
+
+    /**
+     * Records the first-run answer and moves straight on to the rationale — the user has
+     * just said they want this, so stopping to make them tap the line again would be a
+     * step for its own sake.
+     */
+    fun onLocationCaptureModeChosen(mode: LocationCaptureMode) {
+        viewModelScope.launch {
+            settingsRepository.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, mode.name)
+        }
+        _uiState.update {
+            it.copy(locationCaptureMode = mode, locationPrompt = LocationPrompt.RATIONALE)
+        }
+    }
+
+    /** The user read why we want it. The OS prompt is the screen's to launch. */
+    fun onLocationRationaleAccepted() {
+        _uiState.update {
+            it.copy(
+                locationPrompt = null,
+                permissionRequestNonce = it.permissionRequestNonce + 1,
+            )
+        }
+    }
+
+    /** Backing out of either dialog leaves the entry exactly as it was. */
+    fun onLocationPromptDismissed() = _uiState.update { it.copy(locationPrompt = null) }
+
+    /**
+     * What the OS prompt answered. A refusal is recorded rather than retried: the next tap
+     * shows the rationale again, which is the only honest thing left to offer once the
+     * system has stopped prompting.
+     */
+    fun onLocationPermissionResult(granted: Boolean) {
+        if (!granted) {
             _uiState.update {
                 it.copy(
-                    locationEnabled = false,
+                    locationPermissionGranted = false,
                     isLocatingNow = false,
-                    location = null,
-                    locationName = "",
-                    nearbyPlaces = emptyList(),
-                    locationUnavailable = enabled && !permissionGranted,
+                    locationUnavailable = true,
                 )
             }
             return
         }
+        _uiState.update { it.copy(locationPermissionGranted = true) }
+        beginCapture()
+    }
 
-        _uiState.update {
-            it.copy(locationEnabled = true, isLocatingNow = true, locationUnavailable = false)
-        }
+    private fun beginCapture() {
+        _uiState.update { it.copy(isLocatingNow = true, locationUnavailable = false) }
         captureLocation()
     }
 
@@ -333,10 +414,9 @@ class QuickAddViewModel(
         locationJob = viewModelScope.launch {
             val coordinates = runCatching { locationSource.currentCoordinates() }.getOrNull()
             if (coordinates == null) {
-                // No fix, no provider, or permission revoked between prompt and read.
-                _uiState.update {
-                    it.copy(isLocatingNow = false, locationUnavailable = true, locationEnabled = false)
-                }
+                // No fix, no provider, or permission revoked between prompt and read. Any
+                // earlier fix is kept — a failed refresh is no reason to lose one.
+                _uiState.update { it.copy(isLocatingNow = false, locationUnavailable = true) }
                 return@launch
             }
 
@@ -349,8 +429,10 @@ class QuickAddViewModel(
                 it.copy(
                     isLocatingNow = false,
                     location = tag,
-                    // Never clobber a name the user has already typed.
-                    locationName = it.locationName.ifBlank { described.orEmpty() },
+                    // A re-read at a new address should rename the entry, but never over
+                    // a name the user chose themselves.
+                    locationName = if (it.locationNameEdited) it.locationName
+                    else described.orEmpty(),
                 )
             }
 
@@ -361,7 +443,7 @@ class QuickAddViewModel(
 
     /** The captured name is a suggestion, not a fact — it stays editable. */
     fun onLocationNameChange(name: String) =
-        _uiState.update { it.copy(locationName = name) }
+        _uiState.update { it.copy(locationName = name, locationNameEdited = true) }
 
     /**
      * Accepting a nearby shop fills in the merchant too, and re-runs prediction, since a
@@ -371,6 +453,7 @@ class QuickAddViewModel(
         _uiState.update {
             it.copy(
                 locationName = place.name,
+                locationNameEdited = true,
                 merchantName = place.name,
                 location = it.location ?: place.location,
             )
@@ -379,8 +462,25 @@ class QuickAddViewModel(
     }
 
     fun reset() {
-        _uiState.value = QuickAddUiState(cards = cards.value)
+        _uiState.value = clearedState()
         _saved.value = null
+    }
+
+    /**
+     * A blank entry that keeps what the user has settled rather than the entry's own data.
+     *
+     * The capture mode and the granted permission are decisions about the app, not about
+     * this expense, and `permissionRequestNonce` has to stay monotonic — restarting it at
+     * zero would make the screen's launcher fire on a value it has already handled.
+     */
+    private fun clearedState(): QuickAddUiState {
+        val previous = _uiState.value
+        return QuickAddUiState(
+            cards = cards.value,
+            locationCaptureMode = previous.locationCaptureMode,
+            locationPermissionGranted = previous.locationPermissionGranted,
+            permissionRequestNonce = previous.permissionRequestNonce,
+        )
     }
 
     fun consumeSaved() {
@@ -494,7 +594,7 @@ class QuickAddViewModel(
             runCatching { postTransactionToFeedUseCase(transaction) }
 
             _saved.value = QuickAddSaved(transaction.id, transaction.amount, transaction.category)
-            _uiState.value = QuickAddUiState(cards = cards.value)
+            _uiState.value = clearedState()
             onOpened()
         }
     }

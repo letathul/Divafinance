@@ -17,7 +17,7 @@ for the default card directly), `:core:ui`, `:core:common`. Android adds
 | File | What it does |
 |------|--------------|
 | `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, runs `PredictCategoryUseCase`, and loads recent merchants. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
-| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Top bar (close / title / scan), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then split, location and details sections. `AddExpenseContent` is the stateless body tests drive directly. |
+| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Top bar (close / title / scan), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then split, location and details sections. `WhereLine` — the caption under the amount — is the entire entry point for location. `AddExpenseContent` is the stateless body tests drive directly. |
 | `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
 
 The keypad now lives in **`:core:ui`** (`component/CalculatorKeypad.kt`) — the add screen
@@ -48,6 +48,22 @@ job. `SUGGESTED_CATEGORY_COUNT = 5` chips before the full list expands.
   saves. `rememberLocationPermissionRequester` lives here rather than in `core:common`
   next to `LocationProvider` because prompting needs an Activity result launcher, and
   `core:common` is a non-Compose module every other module depends on.
+- **There is no location switch.** `WhereLine` — the "Where?" caption under the amount —
+  does all three jobs from one tap, choosing by what has already been settled: opt in
+  (`LocationPrompt.CHOICE`), grant (`LocationPrompt.RATIONALE`, shown *before* the OS
+  dialog because that one cannot explain itself), or re-read a fix already on screen. Once
+  captured, the place name replaces "Where?" and the line stays tappable.
+- `UserSettings.KEY_LOCATION_CAPTURE_MODE` holds `LocationCaptureMode`; **absent is a
+  third state** meaning "never asked", which is the only condition that shows the choice
+  dialog. `ALWAYS` makes `onOpened()` capture without being asked; Settings can change it
+  later.
+- The ViewModel decides *whether* to prompt, the screen owns the launcher — Android needs
+  an Activity result contract. `permissionRequestNonce` carries that decision across, and
+  the screen's `LaunchedEffect` keys on it. **It must stay monotonic**: `clearedState()`
+  carries it (plus the mode and the granted permission) through `reset()` and `save()`,
+  because restarting at zero would make the launcher fire on a value it already handled.
+- `locationNameEdited` is what stops a re-read from overwriting a name the user typed,
+  while still renaming an entry whose auto-filled name is now stale.
 
 ## Tests
 

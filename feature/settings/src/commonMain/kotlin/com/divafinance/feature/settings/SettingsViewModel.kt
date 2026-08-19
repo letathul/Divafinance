@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.data.repository.SettingsRepository
 import com.divafinance.core.model.UserSettings
+import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.ui.theme.AccentTheme
 import com.divafinance.core.ui.theme.ThemeMode
 import com.divafinance.feature.demo.DemoDataManager
@@ -26,6 +27,12 @@ data class SettingsUiState(
     val currency: String = "USD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accent: AccentTheme = AccentTheme.SUNSET,
+    /**
+     * How the add-expense sheet captures location. Null means the user has not been asked
+     * yet — the sheet asks the first time the place line is tapped, and this screen shows
+     * neither option as chosen until then.
+     */
+    val locationCaptureMode: LocationCaptureMode? = null,
     /** The demo section only exists while the demo is active; removal is one-way. */
     val isDemoActive: Boolean = false,
     val isRemovingDemo: Boolean = false,
@@ -60,10 +67,13 @@ class SettingsViewModel(
             val currency = settingsRepository.get(UserSettings.KEY_BASE_CURRENCY) ?: "USD"
             val port = settingsRepository.get(UserSettings.KEY_SERVER_PORT)?.toIntOrNull()
                 ?: ServerConfig().port
+            val captureMode = settingsRepository.get(UserSettings.KEY_LOCATION_CAPTURE_MODE)
+                ?.let { stored -> LocationCaptureMode.entries.firstOrNull { it.name == stored } }
             _uiState.update {
                 it.copy(
                     currency = currency,
                     serverPort = port,
+                    locationCaptureMode = captureMode,
                     isDemoActive = demoDataManager.status() == DemoStatus.ACTIVE,
                 )
             }
@@ -122,6 +132,18 @@ class SettingsViewModel(
         viewModelScope.launch {
             settingsRepository.set(UserSettings.KEY_SERVER_PORT, port.toString())
             _uiState.update { it.copy(serverPort = port) }
+        }
+    }
+
+    /**
+     * Changes when the add-expense sheet reads position. Only the preference is written —
+     * the OS permission is still requested by the sheet at the moment it needs a fix, so
+     * choosing "every time" here cannot grant anything on its own.
+     */
+    fun setLocationCaptureMode(mode: LocationCaptureMode) {
+        viewModelScope.launch {
+            settingsRepository.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, mode.name)
+            _uiState.update { it.copy(locationCaptureMode = mode) }
         }
     }
 

@@ -360,6 +360,8 @@ fun DivaNavHost(
                 accent = settingsState.accent,
                 onThemeModeChange = settingsViewModel::setThemeMode,
                 onAccentChange = settingsViewModel::setAccent,
+                locationCaptureMode = settingsState.locationCaptureMode,
+                onLocationCaptureModeChange = settingsViewModel::setLocationCaptureMode,
             )
         }
     }

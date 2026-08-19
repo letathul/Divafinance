@@ -20,11 +20,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,12 +37,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.Switch
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.domain.engine.NearbyPlace
+import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CalculatorKeypad
@@ -50,9 +54,12 @@ import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
 import com.divafinance.core.ui.component.GlassSurface
 import com.divafinance.core.ui.component.SegmentedControl
+import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.Pill
 import com.divafinance.core.ui.theme.Space
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.util.formatCurrency
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Full-screen flow for logging a transaction in as few taps as possible: type an amount on
@@ -72,6 +79,15 @@ fun AddExpenseScreen(
     val permissionRequester = rememberLocationPermissionRequester()
 
     LaunchedEffect(Unit) { viewModel.onOpened() }
+
+    // The ViewModel decides *whether* to prompt; the launcher lives here because Android
+    // needs an Activity result contract. Keyed on the nonce so every decision is acted on
+    // exactly once, including the automatic capture that runs when the sheet opens.
+    LaunchedEffect(state.permissionRequestNonce) {
+        if (state.permissionRequestNonce > 0) {
+            permissionRequester.request(viewModel::onLocationPermissionResult)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -100,16 +116,10 @@ fun AddExpenseScreen(
             onNoteChange = viewModel::onNoteChange,
             onCardChange = viewModel::onCardChange,
             onDayChange = viewModel::onDayChange,
-            onLocationToggled = { enabled ->
-                if (enabled) {
-                    // Only ever prompted from an explicit opt-in, never on sheet open.
-                    permissionRequester.request { granted ->
-                        viewModel.onLocationToggled(enabled = true, permissionGranted = granted)
-                    }
-                } else {
-                    viewModel.onLocationToggled(enabled = false, permissionGranted = false)
-                }
-            },
+            onWhereTapped = viewModel::onWhereTapped,
+            onLocationCaptureModeChosen = viewModel::onLocationCaptureModeChosen,
+            onLocationRationaleAccepted = viewModel::onLocationRationaleAccepted,
+            onLocationPromptDismissed = viewModel::onLocationPromptDismissed,
             onLocationNameChange = viewModel::onLocationNameChange,
             onNearbyPlacePicked = viewModel::onNearbyPlacePicked,
             onSplitToggled = viewModel::onSplitToggled,
@@ -169,7 +179,10 @@ internal fun AddExpenseContent(
     onNoteChange: (String) -> Unit = {},
     onCardChange: (String?) -> Unit = {},
     onDayChange: (QuickAddDay) -> Unit = {},
-    onLocationToggled: (Boolean) -> Unit = {},
+    onWhereTapped: () -> Unit = {},
+    onLocationCaptureModeChosen: (LocationCaptureMode) -> Unit = {},
+    onLocationRationaleAccepted: () -> Unit = {},
+    onLocationPromptDismissed: () -> Unit = {},
     onLocationNameChange: (String) -> Unit = {},
     onNearbyPlacePicked: (NearbyPlace) -> Unit = {},
     onSplitToggled: (Boolean) -> Unit = {},
@@ -179,6 +192,15 @@ internal fun AddExpenseContent(
     onSave: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // Outside the Column on purpose: a dialog still emits a zero-size node where it is
+    // called, which `spacedBy` would turn into a stray 12dp gap while one is open.
+    LocationPromptDialog(
+        prompt = state.locationPrompt,
+        onModeChosen = onLocationCaptureModeChosen,
+        onRationaleAccepted = onLocationRationaleAccepted,
+        onDismiss = onLocationPromptDismissed,
+    )
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -187,15 +209,17 @@ internal fun AddExpenseContent(
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AmountDisplay(state)
+        AmountDisplay(state, onWhereTapped)
 
         AccountSelector(state, onCardChange)
 
         CategoryPickerRow(state, onCategoryChange, onToggleAllCategories)
 
-        TypeRow(state.type, onTypeChange)
+        Row(modifier= Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TypeRow(state.type, onTypeChange)
 
-        DayRow(state.day, onDayChange)
+            DayRow(state.day, onDayChange)
+        }
 
         CalculatorKeypad(
             onDigit = onDigit,
@@ -221,7 +245,6 @@ internal fun AddExpenseContent(
 
         LocationSection(
             state = state,
-            onLocationToggled = onLocationToggled,
             onLocationNameChange = onLocationNameChange,
             onNearbyPlacePicked = onNearbyPlacePicked,
         )
@@ -250,7 +273,7 @@ internal fun AddExpenseContent(
  * while the total updates underneath.
  */
 @Composable
-private fun AmountDisplay(state: QuickAddUiState) {
+private fun AmountDisplay(state: QuickAddUiState, onWhereTapped: () -> Unit) {
     val amount = state.previewAmount
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = Space.sm, bottom = Space.xs),
@@ -261,24 +284,135 @@ private fun AmountDisplay(state: QuickAddUiState) {
             style = MaterialTheme.typography.displayLarge,
             // Greyed until there is a real figure, so the zero reads as a placeholder
             // rather than as an amount someone might save by accident.
-            color = if (amount == null || amount == 0.0) diva.muted
-            else MaterialTheme.colorScheme.onSurface,
+            color = if (amount == null || amount == 0.0) {
+                diva.muted
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
             textAlign = TextAlign.Center,
         )
         // Only worth showing once it is an actual sum rather than a repeat of the total.
-        if (state.expression.any { it in "+-*/" }) {
-            Text(
-                text = state.expression,
-                style = MaterialTheme.typography.bodyMedium,
-                color = diva.muted,
-            )
-        } else {
-            Text(
-                text = state.merchantName.ifBlank { "Where?" },
-                style = MaterialTheme.typography.titleSmall,
-                color = diva.muted,
-            )
+        Column(
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (state.expression.any { it in "+-*/" }) {
+                Text(
+                    text = state.expression,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = diva.muted,
+                )
+            }
+            Spacer(modifier = Modifier.padding(4.dp))
+            WhereLine(state, onWhereTapped)
         }
+    }
+}
+
+/**
+ * The caption under the amount, and the whole of the location UI's entry point.
+ *
+ * One control does three jobs depending on what has been settled — opt in, grant, refresh
+ * — because to the user they are all "tell the app where I am". It reads as a label until
+ * tapped, which is why it carries a pin and a spelled-out content description: nothing
+ * else marks it as interactive.
+ */
+@Composable
+private fun WhereLine(state: QuickAddUiState, onWhereTapped: () -> Unit) {
+    val place = state.locationName.ifBlank { state.merchantName }
+    val label = when {
+        state.isLocatingNow -> "Finding you…"
+        place.isNotBlank() -> place
+        else -> "Where?"
+    }
+
+    Row(
+        modifier = Modifier
+            .clip(Pill)
+            .clickable(onClick = onWhereTapped)
+            .padding(horizontal = Space.sm, vertical = Space.xs),
+        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.LocationOn,
+            contentDescription = if (state.location == null) {
+                "Add where you are"
+            } else {
+                "Update where you are"
+            },
+            tint = if (state.location != null) MaterialTheme.colorScheme.primary else diva.muted,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = label,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.titleSmall,
+            color = if (state.location != null) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                diva.muted
+            },
+        )
+    }
+}
+
+/**
+ * Consent, in the order the user can actually give it: first whether they want the app
+ * reading position at all, then why the OS is about to ask. The system dialog cannot
+ * explain itself, so [LocationPrompt.RATIONALE] runs before it rather than after a denial.
+ */
+@Composable
+private fun LocationPromptDialog(
+    prompt: LocationPrompt?,
+    onModeChosen: (LocationCaptureMode) -> Unit,
+    onRationaleAccepted: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    when (prompt) {
+        null -> return
+
+        LocationPrompt.CHOICE -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Remember where you spend?") },
+            text = {
+                Text(
+                    "Tagging an expense with its place lets it show up on your spending " +
+                        "map and lets the app suggest shops you've been to before. " +
+                        "Capture it on every expense, or only when you tap the place " +
+                        "line? You can change this later in Settings.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onModeChosen(LocationCaptureMode.ALWAYS) }) {
+                    Text("Every time")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onModeChosen(LocationCaptureMode.ON_TAP) }) {
+                    Text("Only when I tap")
+                }
+            },
+        )
+
+        LocationPrompt.RATIONALE -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Location permission") },
+            text = {
+                Text(
+                    "DivaFinance reads your position only to name the place you're " +
+                        "spending. It's stored with the expense on this device, never " +
+                        "uploaded, and the entry saves fine without it.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onRationaleAccepted) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Not now") }
+            },
+        )
     }
 }
 
@@ -509,48 +643,35 @@ private fun BreakdownRow(label: String, amount: Double, emphasise: Boolean = fal
     ) {
         Text(
             text = label,
-            style = if (emphasise) MaterialTheme.typography.bodyMedium
-            else MaterialTheme.typography.bodySmall,
+            style = if (emphasise) {
+                MaterialTheme.typography.bodyMedium
+            } else {
+                MaterialTheme.typography.bodySmall
+            },
         )
         Text(
             text = amount.toFixed(2),
-            style = if (emphasise) MaterialTheme.typography.bodyMedium
-            else MaterialTheme.typography.bodySmall,
+            style = if (emphasise) {
+                MaterialTheme.typography.bodyMedium
+            } else {
+                MaterialTheme.typography.bodySmall
+            },
         )
     }
 }
 
 /**
- * Location is opt-in per entry and never blocks saving. Turning the switch on is what
- * triggers the OS prompt; everything below only appears once there is a fix.
+ * Everything that only makes sense once there is a fix. There is no switch here any more:
+ * the place line under the amount is the single entry point, so this section is the tail
+ * of that interaction rather than a control of its own — and it stays empty, taking no
+ * height at all, until location has actually been used.
  */
 @Composable
 private fun LocationSection(
     state: QuickAddUiState,
-    onLocationToggled: (Boolean) -> Unit,
     onLocationNameChange: (String) -> Unit,
     onNearbyPlacePicked: (NearbyPlace) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("Add location", style = MaterialTheme.typography.labelLarge)
-        Switch(
-            checked = state.locationEnabled,
-            onCheckedChange = onLocationToggled,
-        )
-    }
-
-    if (state.isLocatingNow) {
-        Text(
-            text = "Finding your location…",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-
     if (state.locationUnavailable) {
         Text(
             text = "Location isn't available. You can still save without it.",
@@ -627,5 +748,43 @@ private fun DetailsSection(
         onValueChange = onNoteChange,
         label = "Note",
     )
+}
 
+@Preview
+@Composable
+private fun AddExpenseEmptyPreview() {
+    DivaTheme {
+        AddExpenseContent(state = QuickAddUiState())
+    }
+}
+
+@Preview
+@Composable
+private fun AddExpenseFilledPreview() {
+    DivaTheme {
+        AddExpenseContent(
+            state = QuickAddUiState(
+                expression = "42.50",
+                merchantName = "Diva Coffee",
+                category = SpendingCategory.DINING,
+                showDetails = true,
+                note = "Morning routine"
+            )
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AddExpenseDarkPreview() {
+    DivaTheme(darkTheme = true) {
+        AddExpenseContent(
+            state = QuickAddUiState(
+                expression = "99.99+1",
+                merchantName = "Tech Store",
+                category = SpendingCategory.SHOPPING,
+                showDetails = false
+            )
+        )
+    }
 }

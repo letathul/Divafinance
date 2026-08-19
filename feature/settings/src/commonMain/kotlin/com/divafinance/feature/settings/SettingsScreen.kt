@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaOutlinedButton
+import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.ui.component.SegmentedControl
 import com.divafinance.core.ui.theme.AccentTheme
 import com.divafinance.core.ui.theme.DivaTheme
@@ -63,6 +64,9 @@ fun SettingsScreen(
     accent: AccentTheme = AccentTheme.SUNSET,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onAccentChange: (AccentTheme) -> Unit = {},
+    /** Null until the user has been asked, which leaves both options unselected. */
+    locationCaptureMode: LocationCaptureMode? = null,
+    onLocationCaptureModeChange: (LocationCaptureMode) -> Unit = {},
 ) {
     var confirmRemoveDemo by remember { mutableStateOf(false) }
 
@@ -111,6 +115,11 @@ fun SettingsScreen(
                 accent = accent,
                 onThemeModeChange = onThemeModeChange,
                 onAccentChange = onAccentChange,
+            )
+
+            LocationSection(
+                mode = locationCaptureMode,
+                onModeChange = onLocationCaptureModeChange,
             )
 
             // Only rendered while the demo is active. Once removed it never comes back,
@@ -220,6 +229,47 @@ fun SettingsScreen(
         }
     }
 }
+
+/**
+ * When the add-expense sheet reads position. Neither option is shown as chosen until the
+ * user has actually been asked — the sheet treats "never asked" as its own state, and
+ * pre-selecting one here would misreport a choice nobody made.
+ *
+ * There is no off switch because "only when I tap" already is one: nothing is read until
+ * the place line is tapped, and the OS permission is a separate gate on top.
+ */
+@Composable
+private fun LocationSection(
+    mode: LocationCaptureMode?,
+    onModeChange: (LocationCaptureMode) -> Unit,
+) {
+    val options = LocationCaptureMode.entries
+    DivaCard {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Location", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Tagging expenses with a place puts them on your spending map and lets " +
+                    "the app suggest shops you've been to before.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            SegmentedControl(
+                options = options.map { it.label },
+                selectedIndex = options.indexOf(mode),
+                onSelect = { onModeChange(options[it]) },
+            )
+        }
+    }
+}
+
+/** Screen-facing wording for the stored enum, which stays free of UI copy. */
+private val LocationCaptureMode.label: String
+    get() = when (this) {
+        LocationCaptureMode.ALWAYS -> "Every expense"
+        LocationCaptureMode.ON_TAP -> "Only when I tap"
+    }
 
 @Composable
 private fun AppearanceSection(

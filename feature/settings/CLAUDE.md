@@ -34,6 +34,12 @@ This is the only feature module that depends on `:server`.
   named constant for anything new.
 - The demo section only renders while `DemoDataManager.status() == DemoStatus.ACTIVE`.
   **Removal is one-way** — there is no re-seed from this screen.
+- The Location section writes `KEY_LOCATION_CAPTURE_MODE` and nothing else — the OS
+  permission is still requested by the add-expense sheet at the moment it needs a fix, so
+  choosing "every expense" here cannot grant anything on its own. `locationCaptureMode` is
+  **nullable and stays that way**: absent means the user has not been asked, which is the
+  state the sheet's first-run dialog depends on, so neither segment is shown as chosen
+  until they have. See `feature/quickadd`.
 
 ## Tests
 

@@ -64,6 +64,13 @@ data class UserSettings(
         const val KEY_IS_PREMIUM = "is_premium"
 
         /**
+         * Whether the add-expense sheet captures location on open or only when asked, by
+         * [com.divafinance.core.model.enums.LocationCaptureMode] name. Absent means the
+         * user has not been asked yet — see that enum.
+         */
+        const val KEY_LOCATION_CAPTURE_MODE = "location_capture_mode"
+
+        /**
          * Lifecycle of the one-time demo offer. Absent means "not decided yet", which
          * is the only state in which the offer is shown. See DemoStatus.
          */

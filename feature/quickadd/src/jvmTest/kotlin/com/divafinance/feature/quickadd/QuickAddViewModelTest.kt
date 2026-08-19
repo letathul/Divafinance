@@ -12,6 +12,7 @@ import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.UserSettings
+import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.testing.fake.FakeCardRepository
@@ -75,6 +76,19 @@ class QuickAddViewModelTest {
         expression.forEach { char ->
             if (char in "+-*/") onOperator(char) else onDigit(char)
         }
+    }
+
+    /** Stands in for the screen's permission launcher answering yes. */
+    private fun QuickAddViewModel.grantLocation() = onLocationPermissionResult(granted = true)
+
+    /** The whole first-run path: tap the place line, opt in, read the rationale, allow. */
+    private fun QuickAddViewModel.tapWhereAndAllow(
+        mode: LocationCaptureMode = LocationCaptureMode.ON_TAP,
+    ) {
+        onWhereTapped()
+        onLocationCaptureModeChosen(mode)
+        onLocationRationaleAccepted()
+        grantLocation()
     }
 
     // --- amount entry -------------------------------------------------------
@@ -586,12 +600,12 @@ class QuickAddViewModelTest {
     }
 
     @Test
-    fun capturesAndStoresTheLocationOnceEnabled() = runTest {
+    fun capturesAndStoresTheLocationOncePermissionIsGranted() = runTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
         locationSource.description = "Trafalgar Square"
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
 
         assertEquals("Trafalgar Square", vm.uiState.value.locationName)
 
@@ -603,13 +617,14 @@ class QuickAddViewModelTest {
         assertEquals("Trafalgar Square", stored.name)
     }
 
-    /** A denial must leave the switch off rather than on and silently capturing nothing. */
+    /** A denial must say so rather than leave the sheet looking as if it were locating. */
     @Test
-    fun turnsTheToggleBackOffWhenPermissionIsRefused() = runTest {
+    fun reportsUnavailableWhenPermissionIsRefused() = runTest {
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = false)
+        vm.onLocationPermissionResult(granted = false)
 
-        assertFalse(vm.uiState.value.locationEnabled)
+        assertFalse(vm.uiState.value.locationPermissionGranted)
+        assertFalse(vm.uiState.value.isLocatingNow)
         assertTrue(vm.uiState.value.locationUnavailable)
         assertNull(vm.uiState.value.location)
     }
@@ -619,10 +634,10 @@ class QuickAddViewModelTest {
         locationSource.coordinates = null
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
 
         assertTrue(vm.uiState.value.locationUnavailable)
-        assertFalse(vm.uiState.value.locationEnabled)
+        assertFalse(vm.uiState.value.isLocatingNow)
     }
 
     /** No geocoding backend is common; a position without a name is still worth keeping. */
@@ -632,7 +647,7 @@ class QuickAddViewModelTest {
         locationSource.description = null
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
         vm.type("15")
         vm.save()
 
@@ -647,7 +662,7 @@ class QuickAddViewModelTest {
         locationSource.description = "Some Street"
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
         vm.onLocationNameChange("Blue Bottle Coffee")
         vm.type("15")
         vm.save()
@@ -658,18 +673,169 @@ class QuickAddViewModelTest {
         )
     }
 
+    // --- the place line -----------------------------------------------------
+
+    /** Nothing is read until the user has both opted in and answered the OS prompt. */
     @Test
-    fun turningTheToggleOffDiscardsTheCapture() = runTest {
+    fun theFirstTapAsksHowOftenToCaptureRatherThanReadingAFix() = runTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
-        assertNotNull(vm.uiState.value.location)
+        vm.onWhereTapped()
 
-        vm.onLocationToggled(enabled = false, permissionGranted = true)
-
+        assertEquals(LocationPrompt.CHOICE, vm.uiState.value.locationPrompt)
         assertNull(vm.uiState.value.location)
-        assertEquals("", vm.uiState.value.locationName)
+        assertEquals(0, vm.uiState.value.permissionRequestNonce)
+    }
+
+    /** Opting in leads straight into the rationale; the OS prompt has no room to explain. */
+    @Test
+    fun choosingAModeShowsTheRationaleBeforeTheOsPrompt() = runTest {
+        val vm = viewModel()
+        vm.onWhereTapped()
+        vm.onLocationCaptureModeChosen(LocationCaptureMode.ON_TAP)
+
+        assertEquals(LocationPrompt.RATIONALE, vm.uiState.value.locationPrompt)
+        assertEquals(0, vm.uiState.value.permissionRequestNonce)
+
+        vm.onLocationRationaleAccepted()
+
+        assertNull(vm.uiState.value.locationPrompt)
+        assertEquals(1, vm.uiState.value.permissionRequestNonce)
+    }
+
+    @Test
+    fun theChosenModeIsRemembered() = runTest {
+        val vm = viewModel()
+        vm.onLocationCaptureModeChosen(LocationCaptureMode.ALWAYS)
+
+        assertEquals(
+            LocationCaptureMode.ALWAYS.name,
+            settingsRepo.get(UserSettings.KEY_LOCATION_CAPTURE_MODE),
+        )
+    }
+
+    @Test
+    fun theWholeFirstRunPathEndsWithAFix() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        locationSource.description = "Trafalgar Square"
+
+        val vm = viewModel()
+        vm.tapWhereAndAllow()
+
+        assertEquals("Trafalgar Square", vm.uiState.value.locationName)
+    }
+
+    /** Backing out of either dialog must leave the entry exactly as it was. */
+    @Test
+    fun dismissingAPromptCapturesNothing() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onWhereTapped()
+        vm.onLocationPromptDismissed()
+
+        assertNull(vm.uiState.value.locationPrompt)
+        assertNull(vm.uiState.value.location)
+        assertEquals(0, vm.uiState.value.permissionRequestNonce)
+    }
+
+    /** Once permission is held, the line is a refresh button — no dialogs in the way. */
+    @Test
+    fun tappingAgainRereadsThePositionWithoutPrompting() = runTest {
+        settingsRepo.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, LocationCaptureMode.ON_TAP.name)
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        locationSource.description = "Trafalgar Square"
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.grantLocation()
+
+        locationSource.coordinates = Coordinates(48.85, 2.35)
+        locationSource.description = "Place de la Concorde"
+        vm.onWhereTapped()
+
+        assertNull(vm.uiState.value.locationPrompt)
+        assertEquals("Place de la Concorde", vm.uiState.value.locationName)
+        assertEquals(48.85, vm.uiState.value.location?.latitude)
+    }
+
+    /** A name the user typed is theirs; a re-read updates the fix and leaves it alone. */
+    @Test
+    fun aRereadKeepsANameTheUserTyped() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+        locationSource.description = "Trafalgar Square"
+
+        val vm = viewModel()
+        vm.tapWhereAndAllow()
+        vm.onLocationNameChange("Blue Bottle Coffee")
+
+        locationSource.description = "Place de la Concorde"
+        vm.onWhereTapped()
+
+        assertEquals("Blue Bottle Coffee", vm.uiState.value.locationName)
+    }
+
+    /** Losing the fix on a refresh must not throw away the one already captured. */
+    @Test
+    fun aFailedRereadKeepsTheEarlierFix() = runTest {
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.tapWhereAndAllow()
+
+        locationSource.coordinates = null
+        vm.onWhereTapped()
+
+        assertEquals(51.5, vm.uiState.value.location?.latitude)
+        assertTrue(vm.uiState.value.locationUnavailable)
+    }
+
+    @Test
+    fun everyTimeModeAsksForAFixAsSoonAsTheSheetOpens() = runTest {
+        settingsRepo.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, LocationCaptureMode.ALWAYS.name)
+
+        val vm = viewModel()
+        vm.onOpened()
+
+        assertEquals(LocationCaptureMode.ALWAYS, vm.uiState.value.locationCaptureMode)
+        assertEquals(1, vm.uiState.value.permissionRequestNonce)
+        assertNull(vm.uiState.value.locationPrompt)
+    }
+
+    @Test
+    fun onTapModeReadsNothingOnOpen() = runTest {
+        settingsRepo.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, LocationCaptureMode.ON_TAP.name)
+
+        val vm = viewModel()
+        vm.onOpened()
+
+        assertEquals(0, vm.uiState.value.permissionRequestNonce)
+        assertNull(vm.uiState.value.location)
+    }
+
+    /**
+     * The nonce is what the screen keys its launcher on, so it has to keep climbing. Were
+     * it reset with the form, the launcher would see a value it had already handled and
+     * the next automatic capture would never fire.
+     */
+    @Test
+    fun resettingTheFormKeepsTheLocationDecisionsAndTheNonce() = runTest {
+        settingsRepo.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, LocationCaptureMode.ALWAYS.name)
+        locationSource.coordinates = Coordinates(51.5, -0.12)
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.grantLocation()
+        val nonceBefore = vm.uiState.value.permissionRequestNonce
+
+        vm.reset()
+
+        val state = vm.uiState.value
+        assertNull(state.location)
+        assertEquals(LocationCaptureMode.ALWAYS, state.locationCaptureMode)
+        assertTrue(state.locationPermissionGranted)
+        assertTrue(state.permissionRequestNonce >= nonceBefore)
     }
 
     /**
@@ -703,7 +869,7 @@ class QuickAddViewModelTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
 
         assertEquals(emptyList(), vm.uiState.value.nearbyPlaces)
     }
@@ -723,7 +889,7 @@ class QuickAddViewModelTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
 
         assertEquals(listOf("Blue Bottle"), vm.uiState.value.nearbyPlaces.map { it.name })
     }
@@ -744,7 +910,7 @@ class QuickAddViewModelTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
 
         val vm = viewModel()
-        vm.onLocationToggled(enabled = true, permissionGranted = true)
+        vm.grantLocation()
         vm.onNearbyPlacePicked(vm.uiState.value.nearbyPlaces.single())
 
         assertEquals("Blue Bottle", vm.uiState.value.merchantName)
