@@ -34,10 +34,9 @@ import com.divafinance.core.domain.usecase.activity.ActivityKind
 import com.divafinance.core.domain.usecase.people.PersonBalance
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryChip
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
-import com.divafinance.core.ui.theme.DivaGreen
-import com.divafinance.core.ui.theme.DivaRed
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -121,8 +120,8 @@ private fun BalancesSummary(state: ActivityUiState, onPersonClick: (String) -> U
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                BalanceTotal("Owed to you", state.totalOwedToMe, DivaGreen)
-                BalanceTotal("You owe", state.totalIOwe, DivaRed)
+                BalanceTotal("Owed to you", state.totalOwedToMe, diva.positive)
+                BalanceTotal("You owe", state.totalIOwe, diva.negative)
             }
 
             Row(
@@ -253,7 +252,7 @@ private fun SpendRow(item: ActivityItem.Spend) {
             Text(
                 text = (if (isDebit) "-" else "+") + transaction.amount.toFixed(2),
                 style = MaterialTheme.typography.titleSmall,
-                color = if (isDebit) DivaRed else DivaGreen,
+                color = if (isDebit) diva.negative else diva.positive,
             )
         }
     }
@@ -277,7 +276,7 @@ private fun DebtRow(item: ActivityItem.Debt, onPersonClick: (String) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            KindDot(if (theyOweMe) DivaGreen else DivaRed)
+            KindDot(if (theyOweMe) diva.positive else diva.negative)
             Spacer(Modifier.size(12.dp))
 
             Column(Modifier.weight(1f)) {
@@ -292,7 +291,7 @@ private fun DebtRow(item: ActivityItem.Debt, onPersonClick: (String) -> Unit) {
                 Text(
                     text = item.entry.amount.toFixed(2),
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (theyOweMe) DivaGreen else DivaRed,
+                    color = if (theyOweMe) diva.positive else diva.negative,
                 )
                 Text(
                     text = if (theyOweMe) "owes you" else "you owe",

@@ -29,11 +29,10 @@ import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.LedgerEntry
 import com.divafinance.core.ui.component.CategoryChip
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
-import com.divafinance.core.ui.theme.DivaGreen
-import com.divafinance.core.ui.theme.DivaRed
 
 /** One person's balance, everything behind it, and a way to settle up. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,7 +144,7 @@ private fun BalanceHeader(balance: Double, isSettled: Boolean) {
                 Text(
                     text = kotlin.math.abs(balance).toFixed(2),
                     style = MaterialTheme.typography.headlineMedium,
-                    color = if (theyOweMe) DivaGreen else DivaRed,
+                    color = if (theyOweMe) diva.positive else diva.negative,
                 )
             }
         }
@@ -218,7 +217,7 @@ private fun EntryRow(entry: LedgerEntry) {
             Text(
                 text = (if (increasesWhatTheyOwe) "+" else "-") + entry.amount.toFixed(2),
                 style = MaterialTheme.typography.titleSmall,
-                color = if (increasesWhatTheyOwe) DivaGreen else DivaRed,
+                color = if (increasesWhatTheyOwe) diva.positive else diva.negative,
             )
         }
     }

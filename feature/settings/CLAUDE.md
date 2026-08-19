@@ -1,7 +1,10 @@
 # feature/settings
 
-**Purpose:** App settings — currency, theme, and the controls for the embedded LAN server
-(start/stop, port, the URL to type in a browser) plus one-way removal of demo data.
+**Purpose:** Hosts the **You tab** (`YouScreen`) — identity, the month's budget panel,
+and the navigation rows out to cards, graphs, people, map, scanner, backup, automation
+and settings. Also owns appearance (theme mode + accent), currency, and the controls for
+the embedded LAN server (start/stop, port, the URL to type in a browser), plus one-way
+removal of demo data.
 
 **Gradle:** `:feature:settings` · `diva.kmp.compose`
 **Depends on:** `:core:model`, `:core:domain`, **`:core:data`** (reads/writes
@@ -39,3 +42,23 @@ This is the only feature module that depends on `:server`.
 ```bash
 ./gradlew :feature:settings:jvmTest
 ```
+
+## The You tab and appearance (added in the 3-tab redesign)
+
+| File | What it does |
+|------|--------------|
+| `YouScreen.kt` / `YouViewModel.kt` | `DivaRoutes.YOU`. Identity, stats, the budget panel, and the nav rows. Reads `GetActivityUseCase` + `GetThresholdGraphDataUseCase`. |
+| `AppearanceStore.kt` | The theme preference as a **stream**. |
+
+- **Budgets are `GraphThreshold` read in currency.** A threshold stores "this category
+  should be N% of spending", which cannot render as "$107 left" without a total to take a
+  percentage of. `UserSettings.KEY_MONTHLY_BUDGET` supplies it — a setting, not a new
+  table. Absent simply means budgets render as shares instead of amounts.
+- **`AppearanceStore` reads `SettingsRepository.getAll()`, not `get(key)`.** Only
+  `getAll()` is reactive; a theme derived from the one-shot `get` would change only on the
+  next launch. This is what makes the switch repaint immediately.
+- `SettingsViewModel` does not update its own theme state after a write — it observes the
+  same stream, so the write comes back to it.
+- The currency row previously read and wrote a bare `"currency"` key that nothing else
+  used, so changing it had no effect. It now uses `UserSettings.KEY_BASE_CURRENCY`, which
+  is what onboarding writes and quick-add reads.

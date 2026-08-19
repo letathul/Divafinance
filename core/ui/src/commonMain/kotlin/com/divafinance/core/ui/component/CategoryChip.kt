@@ -3,6 +3,7 @@ package com.divafinance.core.ui.component
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -10,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.Pill
+import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -23,16 +26,17 @@ fun CategoryChip(
         modifier = modifier,
         onClick = onClick ?: {},
         enabled = onClick != null,
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = Pill,
+        // Selection inverts fore- and background together rather than tinting, so
+        // contrast never drops below the resting state.
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else diva.muted,
+        border = if (selected) null else BorderStroke(1.dp, diva.fgHair),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
         )
     }
 }

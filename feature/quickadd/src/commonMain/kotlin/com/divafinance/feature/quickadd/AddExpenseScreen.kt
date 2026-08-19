@@ -1,21 +1,30 @@
 package com.divafinance.feature.quickadd
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,40 +42,51 @@ import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
+import com.divafinance.core.ui.component.CalculatorKeypad
 import com.divafinance.core.ui.component.CategoryChip
+import com.divafinance.core.ui.component.CategoryPickerItem
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
+import com.divafinance.core.ui.component.GlassSurface
+import com.divafinance.core.ui.component.SegmentedControl
+import com.divafinance.core.ui.theme.Space
+import com.divafinance.core.ui.theme.diva
+import com.divafinance.core.ui.util.formatCurrency
 
 /**
- * Bottom sheet for logging a transaction in as few taps as possible: type an amount on the
- * keypad, accept the pre-selected card and category, save.
+ * Full-screen flow for logging a transaction in as few taps as possible: type an amount on
+ * the keypad, accept the pre-selected card and category, save.
  *
- * Everything beyond the amount has a usable default, so the common path never requires
- * scrolling or the soft keyboard. Merchant, note and card sit behind "Add details".
+ * Everything beyond the amount has a usable default, so the common path never requires the
+ * soft keyboard. Merchant, note and split sit behind disclosure chips.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuickAddSheet(
+fun AddExpenseScreen(
     onDismiss: () -> Unit,
     viewModel: QuickAddViewModel,
     modifier: Modifier = Modifier,
+    onOpenScanner: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val permissionRequester = rememberLocationPermissionRequester()
 
     LaunchedEffect(Unit) { viewModel.onOpened() }
 
-    ModalBottomSheet(
-        onDismissRequest = {
-            viewModel.reset()
-            onDismiss()
-        },
-        sheetState = sheetState,
-        modifier = modifier,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding(),
     ) {
-        QuickAddSheetContent(
+        AddExpenseTopBar(
+            onClose = {
+                viewModel.reset()
+                onDismiss()
+            },
+            onScan = onOpenScanner,
+        )
+        AddExpenseContent(
             state = state,
             onDigit = viewModel::onDigit,
             onOperator = viewModel::onOperator,
@@ -97,17 +117,45 @@ fun QuickAddSheet(
             onAddSplitPerson = { name -> viewModel.onAddSplitPerson(name) },
             onRemoveSplitPerson = viewModel::onRemoveSplitPerson,
             onSave = viewModel::save,
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
         )
+    }
+}
+
+@Composable
+private fun AddExpenseTopBar(onClose: () -> Unit, onScan: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        GlassSurface(Modifier.size(40.dp).clickable(onClick = onClose)) {
+            Icon(
+                Icons.Outlined.Close,
+                contentDescription = "Discard this expense",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(Alignment.Center).size(20.dp),
+            )
+        }
+        Text("New expense", style = MaterialTheme.typography.titleMedium)
+        GlassSurface(Modifier.size(40.dp).clickable(onClick = onScan)) {
+            Icon(
+                Icons.Outlined.PhotoCamera,
+                contentDescription = "Scan a receipt instead",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(Alignment.Center).size(20.dp),
+            )
+        }
     }
 }
 
 /**
  * Stateless body, split out so it can be driven directly from tests and previews without
- * a ViewModel or a sheet host. Callbacks default to no-ops for exactly that reason; the
+ * a ViewModel or a navigation host. Callbacks default to no-ops for exactly that reason; the
  * real call site above passes every one.
  */
 @Composable
-internal fun QuickAddSheetContent(
+internal fun AddExpenseContent(
     state: QuickAddUiState,
     onDigit: (Char) -> Unit = {},
     onOperator: (Char) -> Unit = {},
@@ -141,9 +189,11 @@ internal fun QuickAddSheetContent(
     ) {
         AmountDisplay(state)
 
-        TypeRow(state.type, onTypeChange)
+        AccountSelector(state, onCardChange)
 
-        CategoryRow(state, onCategoryChange, onToggleAllCategories)
+        CategoryPickerRow(state, onCategoryChange, onToggleAllCategories)
+
+        TypeRow(state.type, onTypeChange)
 
         DayRow(state.day, onDayChange)
 
@@ -159,7 +209,6 @@ internal fun QuickAddSheetContent(
             onMerchantChange = onMerchantChange,
             onMerchantSuggestionPicked = onMerchantSuggestionPicked,
             onNoteChange = onNoteChange,
-            onCardChange = onCardChange,
         )
 
         SplitSection(
@@ -186,7 +235,7 @@ internal fun QuickAddSheetContent(
         }
 
         DivaButton(
-            text = if (state.isSaving) "Saving..." else "Save",
+            text = if (state.isSaving) "Saving…" else "Add expense",
             onClick = onSave,
             enabled = state.canSave,
             modifier = Modifier.fillMaxWidth(),
@@ -202,13 +251,18 @@ internal fun QuickAddSheetContent(
  */
 @Composable
 private fun AmountDisplay(state: QuickAddUiState) {
+    val amount = state.previewAmount
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = Space.sm, bottom = Space.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = state.previewAmount?.toFixed(2) ?: "0.00",
-            style = MaterialTheme.typography.displaySmall,
+            text = formatCurrency(amount ?: 0.0),
+            style = MaterialTheme.typography.displayLarge,
+            // Greyed until there is a real figure, so the zero reads as a placeholder
+            // rather than as an amount someone might save by accident.
+            color = if (amount == null || amount == 0.0) diva.muted
+            else MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
         // Only worth showing once it is an actual sum rather than a repeat of the total.
@@ -216,7 +270,71 @@ private fun AmountDisplay(state: QuickAddUiState) {
             Text(
                 text = state.expression,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = diva.muted,
+            )
+        } else {
+            Text(
+                text = state.merchantName.ifBlank { "Where?" },
+                style = MaterialTheme.typography.titleSmall,
+                color = diva.muted,
+            )
+        }
+    }
+}
+
+/**
+ * Cash plus every card, as one segmented control at the top rather than buried in
+ * details — which card paid for something is a decision made at the moment of spending,
+ * not an afterthought.
+ */
+@Composable
+private fun AccountSelector(state: QuickAddUiState, onCardChange: (String?) -> Unit) {
+    // Income is not paid *with* anything, and with no cards there is nothing to choose.
+    if (state.cards.isEmpty() || state.type != TransactionType.DEBIT) return
+
+    val options = listOf<String?>(null) + state.cards.map { it.id }
+    val labels = listOf("Cash") + state.cards.map { card ->
+        card.lastFour?.let { "${card.name} ·$it" } ?: card.name
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        SegmentedControl(
+            options = labels,
+            selectedIndex = options.indexOf(state.selectedCardId).coerceAtLeast(0),
+            onSelect = { onCardChange(options[it]) },
+        )
+    }
+}
+
+/** Category as tinted tiles rather than text chips — the colour is the encoding. */
+@Composable
+private fun CategoryPickerRow(
+    state: QuickAddUiState,
+    onCategoryChange: (SpendingCategory) -> Unit,
+    onToggleAllCategories: () -> Unit,
+) {
+    val shown = if (state.showAllCategories) {
+        SpendingCategory.entries.toList()
+    } else {
+        (state.suggestedCategories + state.category).distinct()
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+    ) {
+        shown.forEach { category ->
+            CategoryPickerItem(
+                category = category,
+                selected = category == state.category,
+                onClick = { onCategoryChange(category) },
+            )
+        }
+        Box(Modifier.align(Alignment.CenterVertically)) {
+            CategoryChip(
+                label = if (state.showAllCategories) "Less" else "More",
+                onClick = onToggleAllCategories,
             )
         }
     }
@@ -234,37 +352,6 @@ private fun TypeRow(type: TransactionType, onTypeChange: (TransactionType) -> Un
             label = "Income",
             selected = type == TransactionType.CREDIT,
             onClick = { onTypeChange(TransactionType.CREDIT) },
-        )
-    }
-}
-
-@Composable
-private fun CategoryRow(
-    state: QuickAddUiState,
-    onCategoryChange: (SpendingCategory) -> Unit,
-    onToggleAllCategories: () -> Unit,
-) {
-    val shown = if (state.showAllCategories) {
-        SpendingCategory.entries.toList()
-    } else {
-        // Keep the current pick visible even when it is not one of the suggestions.
-        (state.suggestedCategories + state.category).distinct()
-    }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-    ) {
-        shown.forEach { category ->
-            CategoryChip(
-                label = category.displayName,
-                selected = state.category == category,
-                onClick = { onCategoryChange(category) },
-            )
-        }
-        CategoryChip(
-            label = if (state.showAllCategories) "Less" else "More",
-            onClick = onToggleAllCategories,
         )
     }
 }
@@ -506,7 +593,6 @@ private fun DetailsSection(
     onMerchantChange: (String) -> Unit,
     onMerchantSuggestionPicked: (String) -> Unit,
     onNoteChange: (String) -> Unit,
-    onCardChange: (String?) -> Unit,
 ) {
     CategoryChip(
         label = if (state.showDetails) "Hide details" else "Add details",
@@ -542,24 +628,4 @@ private fun DetailsSection(
         label = "Note",
     )
 
-    if (state.cards.isNotEmpty() && state.type == TransactionType.DEBIT) {
-        Text("Paid with", style = MaterialTheme.typography.labelLarge)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-        ) {
-            CategoryChip(
-                label = "Cash",
-                selected = state.selectedCardId == null,
-                onClick = { onCardChange(null) },
-            )
-            state.cards.forEach { card ->
-                CategoryChip(
-                    label = card.name,
-                    selected = state.selectedCardId == card.id,
-                    onClick = { onCardChange(card.id) },
-                )
-            }
-        }
-    }
 }

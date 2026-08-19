@@ -19,6 +19,34 @@ data class UserSettings(
         const val KEY_SERVER_PORT = "server_port"
 
         /**
+         * Light / dark / system, by [name]. Absent means the user has never chosen, which
+         * is not the same as choosing "system" — see the legacy fallback below.
+         */
+        const val KEY_THEME_MODE = "theme_mode"
+
+        /** Which accent sweep the UI spends its one accent on, by name. */
+        const val KEY_ACCENT = "accent"
+
+        /** Shown on the profile. Absent is fine — the screen falls back to a generic. */
+        const val KEY_DISPLAY_NAME = "display_name"
+
+        /**
+         * What the user intends to spend in a month, as a plain number.
+         *
+         * Thresholds are stored as a percentage of total spending, which cannot be shown
+         * as "$107 left" without a total to take a percentage *of*. This supplies it, as
+         * a setting rather than a new table — absent simply means budgets render as
+         * shares instead of amounts.
+         */
+        const val KEY_MONTHLY_BUDGET = "monthly_budget"
+
+        /**
+         * Superseded by [KEY_THEME_MODE]. Still *read* once so an install that predates
+         * the three-way choice keeps the dark canvas it was already on; never written.
+         */
+        const val KEY_LEGACY_DARK_THEME = "dark_theme"
+
+        /**
          * The account new transactions are booked against when the user does not pick one.
          * Written during onboarding, and repaired on launch for installs that predate it.
          */

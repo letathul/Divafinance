@@ -1,6 +1,5 @@
 package com.divafinance.feature.feed.component
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,18 +9,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.enums.FeedPostType
+import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.Space
+import com.divafinance.core.ui.theme.diva
 import kotlin.time.Clock
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -30,38 +31,35 @@ fun BotInsightBubble(
     post: FeedPost,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.tertiaryContainer)
-            .padding(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Icon(
-            Icons.Default.Star,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.tertiary,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = post.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
+    DivaCard(modifier = modifier, shape = RoundedCornerShape(20.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = diva.accent,
             )
-            Text(
-                text = post.body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-            Text(
-                text = formatTimestamp(post.createdAt),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            Spacer(modifier = Modifier.width(Space.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = post.title,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = post.body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = diva.muted,
+                )
+                Text(
+                    text = formatTimestamp(post.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = diva.muted,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
     }
 }

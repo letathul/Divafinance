@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.data.repository.SettingsRepository
 import com.divafinance.core.model.UserSettings
+import com.divafinance.core.ui.theme.AccentTheme
+import com.divafinance.core.ui.theme.ThemeMode
 import com.divafinance.feature.demo.DemoDataManager
 import com.divafinance.feature.demo.DemoStatus
 import com.divafinance.server.DivaServer
@@ -22,7 +24,8 @@ data class SettingsUiState(
     val serverState: ServerState = ServerState.Stopped,
     val serverPort: Int = ServerConfig().port,
     val currency: String = "USD",
-    val isDarkTheme: Boolean = false,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val accent: AccentTheme = AccentTheme.SUNSET,
     /** The demo section only exists while the demo is active; removal is one-way. */
     val isDemoActive: Boolean = false,
     val isRemovingDemo: Boolean = false,
@@ -37,6 +40,7 @@ data class SettingsUiState(
 
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
+    private val appearanceStore: AppearanceStore,
     private val divaServer: DivaServer,
     private val serverLauncher: ServerLauncher,
     private val demoDataManager: DemoDataManager,
@@ -47,22 +51,35 @@ class SettingsViewModel(
 
     init {
         loadSettings()
+        observeAppearance()
         observeServer()
     }
 
     private fun loadSettings() {
         viewModelScope.launch {
-            val currency = settingsRepository.get("currency") ?: "USD"
-            val darkTheme = settingsRepository.get("dark_theme") == "true"
+            val currency = settingsRepository.get(UserSettings.KEY_BASE_CURRENCY) ?: "USD"
             val port = settingsRepository.get(UserSettings.KEY_SERVER_PORT)?.toIntOrNull()
                 ?: ServerConfig().port
             _uiState.update {
                 it.copy(
                     currency = currency,
-                    isDarkTheme = darkTheme,
                     serverPort = port,
                     isDemoActive = demoDataManager.status() == DemoStatus.ACTIVE,
                 )
+            }
+        }
+    }
+
+    /**
+     * Appearance is observed rather than read once: the app root reads the same stream,
+     * so this keeps the two in step even if the theme is changed from somewhere else.
+     */
+    private fun observeAppearance() {
+        viewModelScope.launch {
+            appearanceStore.appearance.collect { appearance ->
+                _uiState.update {
+                    it.copy(themeMode = appearance.mode, accent = appearance.accent)
+                }
             }
         }
     }
@@ -110,16 +127,18 @@ class SettingsViewModel(
 
     fun updateCurrency(currency: String) {
         viewModelScope.launch {
-            settingsRepository.set("currency", currency)
+            settingsRepository.set(UserSettings.KEY_BASE_CURRENCY, currency)
             _uiState.update { it.copy(currency = currency) }
         }
     }
 
-    fun toggleDarkTheme(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.set("dark_theme", enabled.toString())
-            _uiState.update { it.copy(isDarkTheme = enabled) }
-        }
+    // No local state update: observeAppearance is already collecting the write back.
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { appearanceStore.setMode(mode) }
+    }
+
+    fun setAccent(accent: AccentTheme) {
+        viewModelScope.launch { appearanceStore.setAccent(accent) }
     }
 
     private companion object {

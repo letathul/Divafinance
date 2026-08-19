@@ -1,36 +1,88 @@
 package com.divafinance.app
 
+import com.divafinance.core.domain.usecase.reports.ReportPeriod
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlinx.datetime.LocalDate
 
 class DivaRoutesTest {
 
     @Test
-    fun allRoutesAreDefined() {
+    fun shellRoutesAreDefined() {
         assertEquals("onboarding", DivaRoutes.ONBOARDING)
-        assertEquals("dashboard", DivaRoutes.DASHBOARD)
+        assertEquals("feed", DivaRoutes.FEED)
+        assertEquals("you", DivaRoutes.YOU)
+        assertEquals("add", DivaRoutes.ADD_EXPENSE)
+    }
+
+    @Test
+    fun detailRoutesAreDefined() {
+        assertEquals("report/{period}/{anchor}", DivaRoutes.REPORT)
+        assertEquals("transactions", DivaRoutes.TRANSACTIONS)
+        assertEquals("transactions/detail/{transactionId}", DivaRoutes.TRANSACTION_DETAIL)
+        assertEquals("budgets", DivaRoutes.BUDGETS)
         assertEquals("cards", DivaRoutes.CARDS)
         assertEquals("cards/{cardId}", DivaRoutes.CARD_DETAIL)
         assertEquals("cards/add", DivaRoutes.CARD_ADD)
         assertEquals("cards/edit", DivaRoutes.CARD_EDIT)
         assertEquals("cards/best", DivaRoutes.BEST_CARD)
-        assertEquals("activity", DivaRoutes.ACTIVITY)
+        assertEquals("cards/rewards", DivaRoutes.REWARD_MAPPER)
+        assertEquals("people", DivaRoutes.PEOPLE)
         assertEquals("people/{personId}", DivaRoutes.PERSON_DETAIL)
-        assertEquals("transactions", DivaRoutes.TRANSACTIONS)
-        assertEquals("transactions/add", DivaRoutes.TRANSACTION_ADD)
-        assertEquals("feed", DivaRoutes.FEED)
-        assertEquals("settings", DivaRoutes.SETTINGS)
         assertEquals("graphs", DivaRoutes.GRAPHS)
+        assertEquals("graphs/thresholds", DivaRoutes.THRESHOLD_CONFIG)
         assertEquals("map", DivaRoutes.MAP)
         assertEquals("scanner", DivaRoutes.SCANNER)
         assertEquals("backup", DivaRoutes.BACKUP)
-        assertEquals("graphs/thresholds", DivaRoutes.THRESHOLD_CONFIG)
         assertEquals("automation", DivaRoutes.AUTOMATION)
+        assertEquals("settings", DivaRoutes.SETTINGS)
     }
 
     @Test
     fun cardDetailRouteFormatting() {
         assertEquals("cards/abc123", DivaRoutes.cardDetail("abc123"))
         assertEquals("cards/my-card", DivaRoutes.cardDetail("my-card"))
+    }
+
+    @Test
+    fun personDetailRouteFormatting() {
+        assertEquals("people/p1", DivaRoutes.personDetail("p1"))
+    }
+
+    @Test
+    fun transactionDetailRouteFormatting() {
+        assertEquals("transactions/detail/t1", DivaRoutes.transactionDetail("t1"))
+    }
+
+    /**
+     * The built path has to line up with the pattern the graph registers, or the
+     * destination is simply never found at runtime.
+     */
+    @Test
+    fun reportRouteMatchesItsPattern() {
+        val built = DivaRoutes.report(ReportPeriod.MONTH, LocalDate(2026, 8, 17))
+        assertEquals("report/month/2026-08-17", built)
+
+        val patternSegments = DivaRoutes.REPORT.split("/")
+        val builtSegments = built.split("/")
+        assertEquals(patternSegments.size, builtSegments.size)
+        assertEquals(patternSegments[0], builtSegments[0])
+    }
+
+    @Test
+    fun reportPeriodParsesBackFromTheRouteSegment() {
+        ReportPeriod.entries.forEach { period ->
+            val segment = DivaRoutes.report(period, LocalDate(2026, 1, 1)).split("/")[1]
+            assertEquals(period, ReportPeriod.fromName(segment))
+        }
+    }
+
+    /** Only the two tabs, and neither is a detail page. */
+    @Test
+    fun tabsAreDistinctTopLevelRoutes() {
+        assertTrue(DivaRoutes.FEED != DivaRoutes.YOU)
+        assertTrue(!DivaRoutes.FEED.contains("/"))
+        assertTrue(!DivaRoutes.YOU.contains("/"))
     }
 }

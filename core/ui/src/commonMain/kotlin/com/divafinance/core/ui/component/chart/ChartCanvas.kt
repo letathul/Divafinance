@@ -1,4 +1,4 @@
-package com.divafinance.feature.graphs.component
+package com.divafinance.core.ui.component.chart
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth

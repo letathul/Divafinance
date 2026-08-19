@@ -1,4 +1,4 @@
-package com.divafinance.feature.graphs.component
+package com.divafinance.core.ui.component.chart
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
@@ -24,25 +24,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
-import com.divafinance.core.domain.usecase.graphs.CategoryThresholdData
-import com.divafinance.core.model.GraphThreshold
-import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
-
-private val barGreen = Color(0xFF4CAF50)
-private val barRed = Color(0xFFE53935)
-private val barGray = Color(0xFFBDBDBD)
-private val thresholdLineColor = Color(0xFFFF9800)
 
 @Composable
 fun ThresholdBarChart(
-    data: List<CategoryThresholdData>,
+    data: List<ChartBar>,
     modifier: Modifier = Modifier,
+    limitCaption: String = "Dashed line = limit",
 ) {
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val onSurfaceVariant = diva.muted
+    val overColor = diva.negative
+    val limitLineColor = diva.muted
 
     if (data.isEmpty()) {
         Column(
@@ -51,19 +47,14 @@ fun ThresholdBarChart(
             Text(
                 text = "No spending data available",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = diva.muted,
             )
         }
         return
     }
 
-    val totalSpending = data.sumOf { it.spending }
-    val maxPercent = if (totalSpending > 0) {
-        data.maxOf { it.spending / totalSpending * 100.0 }.coerceAtLeast(10.0)
-    } else {
-        100.0
-    }
-    val chartMax = (maxPercent * 1.2).coerceAtLeast(10.0)
+    val peak = data.maxOf { maxOf(it.value, it.limit ?: 0.0) }
+    val chartMax = (peak * 1.2).coerceAtLeast(1.0)
 
     val barCount = data.size
     val barWidth = 48f
@@ -84,16 +75,11 @@ fun ThresholdBarChart(
             val drawableHeight = size.height - bottomPadding - topPadding
 
             data.forEachIndexed { index, item ->
-                val percent = if (totalSpending > 0) item.spending / totalSpending * 100.0 else 0.0
-                val barHeight = (percent / chartMax * drawableHeight).toFloat().coerceAtLeast(2f)
+                val barHeight = (item.value / chartMax * drawableHeight).toFloat().coerceAtLeast(2f)
                 val x = barSpacing + index * (barWidth + barSpacing)
                 val y = topPadding + drawableHeight - barHeight
 
-                val barColor = when {
-                    item.isOverThreshold -> barRed
-                    item.threshold != null -> barGreen
-                    else -> barGray
-                }
+                val barColor = if (item.isOver) overColor else item.color
 
                 drawRoundRect(
                     color = barColor,
@@ -102,11 +88,11 @@ fun ThresholdBarChart(
                     cornerRadius = CornerRadius(4f, 4f),
                 )
 
-                item.threshold?.let { threshold ->
+                item.limit?.let { limit ->
                     val thresholdY = topPadding + drawableHeight -
-                        (threshold.thresholdPercent / chartMax * drawableHeight).toFloat()
+                        (limit / chartMax * drawableHeight).toFloat()
                     drawLine(
-                        color = thresholdLineColor,
+                        color = limitLineColor,
                         start = Offset(x - 4f, thresholdY),
                         end = Offset(x + barWidth + 4f, thresholdY),
                         strokeWidth = 2f,
@@ -114,11 +100,7 @@ fun ThresholdBarChart(
                     )
                 }
 
-                val label = if (item.category.length > 6) {
-                    item.category.take(5) + "."
-                } else {
-                    item.category
-                }
+                val label = if (item.label.length > 6) item.label.take(5) + "." else item.label
                 val labelLayout = textMeasurer.measure(
                     text = label,
                     style = labelStyle,
@@ -133,7 +115,7 @@ fun ThresholdBarChart(
                     ),
                 )
 
-                val percentLabel = "${percent.toFixed(0)}%"
+                val percentLabel = item.valueLabel ?: item.value.toFixed(0)
                 val percentLayout = textMeasurer.measure(percentLabel, labelStyle)
                 drawText(
                     textLayoutResult = percentLayout,
@@ -149,9 +131,9 @@ fun ThresholdBarChart(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Orange dashed line = threshold limit",
+            text = limitCaption,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = diva.muted,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
     }
@@ -163,27 +145,9 @@ private fun ThresholdBarChartPreview() {
     DivaTheme {
         ThresholdBarChart(
             data = listOf(
-                CategoryThresholdData(
-                    category = "Dining",
-                    spending = 450.0,
-                    threshold = GraphThreshold("1", SpendingCategory.DINING, 30.0),
-                    percentOfThreshold = 117.0,
-                    isOverThreshold = true,
-                ),
-                CategoryThresholdData(
-                    category = "Travel",
-                    spending = 320.0,
-                    threshold = GraphThreshold("2", SpendingCategory.TRAVEL, 25.0),
-                    percentOfThreshold = 80.0,
-                    isOverThreshold = false,
-                ),
-                CategoryThresholdData(
-                    category = "Gas",
-                    spending = 180.0,
-                    threshold = null,
-                    percentOfThreshold = null,
-                    isOverThreshold = false,
-                ),
+                ChartBar("Dining", 450.0, Color(0xFFD9A05C), limit = 380.0, isOver = true),
+                ChartBar("Travel", 320.0, Color(0xFF7CB0DA), limit = 400.0),
+                ChartBar("Gas", 180.0, Color(0xFFC9B27A)),
             ),
         )
     }

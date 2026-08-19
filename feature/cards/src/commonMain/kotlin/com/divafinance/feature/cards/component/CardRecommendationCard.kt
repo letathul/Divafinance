@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.engine.CardRecommendation
 import com.divafinance.core.ui.component.DivaCard
-import com.divafinance.core.ui.theme.DivaGreen
+import com.divafinance.core.ui.theme.diva
 
 @Composable
 fun CardRecommendationCard(
@@ -36,7 +36,7 @@ fun CardRecommendationCard(
                 Text(
                     text = "+${"$" + recommendation.estimatedRewardValue.toFixed(2)}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = DivaGreen,
+                    color = diva.positive,
                 )
             }
 

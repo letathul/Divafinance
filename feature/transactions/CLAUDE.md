@@ -40,3 +40,21 @@ full add form. (The fast path for entry is `:feature:quickadd`, a separate modul
 ```bash
 ./gradlew :feature:transactions:jvmTest
 ```
+
+## The period report (added in the 3-tab redesign)
+
+| File | What it does |
+|------|--------------|
+| `ReportScreen.kt` / `ReportViewModel.kt` | `DivaRoutes.REPORT` — `report/{period}/{anchor}`. Opened from the feed's day/month/year cards. |
+| `ReportFilterSheet.kt` | Every attribute a transaction carries, as one sheet, plus the removable active-filter chips. |
+
+- A report is **a period plus an anchor** (any date inside it); `ReportPeriod` in
+  `:core:domain` derives the bounds. That keeps the pair serialisable into a route and
+  makes "the previous period" a shift of the anchor rather than range arithmetic.
+- **Filters are set-valued, and empty means "no restriction"** — so clearing a filter and
+  never setting one are the same state. The `Boolean?` flags are tri-state:
+  ignore / must / must-not.
+- Reads through `GetActivityUseCase` rather than the transaction repository, because the
+  person filter needs the ledger entries a split created — those are what connect a
+  transaction to the people on its bill.
+- Totals subtract `othersShare`, matching the feed.

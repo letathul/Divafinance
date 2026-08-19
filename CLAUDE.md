@@ -30,6 +30,23 @@ Targets: `androidTarget`, `jvm`, `iosX64`, `iosArm64`, `iosSimulatorArm64`.
 
 ## Architecture
 
+### The shell
+
+Three surfaces, and everything else is a detail page reached from one of them:
+
+```
+main shell — a floating glass tab capsule overlaying the content
+├── TAB     feed   → report/{period}/{anchor} · transactions/detail/{id} · people/{id}
+├── CENTRE  add    → the full-screen expense flow
+└── TAB     you    → budgets · cards · graphs · people · map · scanner
+                     backup · automation · settings
+```
+
+The capsule **overlays** rather than displacing, so screens leave room for it via their
+own `contentPadding` instead of a `Scaffold(bottomBar = ...)`.
+
+### Layers
+
 Clean Architecture + MVVM. Dependencies point strictly downward:
 
 ```
@@ -56,6 +73,9 @@ Rules that matter when adding dependencies:
   `:feature:settings` is also the only feature depending on `:server`.
 - Three features declare `:core:data` directly (`quickadd`, `settings`, `demo`) because
   they write through repositories that have no use-case wrapper yet.
+- Charts live in `:core:ui` (`component/chart/`) and take neutral `ChartSlice` /
+  `ChartPoint` / `ChartBar` types rather than domain ones, so both `:feature:graphs` and
+  the period report can render them without `:core:ui` gaining a dependency.
 - ViewModels are constructed in `composeApp/src/commonMain/.../di/ViewModelModule.kt`,
   never by the feature module itself.
 
@@ -103,13 +123,13 @@ may be unreachable remotely and the build has to be verified locally.
 
 **Feature**
 - [`feature/onboarding`](feature/onboarding/CLAUDE.md) — 7-step setup wizard
-- [`feature/dashboard`](feature/dashboard/CLAUDE.md) — home screen
+- [`feature/feed`](feature/feed/CLAUDE.md) — **the Feed tab**: today, period cards, day-grouped ledger
 - [`feature/cards`](feature/cards/CLAUDE.md) — card CRUD, reward rules, best-card
-- [`feature/transactions`](feature/transactions/CLAUDE.md) — transaction list/detail/add
-- [`feature/quickadd`](feature/quickadd/CLAUDE.md) — bottom-sheet entry with calculator keypad
+- [`feature/transactions`](feature/transactions/CLAUDE.md) — transaction list/detail + period report
+- [`feature/quickadd`](feature/quickadd/CLAUDE.md) — full-screen add-expense with calculator keypad
 - [`feature/graphs`](feature/graphs/CLAUDE.md) — charts + spending thresholds
-- [`feature/feed`](feature/feed/CLAUDE.md) — activity feed + daily bot insight
-- [`feature/settings`](feature/settings/CLAUDE.md) — settings + embedded-server control
+- `feature/activity` — people, debts and the merged activity stream
+- [`feature/settings`](feature/settings/CLAUDE.md) — **the You tab**, settings, appearance, embedded-server control
 - [`feature/map`](feature/map/CLAUDE.md) — spending map (dynamic)
 - [`feature/scanner`](feature/scanner/CLAUDE.md) — receipt OCR (dynamic)
 - [`feature/backup`](feature/backup/CLAUDE.md) — export/import archive

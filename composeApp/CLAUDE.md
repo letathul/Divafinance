@@ -17,9 +17,9 @@ module that depends on every feature, and the only place features are composed t
 
 | File | What it does |
 |------|--------------|
-| `App.kt` | Root composable: `DivaTheme { Surface { MainScreen() } }` |
-| `MainScreen.kt` | The scaffold. Runs `InitializeDatabaseUseCase` in a `LaunchedEffect` to pick the start destination (dashboard vs onboarding) behind a loading state, hosts the bottom nav (Home / Transactions / Feed / Settings, `bottomNavRoutes` also includes `CARDS`), the quick-add FAB + `QuickAddSheet`, and the undo snackbar. |
-| `DivaNavHost.kt` | `DivaRoutes` — every route constant in one object, plus `cardDetail(cardId)` — and the `NavHost` graph. Hoists `CardsViewModel`, `TransactionsViewModel`, and `GraphsViewModel` here so their form state survives navigation between related screens. |
+| `App.kt` | Root composable. Collects `AppearanceStore.appearance` and passes mode + accent into `DivaTheme`, so a change in Settings repaints the whole tree at once. |
+| `MainScreen.kt` | The shell. Runs `InitializeDatabaseUseCase` in a `LaunchedEffect` to pick the start destination (feed vs onboarding) behind a loading state, then a `Box` holding the `NavHost`, the `FloatingTabBar` and the undo snackbar. **No `Scaffold`** — the capsule overlays the content rather than displacing it. |
+| `DivaNavHost.kt` | `DivaRoutes` — every route constant in one object, plus `cardDetail`, `personDetail`, `transactionDetail` and `report(period, anchor)` — and the `NavHost` graph. Hoists `CardsViewModel`, `TransactionsViewModel`, and `GraphsViewModel` here so their form state survives navigation between related screens. |
 | `dynamic/DynamicFeatureLoader.kt` | `DynamicModule` enum + `expect class` with `isInstalled`, `requestInstall`, `requestUninstall` |
 
 **`di/`** — Koin. `appModules()` returns `platformModule()`, `dataModule`, `domainModule`,
@@ -57,7 +57,15 @@ module that depends on every feature, and the only place features are composed t
   `ViewModelModule`.** This is the most common cause of a Koin `NoDefinitionFoundException`
   at runtime.
 - Add routes as constants in `DivaRoutes`, never as string literals at call sites —
-  `DivaRoutesTest` guards the constants.
+  `DivaRoutesTest` guards every literal, so a rename is always a two-file change.
+- **Only `FEED` and `YOU` show the tab capsule** (`tabRoutes` in `MainScreen`).
+  `currentBackStackEntryFlow` reports the route *pattern* (`"cards/{cardId}"`), never the
+  resolved path, so membership is tested against the patterns in `DivaRoutes`.
+- `QuickAddViewModel` is hoisted in `MainScreen`, not resolved inside the add destination,
+  so the undo snackbar outlives the screen that produced it.
+- `MainActivity`'s `enableEdgeToEdge` scrims are hardcoded hex mirroring
+  `LightBackground` / `DarkBackground`. They resolve before Compose runs and cannot read
+  the theme, so they must be updated by hand with any palette change.
 - ViewModels hoisted in `DivaNavHost` must not also be resolved with `koinViewModel()`
   inside a screen, or the screen gets a second instance with empty form state.
 - The iOS framework needs `linkerOpts("-lsqlite3")` for SQLDelight's SQLiter cinterop.

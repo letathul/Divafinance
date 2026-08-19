@@ -36,10 +36,9 @@ import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryChip
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
-import com.divafinance.core.ui.theme.DivaGreen
-import com.divafinance.core.ui.theme.DivaRed
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -221,7 +220,7 @@ private fun TransactionItem(transaction: Transaction) {
             Text(
                 text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
+                color = if (transaction.type == TransactionType.DEBIT) diva.negative else diva.positive,
             )
         }
     }

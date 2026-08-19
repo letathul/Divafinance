@@ -7,7 +7,7 @@ the test Main-dispatcher helpers. Consumed by other modules' test source sets.
 **Depends on:** `:core:model` (`api`), `:core:data` (`api` — the fakes implement its
 interfaces), `kotlinx-coroutines-test` (`api`)
 **Depended on by (as a `commonTest`/`jvmTest` dependency only):** `:core:domain`,
-`:feature:cards`, `:feature:dashboard`, `:feature:transactions`, `:feature:quickadd`,
+`:feature:cards`, `:feature:feed`, `:feature:transactions`, `:feature:quickadd`,
 `:feature:onboarding`
 
 ## Key files

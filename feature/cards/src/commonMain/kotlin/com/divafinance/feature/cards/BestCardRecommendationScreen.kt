@@ -31,11 +31,11 @@ import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.engine.CardRecommendation
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.ui.component.CategoryChip
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
 import com.divafinance.core.ui.component.LoadingIndicator
-import com.divafinance.core.ui.theme.DivaGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,7 +148,7 @@ private fun RecommendationCard(
                 Text(
                     text = "+${"$" + recommendation.estimatedRewardValue.toFixed(2)}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = DivaGreen,
+                    color = diva.positive,
                 )
             }
 

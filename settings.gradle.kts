@@ -31,7 +31,6 @@ include(":core:network")
 
 // Feature modules
 include(":feature:onboarding")
-include(":feature:dashboard")
 include(":feature:cards")
 include(":feature:transactions")
 include(":feature:quickadd")

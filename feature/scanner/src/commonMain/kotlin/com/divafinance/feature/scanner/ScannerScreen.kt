@@ -33,10 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.component.DivaButton
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
 import com.divafinance.core.ui.component.LoadingIndicator
-import com.divafinance.core.ui.theme.DivaGreen
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -264,7 +264,7 @@ private fun StatementImportContent(
                 Text(
                     "$count transactions imported",
                     style = MaterialTheme.typography.titleMedium,
-                    color = DivaGreen,
+                    color = diva.positive,
                 )
                 Spacer(Modifier.height(8.dp))
                 DivaButton(text = "Clear", onClick = onClear, modifier = Modifier.fillMaxWidth())

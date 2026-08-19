@@ -1,5 +1,6 @@
 package com.divafinance.core.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -15,8 +16,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.Pill
+import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+/**
+ * The solid button: foreground-on-background, never accent-coloured.
+ *
+ * `primary` is the neutral in this theme precisely so this reads as white-on-dark (or
+ * black-on-light) rather than picking up a tint. The accent is spent on the compose
+ * button and one earned moment per screen, not on every call to action.
+ */
 @Composable
 fun DivaButton(
     text: String,
@@ -28,13 +38,14 @@ fun DivaButton(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(52.dp),
         enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
+        shape = Pill,
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)
     }
 }
 
+/** The tonal alternative: hairline border, transparent fill. */
 @Composable
 fun DivaOutlinedButton(
     text: String,
@@ -46,7 +57,12 @@ fun DivaOutlinedButton(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(52.dp),
         enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
+        shape = Pill,
+        border = BorderStroke(1.dp, diva.fgHair),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)

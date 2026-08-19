@@ -1,4 +1,4 @@
-package com.divafinance.feature.graphs.component
+package com.divafinance.core.ui.component.chart
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -26,35 +26,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.theme.DivaTheme
-import com.divafinance.feature.graphs.SpendingSlice
+import com.divafinance.core.ui.theme.NumericStyle
+import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
-
-private val chartColors = listOf(
-    Color(0xFFD4A843),
-    Color(0xFF2196F3),
-    Color(0xFF4CAF50),
-    Color(0xFFE53935),
-    Color(0xFFFF9800),
-    Color(0xFF9C27B0),
-    Color(0xFF00BCD4),
-    Color(0xFFFF5722),
-    Color(0xFF607D8B),
-    Color(0xFF795548),
-    Color(0xFFCDDC39),
-    Color(0xFFE91E63),
-)
 
 @Composable
 fun SpendingPieChart(
-    slices: List<SpendingSlice>,
+    slices: List<ChartSlice>,
     totalSpending: Double,
     modifier: Modifier = Modifier,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val centerTextStyle = MaterialTheme.typography.titleLarge
+    val centerTextStyle = NumericStyle.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize)
     val centerLabelStyle = MaterialTheme.typography.labelSmall
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val onSurfaceVariantColor = diva.muted
+    val trackColor = diva.fgHair
 
     Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -73,7 +60,7 @@ fun SpendingPieChart(
 
                 if (slices.isEmpty()) {
                     drawArc(
-                        color = Color.LightGray,
+                        color = trackColor,
                         startAngle = 0f,
                         sweepAngle = 360f,
                         useCenter = false,
@@ -82,10 +69,10 @@ fun SpendingPieChart(
                         style = Stroke(width = strokeWidth),
                     )
                 } else {
-                    slices.forEachIndexed { index, slice ->
-                        val sweep = slice.percent / 100f * 360f
+                    slices.forEach { slice ->
+                        val sweep = slice.fraction * 360f
                         drawArc(
-                            color = chartColors[index % chartColors.size],
+                            color = slice.color,
                             startAngle = startAngle,
                             sweepAngle = sweep,
                             useCenter = false,
@@ -127,11 +114,11 @@ fun SpendingPieChart(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            slices.forEachIndexed { index, slice ->
+            slices.forEach { slice ->
                 LegendItem(
-                    color = chartColors[index % chartColors.size],
-                    label = slice.category,
-                    value = "${slice.percent.toFixed(1)}%",
+                    color = slice.color,
+                    label = slice.label,
+                    value = "${(slice.fraction * 100f).toFixed(1)}%",
                 )
             }
         }
@@ -144,11 +131,11 @@ private fun SpendingPieChartPreview() {
     DivaTheme {
         SpendingPieChart(
             slices = listOf(
-                SpendingSlice("Dining", 450.0, 35f),
-                SpendingSlice("Travel", 320.0, 25f),
-                SpendingSlice("Gas", 180.0, 14f),
-                SpendingSlice("Groceries", 200.0, 16f),
-                SpendingSlice("Other", 130.0, 10f),
+                ChartSlice("Dining", 450.0, 0.35f, Color(0xFFD9A05C)),
+                ChartSlice("Travel", 320.0, 0.25f, Color(0xFF7CB0DA)),
+                ChartSlice("Gas", 180.0, 0.14f, Color(0xFFC9B27A)),
+                ChartSlice("Groceries", 200.0, 0.16f, Color(0xFFA8C282)),
+                ChartSlice("Other", 130.0, 0.10f, Color(0xFFA9A3AE)),
             ),
             totalSpending = 1280.0,
         )
@@ -176,7 +163,7 @@ private fun LegendItem(
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
+            style = NumericStyle,
             textAlign = TextAlign.End,
         )
     }

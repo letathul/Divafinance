@@ -1,5 +1,6 @@
-package com.divafinance.feature.quickadd
+package com.divafinance.core.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,9 +16,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.theme.diva
 
 /** A key on the pad. Operators are visually distinct from digits. */
-internal sealed interface Key {
+sealed interface Key {
     data class Digit(val char: Char) : Key
     data class Operator(val symbol: Char, val label: String) : Key
     data object Backspace : Key
@@ -36,7 +38,7 @@ private val KEY_ROWS: List<List<Key>> = listOf(
  * feeds is never focusable.
  */
 @Composable
-internal fun CalculatorKeypad(
+fun CalculatorKeypad(
     onDigit: (Char) -> Unit,
     onOperator: (Char) -> Unit,
     onBackspace: () -> Unit,
@@ -97,15 +99,12 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
             .semantics { contentDescription = description },
         shape = MaterialTheme.shapes.medium,
         color = if (isOperator) {
-            MaterialTheme.colorScheme.secondaryContainer
+            MaterialTheme.colorScheme.surfaceContainerHigh
         } else {
-            MaterialTheme.colorScheme.surfaceVariant
+            MaterialTheme.colorScheme.surface
         },
-        contentColor = if (isOperator) {
-            MaterialTheme.colorScheme.onSecondaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
+        contentColor = if (isOperator) diva.muted else MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, diva.fgHair),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -114,7 +113,7 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
             )
         }

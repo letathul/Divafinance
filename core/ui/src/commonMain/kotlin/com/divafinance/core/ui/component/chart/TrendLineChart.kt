@@ -1,4 +1,4 @@
-package com.divafinance.feature.graphs.component
+package com.divafinance.core.ui.component.chart
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
@@ -21,22 +21,21 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.theme.DivaTheme
-import com.divafinance.feature.graphs.TrendPoint
+import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
-
-private val lineColor = Color(0xFFD4A843)
-private val fillColorStart = Color(0x40D4A843)
-private val fillColorEnd = Color(0x00D4A843)
-private val dotColor = Color(0xFFD4A843)
 
 @Composable
 fun TrendLineChart(
-    data: List<TrendPoint>,
+    data: List<ChartPoint>,
     modifier: Modifier = Modifier,
+    lineColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall
-    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val onSurfaceVariant = diva.muted
+    val gridColor = diva.fgHair
+    val fillColorStart = lineColor.copy(alpha = 0.25f)
+    val fillColorEnd = lineColor.copy(alpha = 0f)
 
     if (data.isEmpty()) {
         Column(
@@ -45,13 +44,13 @@ fun TrendLineChart(
             Text(
                 text = "No trend data available",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = diva.muted,
             )
         }
         return
     }
 
-    val maxAmount = data.maxOf { it.amount }.coerceAtLeast(1.0)
+    val maxAmount = data.maxOf { it.value }.coerceAtLeast(1.0)
     val chartHeight = 220.dp
     val leftPadding = 48f
     val rightPadding = 24f
@@ -73,7 +72,7 @@ fun TrendLineChart(
             } else {
                 leftPadding + drawableWidth / 2f
             }
-            val y = topPadding + drawableHeight - (point.amount / maxAmount * drawableHeight).toFloat()
+            val y = topPadding + drawableHeight - (point.value / maxAmount * drawableHeight).toFloat()
             Offset(x, y)
         }
 
@@ -112,14 +111,14 @@ fun TrendLineChart(
 
         points.forEach { point ->
             drawCircle(
-                color = dotColor,
+                color = lineColor,
                 radius = 5f,
                 center = point,
             )
         }
 
         data.forEachIndexed { index, point ->
-            val labelLayout = textMeasurer.measure(point.monthLabel, labelStyle)
+            val labelLayout = textMeasurer.measure(point.label, labelStyle)
             drawText(
                 textLayoutResult = labelLayout,
                 color = onSurfaceVariant,
@@ -134,7 +133,7 @@ fun TrendLineChart(
         for (i in 0..gridLines) {
             val y = topPadding + (drawableHeight / gridLines) * i
             drawLine(
-                color = Color.LightGray.copy(alpha = 0.3f),
+                color = gridColor,
                 start = Offset(leftPadding, y),
                 end = Offset(leftPadding + drawableWidth, y),
                 strokeWidth = 1f,
@@ -160,12 +159,12 @@ private fun TrendLineChartPreview() {
     DivaTheme {
         TrendLineChart(
             data = listOf(
-                TrendPoint("Jan", 1200.0),
-                TrendPoint("Feb", 980.0),
-                TrendPoint("Mar", 1450.0),
-                TrendPoint("Apr", 1100.0),
-                TrendPoint("May", 1320.0),
-                TrendPoint("Jun", 890.0),
+                ChartPoint("Jan", 1200.0),
+                ChartPoint("Feb", 980.0),
+                ChartPoint("Mar", 1450.0),
+                ChartPoint("Apr", 1100.0),
+                ChartPoint("May", 1320.0),
+                ChartPoint("Jun", 890.0),
             ),
         )
     }

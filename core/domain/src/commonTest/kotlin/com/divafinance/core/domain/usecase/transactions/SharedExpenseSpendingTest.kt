@@ -12,10 +12,11 @@ import kotlin.test.assertEquals
 /**
  * A split bill must contribute only the user's own share to spending, everywhere.
  *
- * There are three separate implementations of "how much did I spend" in this app — the
- * `sumByCategory` SQL, the `totalSpending` SQL, and an in-memory sum in
- * `DashboardViewModel` — and nothing but this test stops them drifting apart. The visible
- * symptom would be the home screen and the graphs disagreeing about the same dinner.
+ * There are several separate implementations of "how much did I spend" in this app — the
+ * `sumByCategory` SQL, the `totalSpending` SQL, and the in-memory `ownShare` sums in
+ * `FeedViewModel`, `ReportViewModel` and `YouViewModel` — and nothing but this test stops
+ * them drifting apart. The visible symptom would be the feed and a period report
+ * disagreeing about the same dinner.
  */
 class SharedExpenseSpendingTest {
 
@@ -39,7 +40,7 @@ class SharedExpenseSpendingTest {
         )
     }
 
-    /** Mirrors DashboardViewModel's in-memory calculation. */
+    /** Mirrors the in-memory `ownShare` calculation the feed and report view models use. */
     private suspend fun dashboardStyleTotal(): Double =
         repo.getAll().first()
             .filter { it.type == com.divafinance.core.model.enums.TransactionType.DEBIT }

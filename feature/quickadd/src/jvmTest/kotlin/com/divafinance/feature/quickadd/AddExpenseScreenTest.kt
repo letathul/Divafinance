@@ -18,7 +18,7 @@ import kotlin.test.assertEquals
  * a wrong amount is the worst thing this screen can do.
  */
 @OptIn(ExperimentalTestApi::class)
-class QuickAddSheetTest {
+class AddExpenseScreenTest {
 
     /** Mirrors what QuickAddViewModel does, so the rendered total is the real one. */
     private class Harness {
@@ -33,41 +33,41 @@ class QuickAddSheetTest {
     @Test
     fun startsAtZero() = runComposeUiTest {
         setContent {
-            DivaTheme { QuickAddSheetContent(QuickAddUiState()) }
+            DivaTheme { AddExpenseContent(QuickAddUiState()) }
         }
-        onNodeWithText("0.00").assertIsDisplayed()
+        onNodeWithText("$0.00").assertIsDisplayed()
     }
 
     @Test
     fun saveIsDisabledWithoutAnAmount() = runComposeUiTest {
         setContent {
-            DivaTheme { QuickAddSheetContent(QuickAddUiState()) }
+            DivaTheme { AddExpenseContent(QuickAddUiState()) }
         }
-        onNodeWithText("Save").assertIsNotEnabled()
+        onNodeWithText("Add expense").assertIsNotEnabled()
     }
 
     @Test
     fun saveIsEnabledOnceAnAmountIsEntered() = runComposeUiTest {
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     QuickAddUiState(expression = "12"),
                 )
             }
         }
-        onNodeWithText("Save").assertIsEnabled()
+        onNodeWithText("Add expense").assertIsEnabled()
     }
 
     @Test
     fun rendersTheEvaluatedTotal() = runComposeUiTest {
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     QuickAddUiState(expression = "12+8.50"),
                 )
             }
         }
-        onNodeWithText("20.50").assertIsDisplayed()
+        onNodeWithText("$20.50").assertIsDisplayed()
         // The expression stays visible under the total so the sum is checkable.
         onNodeWithText("12+8.50").assertIsDisplayed()
     }
@@ -76,13 +76,13 @@ class QuickAddSheetTest {
     fun showsARunningTotalForAnUnfinishedExpression() = runComposeUiTest {
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     QuickAddUiState(expression = "12+"),
                 )
             }
         }
-        onNodeWithText("12.00").assertIsDisplayed()
-        onNodeWithText("Save").assertIsNotEnabled()
+        onNodeWithText("$12.00").assertIsDisplayed()
+        onNodeWithText("Add expense").assertIsNotEnabled()
     }
 
     @Test
@@ -90,7 +90,7 @@ class QuickAddSheetTest {
         val harness = Harness()
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     state = harness.state,
                     onDigit = harness::digit,
                     onOperator = harness::operator,
@@ -116,7 +116,7 @@ class QuickAddSheetTest {
         val harness = Harness()
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     state = harness.state,
                     onDigit = harness::digit,
                     onOperator = harness::operator,
@@ -140,7 +140,7 @@ class QuickAddSheetTest {
     fun showsSuggestedCategoryChips() = runComposeUiTest {
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     QuickAddUiState(
                         suggestedCategories = listOf(SpendingCategory.GAS, SpendingCategory.DINING),
                         category = SpendingCategory.GAS,
@@ -157,7 +157,7 @@ class QuickAddSheetTest {
     @Test
     fun detailsAreHiddenUntilExpanded() = runComposeUiTest {
         setContent {
-            DivaTheme { QuickAddSheetContent(QuickAddUiState()) }
+            DivaTheme { AddExpenseContent(QuickAddUiState()) }
         }
         onNodeWithText("Add details").assertIsDisplayed()
     }
@@ -166,7 +166,7 @@ class QuickAddSheetTest {
     fun showsAnErrorWhenSaveIsRejected() = runComposeUiTest {
         setContent {
             DivaTheme {
-                QuickAddSheetContent(
+                AddExpenseContent(
                     QuickAddUiState(error = "Enter an amount greater than zero"),
                 )
             }

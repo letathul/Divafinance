@@ -1,9 +1,9 @@
 # feature/quickadd
 
-**Purpose:** The fast path for logging a transaction — a bottom sheet with a calculator
-keypad, predicted category chips, merchant autocomplete, and optional nearby-shop
-suggestions from device location. Reachable from anywhere in the app and optimised for a
-few taps; anything needing the full form goes to `:feature:transactions`.
+**Purpose:** The centre tab-bar button — a **full-screen** flow for logging a transaction,
+with a calculator keypad, an account segmented control, category tiles, merchant
+autocomplete, splits, and optional nearby-shop suggestions from device location.
+Optimised for a few taps; everything beyond the amount has a usable default.
 
 **Gradle:** `:feature:quickadd` · `diva.kmp.compose`
 **Depends on:** `:core:model`, `:core:domain`, **`:core:data`** (reads `SettingsRepository`
@@ -16,10 +16,14 @@ for the default card directly), `:core:ui`, `:core:common`. Android adds
 
 | File | What it does |
 |------|--------------|
-| `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, runs `PredictCategoryUseCase`, and loads recent merchants. `QuickAddSaved` is emitted once per save so the sheet can offer undo. |
-| `QuickAddSheet.kt` | The sheet UI: amount display, keypad, category chips, expandable details |
-| `CalculatorKeypad.kt` | `Key` sealed interface (`Digit` / `Operator` / `Backspace`) over a 4×4 `KEY_ROWS` grid. Replaces the soft keyboard entirely. Operator labels are typographic (`÷ × −`) while the emitted chars are ASCII (`/ * -`). |
+| `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, runs `PredictCategoryUseCase`, and loads recent merchants. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
+| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Top bar (close / title / scan), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then split, location and details sections. `AddExpenseContent` is the stateless body tests drive directly. |
 | `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
+
+The keypad now lives in **`:core:ui`** (`component/CalculatorKeypad.kt`) — the add screen
+is no longer its only consumer. Its accessibility contract is load-bearing: visible labels
+are typographic (`÷ × − ⌫`) while `contentDescription` is spelled out ("Divide",
+"Backspace"), and the tests select on those descriptions.
 
 `QuickAddDay` offers `TODAY` / `YESTERDAY` only — backdating further is the full form's
 job. `SUGGESTED_CATEGORY_COUNT = 5` chips before the full list expands.
@@ -47,7 +51,7 @@ job. `SUGGESTED_CATEGORY_COUNT = 5` chips before the full list expands.
 
 ## Tests
 
-`src/jvmTest/` — `QuickAddViewModelTest.kt`, `QuickAddSheetTest.kt` (Compose UI), and
+`src/jvmTest/` — `QuickAddViewModelTest.kt`, `AddExpenseScreenTest.kt` (Compose UI), and
 `TestDoubles.kt`. Uses `:core:testing`.
 
 ```bash
