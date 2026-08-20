@@ -22,6 +22,7 @@ import com.divafinance.feature.onboarding.steps.DemoStep
 import com.divafinance.feature.onboarding.steps.LocationStep
 import com.divafinance.feature.onboarding.steps.SecurityStep
 import com.divafinance.feature.onboarding.steps.WelcomeStep
+import com.divafinance.core.ui.component.StatusBarSpacer
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -40,6 +41,8 @@ fun OnboardingScreen(
     val progress = (stepIndex + 1).toFloat() / OnboardingStep.entries.size
 
     Column(modifier = Modifier.fillMaxSize()) {
+        StatusBarSpacer()
+
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),

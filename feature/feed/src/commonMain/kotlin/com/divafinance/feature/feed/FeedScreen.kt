@@ -47,6 +47,7 @@ import com.divafinance.core.ui.component.GlassSurface
 import com.divafinance.core.ui.component.Meta
 import com.divafinance.core.ui.component.MomentCard
 import com.divafinance.core.ui.component.StatPill
+import com.divafinance.core.ui.component.StatusBarSpacer
 import com.divafinance.core.ui.component.TransactionRow
 import com.divafinance.core.ui.component.color
 import com.divafinance.core.ui.theme.NumericStyle
@@ -78,6 +79,8 @@ fun FeedScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = contentPadding,
     ) {
+        item { StatusBarSpacer() }
+
         item {
             FeedAppBar(
                 onSearch = onOpenSearch,

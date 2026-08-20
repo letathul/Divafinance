@@ -39,6 +39,7 @@ import com.divafinance.core.ui.component.CategoryChip
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
+import com.divafinance.core.ui.component.StatusBarSpacer
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -54,6 +55,7 @@ fun TransactionListScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item { StatusBarSpacer() }
             item {
                 Text("Transactions", style = MaterialTheme.typography.headlineSmall)
             }

@@ -9,10 +9,12 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -194,4 +196,14 @@ fun Numeric(
 @Composable
 fun Hairline(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(1.dp).background(diva.fgHair))
+}
+
+/**
+ * A spacer that takes up the height of the system status bars. Use this at the top of
+ * scrollable content or screens to ensure they clear the edge-to-edge status bar while
+ * allowing the background to draw behind it.
+ */
+@Composable
+fun StatusBarSpacer(modifier: Modifier = Modifier) {
+    Spacer(modifier.statusBarsPadding())
 }

@@ -47,6 +47,7 @@ import com.divafinance.core.ui.component.DivaOutlinedButton
 import com.divafinance.core.ui.component.Hairline
 import com.divafinance.core.ui.component.Meta
 import com.divafinance.core.ui.component.SectionHeader
+import com.divafinance.core.ui.component.StatusBarSpacer
 import com.divafinance.core.ui.component.color
 import com.divafinance.core.ui.component.initialsOf
 import com.divafinance.core.ui.theme.NumericStyle
@@ -81,6 +82,7 @@ fun YouScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = contentPadding,
     ) {
+        item { StatusBarSpacer() }
         item { Identity(state) }
         item { Stats(state) }
         item { Actions(onLogExpense = onLogExpense, onOpenBudgets = onOpenBudgets) }

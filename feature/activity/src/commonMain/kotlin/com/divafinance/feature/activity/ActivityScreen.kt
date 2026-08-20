@@ -37,6 +37,7 @@ import com.divafinance.core.ui.component.CategoryChip
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
+import com.divafinance.core.ui.component.StatusBarSpacer
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -77,6 +78,7 @@ internal fun ActivityContent(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item { StatusBarSpacer() }
         item { Text("Activity", style = MaterialTheme.typography.headlineSmall) }
 
         if (state.openBalances.isNotEmpty()) {
