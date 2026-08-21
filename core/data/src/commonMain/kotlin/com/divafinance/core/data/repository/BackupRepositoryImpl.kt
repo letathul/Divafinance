@@ -7,6 +7,7 @@ import com.divafinance.core.model.enums.AccountType
 import com.divafinance.core.model.enums.CardNetwork
 import com.divafinance.core.model.enums.CapPeriod
 import com.divafinance.core.model.enums.FeedPostType
+import com.divafinance.core.model.enums.LedgerEntryKind
 import com.divafinance.core.model.enums.ReceiptStatus
 import com.divafinance.core.model.enums.RewardType
 import com.divafinance.core.model.enums.SpendingCategory
@@ -51,6 +52,27 @@ class BackupRepositoryImpl(
             )
         }
 
+        val people = db.personQueries.selectAll().executeAsList().map { row ->
+            Person(
+                id = row.id, name = row.name, note = row.note,
+                isArchived = row.is_archived == 1L,
+                createdAt = Instant.parse(row.created_at),
+                updatedAt = Instant.parse(row.updated_at),
+            )
+        }
+
+        val ledgerEntries = db.ledgerEntryQueries.selectAll().executeAsList().map { row ->
+            LedgerEntry(
+                id = row.id, personId = row.person_id, amount = row.amount,
+                currency = row.currency,
+                kind = runCatching { LedgerEntryKind.valueOf(row.kind) }
+                    .getOrDefault(LedgerEntryKind.LENT),
+                note = row.note, date = LocalDate.parse(row.date),
+                transactionId = row.transaction_id,
+                createdAt = Instant.parse(row.created_at),
+            )
+        }
+
         val transactions = db.transactionQueries.selectAll().executeAsList().map { row ->
             Transaction(
                 id = row.id, accountId = row.account_id, cardId = row.card_id, amount = row.amount,
@@ -66,6 +88,9 @@ class BackupRepositoryImpl(
                 },
                 receiptId = row.receipt_id, isRecurring = row.is_recurring == 1L,
                 createdAt = Instant.parse(row.created_at),
+                // Named arguments plus a defaulted field means omitting this compiles
+                // cleanly and writes 0.0 into every backup — silent data loss on export.
+                othersShare = row.others_share,
             )
         }
 
@@ -100,7 +125,7 @@ class BackupRepositoryImpl(
         }
 
         return BackupArchive(
-            version = 1,
+            version = BackupArchive.CURRENT_VERSION,
             createdAt = Clock.System.now(),
             accounts = accounts,
             creditCards = cards,
@@ -110,12 +135,17 @@ class BackupRepositoryImpl(
             feedPosts = feedPosts,
             settings = settings,
             thresholds = thresholds,
+            people = people,
+            ledgerEntries = ledgerEntries,
         )
     }
 
     override suspend fun importAll(archive: BackupArchive, replaceExisting: Boolean) {
         db.transaction {
             if (replaceExisting) {
+                // LedgerEntry references both Person and DivaTransaction, so it goes first.
+                db.ledgerEntryQueries.selectAll().executeAsList().forEach { db.ledgerEntryQueries.delete(it.id) }
+                db.personQueries.selectAll().executeAsList().forEach { db.personQueries.delete(it.id) }
                 db.feedPostQueries.deleteOlderThan("9999-12-31T23:59:59Z")
                 db.receiptQueries.selectAll().executeAsList().forEach { db.receiptQueries.delete(it.id) }
                 db.transactionQueries.selectAll().executeAsList().forEach { db.transactionQueries.delete(it.id) }
@@ -163,7 +193,25 @@ class BackupRepositoryImpl(
                     type = tx.type.name, latitude = tx.location?.latitude,
                     longitude = tx.location?.longitude, location_name = tx.location?.name,
                     receipt_id = tx.receiptId, is_recurring = if (tx.isRecurring) 1L else 0L,
-                    created_at = tx.createdAt.toString(),
+                    created_at = tx.createdAt.toString(), others_share = tx.othersShare,
+                )
+            }
+
+            archive.people.forEach { person ->
+                db.personQueries.insert(
+                    id = person.id, name = person.name, note = person.note,
+                    is_archived = if (person.isArchived) 1L else 0L,
+                    created_at = person.createdAt.toString(),
+                    updated_at = person.updatedAt.toString(),
+                )
+            }
+
+            archive.ledgerEntries.forEach { entry ->
+                db.ledgerEntryQueries.insert(
+                    id = entry.id, person_id = entry.personId, amount = entry.amount,
+                    currency = entry.currency, kind = entry.kind.name, note = entry.note,
+                    date = entry.date.toString(), transaction_id = entry.transactionId,
+                    created_at = entry.createdAt.toString(),
                 )
             }
 

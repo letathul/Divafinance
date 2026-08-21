@@ -39,3 +39,4 @@ DerivedData/
 *.hprof
 /gradlew
 /.kotlin/
+/gradle/build-logic/.kotlin/sessions/

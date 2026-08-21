@@ -1,10 +1,13 @@
 package com.divafinance.app.dynamic
 
 enum class DynamicModule(val moduleName: String) {
-    MAP("map-dynamic"),
-    SCANNER("scanner-dynamic"),
-    SERVER("server-dynamic"),
-    DEMO("demo-dynamic"),
+    // Play split names come from the Gradle project name, so these must stay in
+    // lockstep with the `:dynamic:*` module directories (underscores, not hyphens) —
+    // a mismatch makes isInstalled() permanently false and installs fail outright.
+    MAP("map_dynamic"),
+    SCANNER("scanner_dynamic"),
+    SERVER("server_dynamic"),
+    DEMO("demo_dynamic"),
 }
 
 expect class DynamicFeatureLoader {

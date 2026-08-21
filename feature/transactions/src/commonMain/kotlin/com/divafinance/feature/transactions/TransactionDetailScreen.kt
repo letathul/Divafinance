@@ -26,8 +26,7 @@ import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.DivaCard
-import com.divafinance.core.ui.theme.DivaGreen
-import com.divafinance.core.ui.theme.DivaRed
+import com.divafinance.core.ui.theme.diva
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +59,7 @@ fun TransactionDetailScreen(
                     Text(
                         text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
+                        color = if (transaction.type == TransactionType.DEBIT) diva.negative else diva.positive,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(

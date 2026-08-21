@@ -1,6 +1,6 @@
 package com.divafinance.core.domain.engine
 
-import com.divafinance.core.domain.fake.TestData
+import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.model.enums.RewardType
 import com.divafinance.core.model.enums.SpendingCategory
 import kotlin.test.Test

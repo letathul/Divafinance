@@ -5,13 +5,16 @@ import com.divafinance.core.model.CardRewardRule
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.GraphThreshold
+import com.divafinance.core.model.LedgerEntry
 import com.divafinance.core.model.LocationTag
+import com.divafinance.core.model.Person
 import com.divafinance.core.model.Receipt
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.AccountType
 import com.divafinance.core.model.enums.CapPeriod
 import com.divafinance.core.model.enums.CardNetwork
 import com.divafinance.core.model.enums.FeedPostType
+import com.divafinance.core.model.enums.LedgerEntryKind
 import com.divafinance.core.model.enums.ReceiptStatus
 import com.divafinance.core.model.enums.RewardType
 import com.divafinance.core.model.enums.SpendingCategory
@@ -44,6 +47,8 @@ class DemoDataSet(
     val receipts: List<Receipt>,
     val feedPosts: List<FeedPost>,
     val thresholds: List<GraphThreshold>,
+    val people: List<Person>,
+    val ledgerEntries: List<LedgerEntry>,
 )
 
 private const val CHECKING_ID = "${DEMO_ID_PREFIX}account_checking"
@@ -63,6 +68,8 @@ private data class Spend(
     val note: String? = null,
     val recurring: Boolean = false,
     val location: LocationTag? = null,
+    /** Non-zero for a bill paid for other people; see the ledger entries below. */
+    val othersShare: Double = 0.0,
 )
 
 /**
@@ -235,6 +242,16 @@ fun buildDemoDataSet(
         Spend(16, 62.00, SpendingCategory.ENTERTAINMENT, "Grand Cinema", CARD_TRAVEL_ID, location = sanFrancisco),
         Spend(34, 145.00, SpendingCategory.ENTERTAINMENT, "Riverside Concerts", CARD_MILES_ID, location = oakland),
         Spend(29, 320.00, SpendingCategory.EDUCATION, "Kotlin Deep Dive Course", CARD_TRAVEL_ID, note = "Professional development"),
+        // A dinner for three: 85.20 charged, 56.80 owed back, so only 28.40 is spending.
+        Spend(
+            daysAgo = 4,
+            amount = 85.20,
+            category = SpendingCategory.DINING,
+            merchant = "Trattoria Nove",
+            cardId = CARD_CASH_ID,
+            note = "Split three ways",
+            othersShare = 56.80,
+        ),
     )
 
     val transactions = spends.mapIndexed { index, spend ->
@@ -254,8 +271,13 @@ fun buildDemoDataSet(
             receiptId = null,
             isRecurring = spend.recurring,
             createdAt = now,
+            othersShare = spend.othersShare,
         )
     }
+
+    // The split bill, so its ledger entries can point at a real transaction and the two
+    // sides of `othersShare` agree.
+    val splitDinner = transactions.first { it.merchantName == "Trattoria Nove" }
 
     // Link the processed receipt to a real transaction so the scanner's "matched"
     // path has something to show.
@@ -336,6 +358,88 @@ fun buildDemoDataSet(
         threshold("shopping", SpendingCategory.SHOPPING, 15.0),
     )
 
+    // Three people covering every state the Activity tab can show: someone who owes
+    // money, someone who is owed, and someone already settled.
+    val people = listOf(
+        Person(
+            id = "${DEMO_ID_PREFIX}person_sam",
+            name = "Sam",
+            note = "Flatmate",
+            createdAt = now,
+            updatedAt = now,
+        ),
+        Person(
+            id = "${DEMO_ID_PREFIX}person_alex",
+            name = "Alex",
+            createdAt = now,
+            updatedAt = now,
+        ),
+        Person(
+            id = "${DEMO_ID_PREFIX}person_priya",
+            name = "Priya",
+            createdAt = now,
+            updatedAt = now,
+        ),
+    )
+
+    val ledgerEntries = listOf(
+        // The split dinner above: two people each owe a third of it. These reference the
+        // real transaction, so its `othersShare` and these entries agree.
+        LedgerEntry(
+            id = "${DEMO_ID_PREFIX}ledger_split_sam",
+            personId = "${DEMO_ID_PREFIX}person_sam",
+            amount = 28.40,
+            currency = currency,
+            kind = LedgerEntryKind.LENT,
+            note = "Trattoria Nove",
+            date = splitDinner.date,
+            transactionId = splitDinner.id,
+            createdAt = now,
+        ),
+        LedgerEntry(
+            id = "${DEMO_ID_PREFIX}ledger_split_alex",
+            personId = "${DEMO_ID_PREFIX}person_alex",
+            amount = 28.40,
+            currency = currency,
+            kind = LedgerEntryKind.LENT,
+            note = "Trattoria Nove",
+            date = splitDinner.date,
+            transactionId = splitDinner.id,
+            createdAt = now,
+        ),
+        // Plain cash, no transaction behind it.
+        LedgerEntry(
+            id = "${DEMO_ID_PREFIX}ledger_cash_alex",
+            personId = "${DEMO_ID_PREFIX}person_alex",
+            amount = 15.0,
+            currency = currency,
+            kind = LedgerEntryKind.BORROWED,
+            note = "Covered my coffee",
+            date = today.minusDays(9),
+            createdAt = now,
+        ),
+        // Priya lent, then paid back in full — shows a settled balance.
+        LedgerEntry(
+            id = "${DEMO_ID_PREFIX}ledger_priya_lent",
+            personId = "${DEMO_ID_PREFIX}person_priya",
+            amount = 60.0,
+            currency = currency,
+            kind = LedgerEntryKind.LENT,
+            note = "Concert ticket",
+            date = today.minusDays(30),
+            createdAt = now,
+        ),
+        LedgerEntry(
+            id = "${DEMO_ID_PREFIX}ledger_priya_repaid",
+            personId = "${DEMO_ID_PREFIX}person_priya",
+            amount = 60.0,
+            currency = currency,
+            kind = LedgerEntryKind.REPAID_TO_ME,
+            date = today.minusDays(21),
+            createdAt = now,
+        ),
+    )
+
     return DemoDataSet(
         accounts = accounts,
         cards = cards,
@@ -344,6 +448,8 @@ fun buildDemoDataSet(
         receipts = receipts,
         feedPosts = feedPosts,
         thresholds = thresholds,
+        people = people,
+        ledgerEntries = ledgerEntries,
     )
 }
 

@@ -1,7 +1,7 @@
 package com.divafinance.core.domain.usecase.feed
 
-import com.divafinance.core.domain.fake.FakeFeedRepository
-import com.divafinance.core.domain.fake.TestData
+import com.divafinance.core.testing.fake.FakeFeedRepository
+import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.model.enums.TransactionType
 import kotlinx.coroutines.test.runTest

@@ -13,9 +13,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,40 +33,76 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.CreditCard
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import com.divafinance.core.ui.component.CreditCardVisual
 import com.divafinance.core.ui.component.DivaCard
+import com.divafinance.core.ui.component.GlassSurface
+import com.divafinance.core.ui.theme.Space
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun CardsListScreen(
     onAddCard: () -> Unit = {},
     onCardClick: (String) -> Unit = {},
+    onBack: () -> Unit = {},
+    onBestCard: () -> Unit = {},
+    onRewardMapper: () -> Unit = {},
     viewModel: CardsViewModel = koinViewModel(),
 ) {
     val cards by viewModel.cards.collectAsState()
 
-    Box(Modifier.fillMaxSize()) {
-        if (cards.isEmpty()) {
-            EmptyCardsView(modifier = Modifier.align(Alignment.Center))
-        } else {
-            CardsContent(
-                cards = cards,
-                onCardClick = onCardClick,
-            )
+    Column(Modifier.fillMaxSize()) {
+        // Adding a card is a header action rather than a FAB: the shell already owns the
+        // bottom-right corner, and two floating buttons on one screen collide.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.md),
+            ) {
+                CardsIconButton(Icons.AutoMirrored.Outlined.ArrowBack, "Back", onBack)
+                Text(
+                    "Cards",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                CardsIconButton(Icons.Outlined.AutoAwesome, "Best card for a purchase", onBestCard)
+                CardsIconButton(Icons.Outlined.Tune, "Map reward categories", onRewardMapper)
+                CardsIconButton(Icons.Outlined.Add, "Add a card") {
+                    viewModel.resetForm()
+                    onAddCard()
+                }
+            }
         }
 
-        FloatingActionButton(
-            onClick = {
-                viewModel.resetForm()
-                onAddCard()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Card")
+        Box(Modifier.fillMaxSize()) {
+            if (cards.isEmpty()) {
+                EmptyCardsView(modifier = Modifier.align(Alignment.Center))
+            } else {
+                CardsContent(
+                    cards = cards,
+                    onCardClick = onCardClick,
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun CardsIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    GlassSurface(Modifier.size(40.dp).clickable(onClick = onClick)) {
+        Icon(
+            icon,
+            contentDescription = description,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.align(Alignment.Center).size(20.dp),
+        )
     }
 }
 

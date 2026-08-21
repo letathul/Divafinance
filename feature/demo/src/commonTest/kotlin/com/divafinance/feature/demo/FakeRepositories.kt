@@ -3,6 +3,8 @@ package com.divafinance.feature.demo
 import com.divafinance.core.data.repository.AccountRepository
 import com.divafinance.core.data.repository.CardRepository
 import com.divafinance.core.data.repository.FeedRepository
+import com.divafinance.core.data.repository.LedgerRepository
+import com.divafinance.core.data.repository.PersonRepository
 import com.divafinance.core.data.repository.ReceiptRepository
 import com.divafinance.core.data.repository.RewardRepository
 import com.divafinance.core.data.repository.SettingsRepository
@@ -13,6 +15,8 @@ import com.divafinance.core.model.CardRewardRule
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.GraphThreshold
+import com.divafinance.core.model.LedgerEntry
+import com.divafinance.core.model.Person
 import com.divafinance.core.model.Receipt
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.UserSettings
@@ -97,6 +101,8 @@ class FakeTransactionRepository : TransactionRepository {
         endDate: LocalDate,
     ) = emptyList<Transaction>()
     override suspend fun getWithLocation() = items.value.filter { it.location != null }
+    override suspend fun getKnownMerchants() =
+        items.value.mapNotNull { it.merchantName }.distinct()
     override suspend fun getSpendingByCategory(startDate: LocalDate, endDate: LocalDate) =
         emptyMap<String, Double>()
     override suspend fun getTotalSpending(startDate: LocalDate, endDate: LocalDate): Double? = null
@@ -144,4 +150,39 @@ class FakeThresholdRepository : ThresholdRepository {
         items.value = items.value.map { if (it.id == threshold.id) threshold else it }
     }
     override suspend fun delete(id: String) { items.value = items.value.filterNot { it.id == id } }
+}
+
+class FakePersonRepository : PersonRepository {
+    val items = MutableStateFlow<List<Person>>(emptyList())
+    override fun getAll(): Flow<List<Person>> = items
+    override fun getActive(): Flow<List<Person>> = items.map { list -> list.filterNot { it.isArchived } }
+    override suspend fun getById(id: String) = items.value.find { it.id == id }
+    override suspend fun findByName(name: String) =
+        items.value.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+    override suspend fun insert(person: Person) { items.value = items.value + person }
+    override suspend fun update(person: Person) {
+        items.value = items.value.map { if (it.id == person.id) person else it }
+    }
+    override suspend fun delete(id: String) { items.value = items.value.filterNot { it.id == id } }
+    override suspend fun count(): Long = items.value.size.toLong()
+}
+
+class FakeLedgerRepository : LedgerRepository {
+    val items = MutableStateFlow<List<LedgerEntry>>(emptyList())
+    override fun getAll(): Flow<List<LedgerEntry>> = items
+    override suspend fun getByPersonId(personId: String) = items.value.filter { it.personId == personId }
+    override suspend fun getByTransactionId(transactionId: String) =
+        items.value.filter { it.transactionId == transactionId }
+    override suspend fun insert(entry: LedgerEntry) { items.value = items.value + entry }
+    override suspend fun update(entry: LedgerEntry) {
+        items.value = items.value.map { if (it.id == entry.id) entry else it }
+    }
+    override suspend fun delete(id: String) { items.value = items.value.filterNot { it.id == id } }
+    override suspend fun deleteByTransactionId(transactionId: String) {
+        items.value = items.value.filterNot { it.transactionId == transactionId }
+    }
+    override suspend fun deleteByPersonId(personId: String) {
+        items.value = items.value.filterNot { it.personId == personId }
+    }
+    override suspend fun count(): Long = items.value.size.toLong()
 }

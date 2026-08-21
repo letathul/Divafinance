@@ -1,13 +1,20 @@
 package com.divafinance.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.savedstate.read
+import com.divafinance.core.domain.usecase.reports.ReportPeriod
+import com.divafinance.feature.activity.ActivityScreen
+import com.divafinance.feature.activity.ActivityViewModel
+import com.divafinance.feature.activity.PersonDetailScreen
+import com.divafinance.feature.activity.PersonDetailViewModel
 import com.divafinance.feature.automation.AutomationScreen
 import com.divafinance.feature.backup.BackupRestoreScreen
 import com.divafinance.feature.backup.BackupViewModel
@@ -16,7 +23,7 @@ import com.divafinance.feature.cards.BestCardRecommendationScreen
 import com.divafinance.feature.cards.CardDetailScreen
 import com.divafinance.feature.cards.CardsListScreen
 import com.divafinance.feature.cards.CardsViewModel
-import com.divafinance.feature.dashboard.DashboardScreen
+import com.divafinance.feature.cards.RewardMapperScreen
 import com.divafinance.feature.feed.FeedScreen
 import com.divafinance.feature.feed.FeedViewModel
 import com.divafinance.feature.graphs.GraphsDashboardScreen
@@ -24,44 +31,86 @@ import com.divafinance.feature.graphs.GraphsViewModel
 import com.divafinance.feature.graphs.ThresholdConfigScreen
 import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.map.SpendingMapScreen
-import com.divafinance.server.DivaServer
 import com.divafinance.feature.onboarding.OnboardingScreen
+import com.divafinance.feature.quickadd.AddExpenseScreen
+import com.divafinance.feature.quickadd.QuickAddViewModel
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.scanner.ScannerViewModel
+import com.divafinance.feature.scanner.review.ReceiptReviewScreen
+import com.divafinance.feature.scanner.review.ReceiptReviewViewModel
 import com.divafinance.feature.settings.SettingsScreen
 import com.divafinance.feature.settings.SettingsViewModel
-import com.divafinance.feature.transactions.AddTransactionScreen
+import com.divafinance.feature.settings.YouScreen
+import com.divafinance.feature.settings.YouViewModel
+import com.divafinance.feature.transactions.ReportScreen
+import com.divafinance.feature.transactions.ReportViewModel
+import com.divafinance.feature.transactions.TransactionDetailScreen
 import com.divafinance.feature.transactions.TransactionListScreen
 import com.divafinance.feature.transactions.TransactionsViewModel
-import org.koin.compose.koinInject
+import kotlinx.datetime.LocalDate
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
+/**
+ * Every route in one place.
+ *
+ * Three of these are the shell — [FEED], [YOU] and [ADD_EXPENSE]; everything else is a
+ * detail page reached from one of them. `DivaRoutesTest` asserts each literal, so a
+ * rename here is a two-file change by design.
+ */
 object DivaRoutes {
     const val ONBOARDING = "onboarding"
-    const val DASHBOARD = "dashboard"
+
+    // ── the shell ──
+    const val FEED = "feed"
+    const val YOU = "you"
+    const val ADD_EXPENSE = "add"
+
+    // ── from the feed ──
+    const val REPORT = "report/{period}/{anchor}"
+    const val TRANSACTIONS = "transactions"
+    const val TRANSACTION_DETAIL = "transactions/detail/{transactionId}"
+
+    // ── from You ──
+    const val BUDGETS = "budgets"
     const val CARDS = "cards"
     const val CARD_DETAIL = "cards/{cardId}"
     const val CARD_ADD = "cards/add"
     const val CARD_EDIT = "cards/edit"
     const val BEST_CARD = "cards/best"
-    const val TRANSACTIONS = "transactions"
-    const val TRANSACTION_ADD = "transactions/add"
-    const val FEED = "feed"
-    const val SETTINGS = "settings"
+    const val REWARD_MAPPER = "cards/rewards"
+    const val PEOPLE = "people"
+    const val PERSON_DETAIL = "people/{personId}"
     const val GRAPHS = "graphs"
+    const val THRESHOLD_CONFIG = "graphs/thresholds"
     const val MAP = "map"
     const val SCANNER = "scanner"
+    const val RECEIPT_REVIEW = "scanner/review/{receiptId}"
     const val BACKUP = "backup"
-    const val THRESHOLD_CONFIG = "graphs/thresholds"
     const val AUTOMATION = "automation"
+    const val SETTINGS = "settings"
 
     fun cardDetail(cardId: String) = "cards/$cardId"
+
+    fun personDetail(personId: String) = "people/$personId"
+
+    fun transactionDetail(transactionId: String) = "transactions/detail/$transactionId"
+
+    fun receiptReview(receiptId: String) = "scanner/review/$receiptId"
+
+    /**
+     * A period plus any date inside it. Two segments rather than a start and an end,
+     * because the period already knows how to derive its own bounds from the anchor.
+     */
+    fun report(period: ReportPeriod, anchor: LocalDate) =
+        "report/${period.name.lowercase()}/$anchor"
 }
 
 @Composable
 fun DivaNavHost(
     navController: NavHostController,
     startDestination: String,
+    quickAddViewModel: QuickAddViewModel,
     modifier: Modifier = Modifier,
 ) {
     val cardsViewModel: CardsViewModel = koinViewModel()
@@ -76,34 +125,106 @@ fun DivaNavHost(
         composable(DivaRoutes.ONBOARDING) {
             OnboardingScreen(
                 onOnboardingComplete = {
-                    navController.navigate(DivaRoutes.DASHBOARD) {
+                    navController.navigate(DivaRoutes.FEED) {
                         popUpTo(DivaRoutes.ONBOARDING) { inclusive = true }
                     }
                 },
             )
         }
 
-        composable(DivaRoutes.DASHBOARD) {
-            DashboardScreen(
-                onNavigateToCards = {
-                    navController.navigate(DivaRoutes.CARDS) {
-                        launchSingleTop = true
-                    }
+        // ── Feed ──────────────────────────────────────────────────────────────
+        composable(DivaRoutes.FEED) {
+            val feedViewModel: FeedViewModel = koinViewModel()
+            FeedScreen(
+                viewModel = feedViewModel,
+                onOpenReport = { period, anchor ->
+                    navController.navigate(DivaRoutes.report(period, anchor))
                 },
-                onNavigateToTransactions = {
-                    navController.navigate(DivaRoutes.TRANSACTIONS) {
-                        launchSingleTop = true
-                    }
+                onOpenTransaction = { id ->
+                    navController.navigate(DivaRoutes.transactionDetail(id))
                 },
-                onNavigateToBestCard = {
-                    navController.navigate(DivaRoutes.BEST_CARD)
+                onOpenSearch = { navController.navigate(DivaRoutes.TRANSACTIONS) },
+                onOpenInsights = { navController.navigate(DivaRoutes.GRAPHS) },
+                onOpenProfile = { navController.navigate(DivaRoutes.YOU) },
+            )
+        }
+
+        composable(DivaRoutes.REPORT) { backStackEntry ->
+            // `arguments` is a multiplatform SavedState, not an Android Bundle, so it is
+            // read through the savedstate reader rather than getString().
+            val args = backStackEntry.arguments
+            val period = ReportPeriod.fromName(args?.read { getStringOrNull("period") })
+            val anchor = args?.read { getStringOrNull("anchor") }
+                ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?: return@composable
+            val reportViewModel: ReportViewModel =
+                koinViewModel(key = "$period-$anchor") { parametersOf(period, anchor) }
+            ReportScreen(
+                viewModel = reportViewModel,
+                onBack = { navController.popBackStack() },
+                onOpenTransaction = { id ->
+                    navController.navigate(DivaRoutes.transactionDetail(id))
                 },
-                onNavigateToGraphs = {
-                    navController.navigate(DivaRoutes.GRAPHS)
-                },
-                onNavigateToMap = {
-                    navController.navigate(DivaRoutes.MAP)
-                },
+            )
+        }
+
+        composable(DivaRoutes.TRANSACTIONS) {
+            TransactionListScreen(viewModel = transactionsViewModel)
+        }
+
+        composable(DivaRoutes.TRANSACTION_DETAIL) { backStackEntry ->
+            val transactionId = backStackEntry.arguments?.read { getStringOrNull("transactionId") }
+                ?: return@composable
+            val transactions by transactionsViewModel.filteredTransactions.collectAsState()
+            val transaction = transactions.firstOrNull { it.id == transactionId }
+                ?: return@composable
+            TransactionDetailScreen(
+                transaction = transaction,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // ── Add ───────────────────────────────────────────────────────────────
+        composable(DivaRoutes.ADD_EXPENSE) {
+            val saved by quickAddViewModel.saved.collectAsState()
+            // A save returns to the feed; the undo snackbar is hosted by the shell, so it
+            // survives this screen going away. `saved` is only cleared once that snackbar
+            // resolves, so it can still be set when the screen is reopened — hence
+            // comparing against the value seen on entry rather than just null-checking.
+            val savedOnEntry = remember { saved?.transactionId }
+            LaunchedEffect(saved) {
+                val id = saved?.transactionId
+                if (id != null && id != savedOnEntry) navController.popBackStack()
+            }
+            AddExpenseScreen(
+                onDismiss = { navController.popBackStack() },
+                viewModel = quickAddViewModel,
+                onOpenScanner = { navController.navigate(DivaRoutes.SCANNER) },
+            )
+        }
+
+        // ── You ───────────────────────────────────────────────────────────────
+        composable(DivaRoutes.YOU) {
+            val youViewModel: YouViewModel = koinViewModel()
+            YouScreen(
+                viewModel = youViewModel,
+                onLogExpense = { navController.navigate(DivaRoutes.ADD_EXPENSE) },
+                onOpenBudgets = { navController.navigate(DivaRoutes.BUDGETS) },
+                onOpenCards = { navController.navigate(DivaRoutes.CARDS) },
+                onOpenGraphs = { navController.navigate(DivaRoutes.GRAPHS) },
+                onOpenPeople = { navController.navigate(DivaRoutes.PEOPLE) },
+                onOpenMap = { navController.navigate(DivaRoutes.MAP) },
+                onOpenScanner = { navController.navigate(DivaRoutes.SCANNER) },
+                onOpenBackup = { navController.navigate(DivaRoutes.BACKUP) },
+                onOpenAutomation = { navController.navigate(DivaRoutes.AUTOMATION) },
+                onOpenSettings = { navController.navigate(DivaRoutes.SETTINGS) },
+            )
+        }
+
+        composable(DivaRoutes.BUDGETS) {
+            ThresholdConfigScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = graphsViewModel,
             )
         }
 
@@ -111,13 +232,14 @@ fun DivaNavHost(
             CardsListScreen(
                 onAddCard = { navController.navigate(DivaRoutes.CARD_ADD) },
                 onCardClick = { cardId -> navController.navigate(DivaRoutes.cardDetail(cardId)) },
+                onBack = { navController.popBackStack() },
+                onBestCard = { navController.navigate(DivaRoutes.BEST_CARD) },
+                onRewardMapper = { navController.navigate(DivaRoutes.REWARD_MAPPER) },
                 viewModel = cardsViewModel,
             )
         }
 
         composable(DivaRoutes.CARD_DETAIL) { backStackEntry ->
-            // `arguments` is a multiplatform SavedState, not an Android Bundle,
-            // so it is read through the savedstate reader rather than getString().
             val cardId = backStackEntry.arguments?.read { getStringOrNull("cardId") }
                 ?: return@composable
             CardDetailScreen(
@@ -152,49 +274,34 @@ fun DivaNavHost(
             )
         }
 
-        composable(DivaRoutes.TRANSACTIONS) {
-            TransactionListScreen(
-                onAddTransaction = {
-                    navController.navigate(DivaRoutes.TRANSACTION_ADD)
-                },
-                viewModel = transactionsViewModel,
-            )
-        }
-
-        composable(DivaRoutes.TRANSACTION_ADD) {
-            AddTransactionScreen(
+        composable(DivaRoutes.REWARD_MAPPER) {
+            RewardMapperScreen(
                 onBack = { navController.popBackStack() },
-                viewModel = transactionsViewModel,
+                viewModel = cardsViewModel,
             )
         }
 
-        composable(DivaRoutes.FEED) {
-            val feedViewModel: FeedViewModel = koinViewModel()
-            FeedScreen(viewModel = feedViewModel)
-        }
-        composable(DivaRoutes.SETTINGS) {
-            val divaServer = koinInject<DivaServer>()
-            val settingsViewModel: SettingsViewModel = koinViewModel()
-            val settingsState by settingsViewModel.uiState.collectAsState()
-            SettingsScreen(
-                onNavigateToBackup = {
-                    navController.navigate(DivaRoutes.BACKUP)
+        composable(DivaRoutes.PEOPLE) {
+            val activityViewModel: ActivityViewModel = koinViewModel()
+            ActivityScreen(
+                onPersonClick = { personId ->
+                    navController.navigate(DivaRoutes.personDetail(personId))
                 },
-                onNavigateToScanner = {
-                    navController.navigate(DivaRoutes.SCANNER)
-                },
-                onNavigateToAutomation = {
-                    navController.navigate(DivaRoutes.AUTOMATION)
-                },
-                isServerRunning = divaServer.isRunning(),
-                onToggleServer = { enabled ->
-                    if (enabled) divaServer.start() else divaServer.stop()
-                },
-                isDemoActive = settingsState.isDemoActive,
-                isRemovingDemo = settingsState.isRemovingDemo,
-                onRemoveDemo = settingsViewModel::removeDemoData,
+                viewModel = activityViewModel,
             )
         }
+
+        composable(DivaRoutes.PERSON_DETAIL) { backStackEntry ->
+            val personId = backStackEntry.arguments?.read { getStringOrNull("personId") }
+                ?: return@composable
+            val detailViewModel: PersonDetailViewModel =
+                koinViewModel(key = personId) { parametersOf(personId) }
+            PersonDetailScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = detailViewModel,
+            )
+        }
+
         composable(DivaRoutes.GRAPHS) {
             GraphsDashboardScreen(
                 onNavigateToThresholdConfig = {
@@ -210,6 +317,7 @@ fun DivaNavHost(
                 viewModel = graphsViewModel,
             )
         }
+
         composable(DivaRoutes.MAP) {
             val mapViewModel: MapViewModel = koinViewModel()
             SpendingMapScreen(
@@ -217,13 +325,33 @@ fun DivaNavHost(
                 viewModel = mapViewModel,
             )
         }
+
         composable(DivaRoutes.SCANNER) {
             val scannerViewModel: ScannerViewModel = koinViewModel()
             ScannerScreen(
                 onBack = { navController.popBackStack() },
+                onReviewReceipt = { id -> navController.navigate(DivaRoutes.receiptReview(id)) },
+                onOpenTransaction = { id ->
+                    navController.navigate(DivaRoutes.transactionDetail(id))
+                },
                 viewModel = scannerViewModel,
             )
         }
+
+        composable(DivaRoutes.RECEIPT_REVIEW) { backStackEntry ->
+            val receiptId = backStackEntry.arguments?.read { getStringOrNull("receiptId") }
+                ?: return@composable
+            val reviewViewModel: ReceiptReviewViewModel =
+                koinViewModel(key = receiptId) { parametersOf(receiptId) }
+            ReceiptReviewScreen(
+                onBack = { navController.popBackStack() },
+                // Saving returns to where the scan started rather than leaving a stale
+                // review form on the back stack.
+                onSaved = { navController.popBackStack(DivaRoutes.SCANNER, inclusive = false) },
+                viewModel = reviewViewModel,
+            )
+        }
+
         composable(DivaRoutes.BACKUP) {
             val backupViewModel: BackupViewModel = koinViewModel()
             BackupRestoreScreen(
@@ -231,8 +359,33 @@ fun DivaNavHost(
                 viewModel = backupViewModel,
             )
         }
+
         composable(DivaRoutes.AUTOMATION) {
             AutomationScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(DivaRoutes.SETTINGS) {
+            val settingsViewModel: SettingsViewModel = koinViewModel()
+            val settingsState by settingsViewModel.uiState.collectAsState()
+            SettingsScreen(
+                onNavigateToBackup = { navController.navigate(DivaRoutes.BACKUP) },
+                onNavigateToScanner = { navController.navigate(DivaRoutes.SCANNER) },
+                onNavigateToAutomation = { navController.navigate(DivaRoutes.AUTOMATION) },
+                isServerRunning = settingsState.isServerRunning,
+                serverPort = settingsState.serverPort,
+                serverUrl = settingsState.serverUrl,
+                serverError = settingsState.serverError,
+                onToggleServer = settingsViewModel::toggleServer,
+                isDemoActive = settingsState.isDemoActive,
+                isRemovingDemo = settingsState.isRemovingDemo,
+                onRemoveDemo = settingsViewModel::removeDemoData,
+                themeMode = settingsState.themeMode,
+                accent = settingsState.accent,
+                onThemeModeChange = settingsViewModel::setThemeMode,
+                onAccentChange = settingsViewModel::setAccent,
+                locationCaptureMode = settingsState.locationCaptureMode,
+                onLocationCaptureModeChange = settingsViewModel::setLocationCaptureMode,
+            )
         }
     }
 }

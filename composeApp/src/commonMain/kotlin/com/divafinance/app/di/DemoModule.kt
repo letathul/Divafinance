@@ -14,6 +14,8 @@ val demoModule = module {
             receiptRepository = get(),
             feedRepository = get(),
             thresholdRepository = get(),
+            personRepository = get(),
+            ledgerRepository = get(),
             moduleInstaller = get(),
         )
     }

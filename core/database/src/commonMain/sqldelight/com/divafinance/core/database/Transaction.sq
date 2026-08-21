@@ -19,17 +19,29 @@ SELECT * FROM DivaTransaction WHERE category = ? AND date >= ? AND date <= ? ORD
 selectWithLocation:
 SELECT * FROM DivaTransaction WHERE latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY date DESC;
 
+-- Distinct merchants, most-used first, for entry autocomplete. Grouping is done here
+-- (idx_txn_merchant helps) but matching is not: a leading-wildcard LIKE could not use the
+-- index anyway, and the distinct set is small enough to filter in memory.
+selectDistinctMerchants:
+SELECT merchant_name AS name, COUNT(*) AS uses, MAX(date) AS last_used
+FROM DivaTransaction
+WHERE merchant_name IS NOT NULL AND TRIM(merchant_name) != ''
+GROUP BY merchant_name
+ORDER BY uses DESC, last_used DESC;
+
+-- Net of anything other people owe back: a split bill contributes only the user's own
+-- share, so lending never inflates a spending report.
 sumByCategory:
-SELECT category, SUM(amount) AS total FROM DivaTransaction
+SELECT category, SUM(amount - others_share) AS total FROM DivaTransaction
 WHERE type = 'DEBIT' AND date >= ? AND date <= ?
 GROUP BY category ORDER BY total DESC;
 
 insert:
-INSERT INTO DivaTransaction(id, account_id, card_id, amount, currency, category, subcategory, merchant_name, note, date, type, latitude, longitude, location_name, receipt_id, is_recurring, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO DivaTransaction(id, account_id, card_id, amount, currency, category, subcategory, merchant_name, note, date, type, latitude, longitude, location_name, receipt_id, is_recurring, created_at, others_share)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
-UPDATE DivaTransaction SET account_id = ?, card_id = ?, amount = ?, currency = ?, category = ?, subcategory = ?, merchant_name = ?, note = ?, date = ?, type = ?, latitude = ?, longitude = ?, location_name = ?, receipt_id = ?, is_recurring = ?
+UPDATE DivaTransaction SET account_id = ?, card_id = ?, amount = ?, currency = ?, category = ?, subcategory = ?, merchant_name = ?, note = ?, date = ?, type = ?, latitude = ?, longitude = ?, location_name = ?, receipt_id = ?, is_recurring = ?, others_share = ?
 WHERE id = ?;
 
 delete:
@@ -38,5 +50,9 @@ DELETE FROM DivaTransaction WHERE id = ?;
 count:
 SELECT COUNT(*) FROM DivaTransaction;
 
+-- `AS total` is load-bearing: SQLDelight names the generated property after the
+-- expression, so an unaliased SUM(amount - others_share) would silently rename `.SUM`
+-- and break the caller rather than failing here.
 totalSpending:
-SELECT SUM(amount) FROM DivaTransaction WHERE type = 'DEBIT' AND date >= ? AND date <= ?;
+SELECT SUM(amount - others_share) AS total FROM DivaTransaction
+WHERE type = 'DEBIT' AND date >= ? AND date <= ?;

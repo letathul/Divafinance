@@ -27,9 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.divafinance.feature.graphs.component.SpendingPieChart
-import com.divafinance.feature.graphs.component.ThresholdBarChart
-import com.divafinance.feature.graphs.component.TrendLineChart
+import com.divafinance.core.ui.component.chart.SpendingPieChart
+import com.divafinance.core.ui.component.chart.ThresholdBarChart
+import com.divafinance.core.ui.component.chart.TrendLineChart
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +88,7 @@ fun GraphsDashboardScreen(
                         EmptyChartMessage("No spending data for this period")
                     } else {
                         SpendingPieChart(
-                            slices = state.spendingSlices,
+                            slices = state.spendingSlices.toChartSlices(),
                             totalSpending = state.totalSpending,
                             modifier = Modifier.padding(16.dp),
                         )
@@ -112,7 +112,8 @@ fun GraphsDashboardScreen(
                             }
                         }
                         ThresholdBarChart(
-                            data = state.thresholdData,
+                            data = state.thresholdData.toChartBars(),
+                            limitCaption = "Dashed line = threshold limit",
                             modifier = Modifier.padding(horizontal = 8.dp),
                         )
                     }
@@ -129,7 +130,7 @@ fun GraphsDashboardScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             TrendLineChart(
-                                data = state.trendData,
+                                data = state.trendData.toChartPoints(),
                             )
                         }
                     }

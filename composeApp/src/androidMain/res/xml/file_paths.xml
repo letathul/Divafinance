@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- filesDir/receipts, not cacheDir: Receipt.imagePath is a persisted column that the
+         scan history re-reads, and cache can be evicted out from under it. -->
+    <files-path
+        name="receipts"
+        path="receipts/" />
+</paths>

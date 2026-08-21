@@ -23,4 +23,12 @@ extensions.getByType<KotlinMultiplatformExtension>().apply {
     sourceSets.getByName("androidMain").dependencies {
         implementation(compose.uiTooling)
     }
+    // `runComposeUiTest` resolves to the Skiko-backed desktop implementation on the JVM
+    // target, which needs the platform's native Skiko binary on the test classpath.
+    // Without this it fails with "Cannot find libskiko-<os>-<arch>.dylib.sha256".
+    sourceSets.getByName("jvmTest").dependencies {
+        @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+        implementation(compose.uiTest)
+        implementation(compose.desktop.currentOs)
+    }
 }

@@ -20,9 +20,8 @@ import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.AmountDisplay
 import com.divafinance.core.ui.component.DivaCard
-import com.divafinance.core.ui.theme.DivaGreen
-import com.divafinance.core.ui.theme.DivaRed
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -151,7 +150,7 @@ fun LocationDetailSheet(
                     Text(
                         text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                         style = MaterialTheme.typography.titleSmall,
-                        color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
+                        color = if (transaction.type == TransactionType.DEBIT) diva.negative else diva.positive,
                     )
                 }
             }

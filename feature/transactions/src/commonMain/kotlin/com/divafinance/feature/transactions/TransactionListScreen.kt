@@ -15,11 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,15 +36,14 @@ import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryChip
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
-import com.divafinance.core.ui.theme.DivaGreen
-import com.divafinance.core.ui.theme.DivaRed
+import com.divafinance.core.ui.component.StatusBarSpacer
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun TransactionListScreen(
-    onAddTransaction: () -> Unit = {},
     viewModel: TransactionsViewModel = koinViewModel(),
 ) {
     val transactions by viewModel.filteredTransactions.collectAsState()
@@ -58,6 +55,7 @@ fun TransactionListScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item { StatusBarSpacer() }
             item {
                 Text("Transactions", style = MaterialTheme.typography.headlineSmall)
             }
@@ -104,20 +102,8 @@ fun TransactionListScreen(
                 TransactionItem(transaction = transaction)
             }
 
+            // Clears the global quick-add FAB that MainScreen overlays.
             item { Spacer(Modifier.height(72.dp)) }
-        }
-
-        FloatingActionButton(
-            onClick = {
-                viewModel.resetForm()
-                onAddTransaction()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Transaction")
         }
     }
 }
@@ -236,7 +222,7 @@ private fun TransactionItem(transaction: Transaction) {
             Text(
                 text = "${if (transaction.type == TransactionType.DEBIT) "-" else "+"}${"$" + transaction.amount.toFixed(2)}",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (transaction.type == TransactionType.DEBIT) DivaRed else DivaGreen,
+                color = if (transaction.type == TransactionType.DEBIT) diva.negative else diva.positive,
             )
         }
     }

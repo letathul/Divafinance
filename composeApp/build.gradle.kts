@@ -63,9 +63,10 @@ kotlin {
             implementation(project(":server"))
 
             implementation(project(":feature:onboarding"))
-            implementation(project(":feature:dashboard"))
             implementation(project(":feature:cards"))
             implementation(project(":feature:transactions"))
+            implementation(project(":feature:quickadd"))
+            implementation(project(":feature:activity"))
             implementation(project(":feature:graphs"))
             implementation(project(":feature:feed"))
             implementation(project(":feature:settings"))

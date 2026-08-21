@@ -22,7 +22,7 @@ internal val INDEX_HTML = """
                 <p id="login-error" class="error hidden"></p>
             </div>
         </div>
-        <div id="main-screen" class="screen hidden">
+        <div id="main-screen" class="screen">
             <header>
                 <h1>Diva Finance</h1>
                 <button id="logout-btn" class="btn-text">Logout</button>
@@ -36,10 +36,10 @@ internal val INDEX_HTML = """
                 <section id="dashboard" class="tab-content active">
                     <div class="card-grid" id="spending-chart"></div>
                 </section>
-                <section id="cards" class="tab-content hidden">
+                <section id="cards" class="tab-content">
                     <div id="cards-list"></div>
                 </section>
-                <section id="transactions" class="tab-content hidden">
+                <section id="transactions" class="tab-content">
                     <div id="transactions-list"></div>
                 </section>
             </main>
@@ -182,15 +182,17 @@ async function api(path, options = {}) {
     if (res.status === 401) { showLogin(); throw new Error('Unauthorized'); }
     return res;
 }
+// Visibility is driven by `.active` alone. Mixing in a `!important` `.hidden` class
+// meant the main screen stayed display:none even after login succeeded.
 function showLogin() {
     loginScreen.classList.add('active');
-    mainScreen.classList.add('hidden');
+    mainScreen.classList.remove('active');
     pinInput.value = '';
     pinInput.focus();
 }
 function showMain() {
     loginScreen.classList.remove('active');
-    mainScreen.classList.remove('hidden');
+    mainScreen.classList.add('active');
     loadDashboard();
 }
 loginForm.addEventListener('submit', async (e) => {
@@ -272,8 +274,16 @@ async function loadTransactions() {
     } catch { container.innerHTML = '<div class="empty-state">Failed to load transactions</div>'; }
 }
 function formatCategory(cat) {
-    return cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).toLowerCase()
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+    return cat.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
-pinInput.focus();
+// Survive a browser refresh: the session cookie may still be valid, in which case
+// there is no reason to ask for the PIN again.
+(async function boot() {
+    try {
+        const res = await fetch('/auth/session');
+        const data = await res.json();
+        if (data.success) { showMain(); return; }
+    } catch {}
+    showLogin();
+})();
 """.trimIndent()

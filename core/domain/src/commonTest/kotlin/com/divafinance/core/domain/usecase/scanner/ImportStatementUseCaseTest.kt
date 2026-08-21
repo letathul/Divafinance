@@ -1,6 +1,6 @@
 package com.divafinance.core.domain.usecase.scanner
 
-import com.divafinance.core.domain.fake.FakeTransactionRepository
+import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.model.enums.TransactionType
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

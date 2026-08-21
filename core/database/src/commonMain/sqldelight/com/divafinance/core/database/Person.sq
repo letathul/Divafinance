@@ -1,0 +1,26 @@
+selectAll:
+SELECT * FROM Person ORDER BY name COLLATE NOCASE ASC;
+
+selectActive:
+SELECT * FROM Person WHERE is_archived = 0 ORDER BY name COLLATE NOCASE ASC;
+
+selectById:
+SELECT * FROM Person WHERE id = ?;
+
+-- Case- and whitespace-insensitive, so "Sam" and " sam " resolve to one person rather
+-- than quietly becoming two with separate balances.
+selectByName:
+SELECT * FROM Person WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1;
+
+insert:
+INSERT INTO Person(id, name, note, is_archived, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE Person SET name = ?, note = ?, is_archived = ?, updated_at = ? WHERE id = ?;
+
+delete:
+DELETE FROM Person WHERE id = ?;
+
+count:
+SELECT COUNT(*) FROM Person;

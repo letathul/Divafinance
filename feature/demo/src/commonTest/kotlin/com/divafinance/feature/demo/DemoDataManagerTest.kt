@@ -23,6 +23,8 @@ class DemoDataManagerTest {
     private val receipts = FakeReceiptRepository()
     private val feed = FakeFeedRepository()
     private val thresholds = FakeThresholdRepository()
+    private val people = FakePersonRepository()
+    private val ledger = FakeLedgerRepository()
 
     private var installs = 0
     private var uninstalls = 0
@@ -49,6 +51,8 @@ class DemoDataManagerTest {
         receiptRepository = receipts,
         feedRepository = feed,
         thresholdRepository = thresholds,
+        personRepository = people,
+        ledgerRepository = ledger,
         moduleInstaller = installer,
     )
 
@@ -180,5 +184,40 @@ class DemoDataManagerTest {
 
         assertEquals(DemoStatus.ACTIVE, manager.status())
         assertTrue(transactions.items.value.isNotEmpty())
+    }
+
+    @Test
+    fun seedsPeopleAndDebts() = runTest {
+        manager.seed("USD")
+
+        assertEquals(setOf("Sam", "Alex", "Priya"), people.items.value.map { it.name }.toSet())
+        assertTrue(ledger.items.value.isNotEmpty())
+    }
+
+    /**
+     * The demo has to satisfy the same invariant real data does: a split transaction's
+     * othersShare equals the sum of the ledger entries pointing at it. If the fixture
+     * drifts, every screen reading either side shows a different number.
+     */
+    @Test
+    fun theDemoSplitReconciles() = runTest {
+        manager.seed("USD")
+
+        val split = transactions.items.value.single { it.othersShare > 0.0 }
+        val owed = ledger.items.value
+            .filter { it.transactionId == split.id }
+            .sumOf { it.amount }
+
+        assertEquals(split.othersShare, owed)
+        assertTrue(split.othersShare < split.amount, "a split cannot owe more than it cost")
+    }
+
+    @Test
+    fun clearingRemovesPeopleAndTheirDebts() = runTest {
+        manager.seed("USD")
+        manager.clear()
+
+        assertTrue(people.items.value.isEmpty())
+        assertTrue(ledger.items.value.isEmpty())
     }
 }

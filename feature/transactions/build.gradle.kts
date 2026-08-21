@@ -20,8 +20,10 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
-            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
-            implementation(compose.uiTest)
+        }
+        jvmTest.dependencies {
+            implementation(project(":core:testing"))
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

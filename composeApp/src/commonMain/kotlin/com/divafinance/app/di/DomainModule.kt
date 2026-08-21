@@ -14,10 +14,25 @@ import com.divafinance.core.domain.usecase.graphs.ConfigureThresholdUseCase
 import com.divafinance.core.domain.usecase.graphs.GetThresholdGraphDataUseCase
 import com.divafinance.core.domain.usecase.location.GetSpendingByLocationUseCase
 import com.divafinance.core.domain.usecase.location.TagTransactionLocationUseCase
+import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
+import com.divafinance.core.domain.premium.PremiumGate
+import com.divafinance.core.domain.usecase.activity.GetActivityUseCase
+import com.divafinance.core.domain.usecase.people.GetPeopleBalancesUseCase
+import com.divafinance.core.domain.usecase.people.GetPersonDetailUseCase
+import com.divafinance.core.domain.usecase.people.RecordDebtUseCase
+import com.divafinance.core.domain.usecase.people.SaveSplitTransactionUseCase
+import com.divafinance.core.domain.usecase.people.SettleUpUseCase
+import com.divafinance.core.domain.premium.SettingsPremiumGate
+import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
+import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
+import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.domain.usecase.onboarding.CompleteOnboardingUseCase
 import com.divafinance.core.domain.usecase.onboarding.InitializeDatabaseUseCase
 import com.divafinance.core.domain.usecase.onboarding.SetPinUseCase
 import com.divafinance.core.domain.usecase.onboarding.ValidatePinUseCase
+import com.divafinance.core.domain.usecase.scanner.ConfirmReceiptUseCase
+import com.divafinance.core.domain.usecase.scanner.GetReceiptUseCase
+import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
@@ -36,15 +51,20 @@ val domainModule = module {
 
     // Transactions
     factory { AddTransactionUseCase(get(), get()) }
+    factory { DeleteTransactionUseCase(get(), get(), get()) }
+    single<PremiumGate> { SettingsPremiumGate(get()) }
+    factory { SuggestNearbyPlacesUseCase(get(), get()) }
+    factory { PredictCategoryUseCase(get()) }
+    factory { SuggestMerchantsUseCase(get()) }
     factory { GetTransactionsUseCase(get()) }
     factory { GetSpendingByCategoryUseCase(get()) }
     factory { GetHighImpactTransactionsUseCase(get(), get()) }
 
     // Onboarding
-    factory { CompleteOnboardingUseCase(get()) }
+    factory { CompleteOnboardingUseCase(get(), get()) }
     factory { ValidatePinUseCase(get()) }
     factory { SetPinUseCase(get()) }
-    factory { InitializeDatabaseUseCase(get()) }
+    factory { InitializeDatabaseUseCase(get(), get()) }
 
     // Backup
     factory { ExportBackupUseCase(get()) }
@@ -53,6 +73,16 @@ val domainModule = module {
     // Graphs
     factory { GetThresholdGraphDataUseCase(get(), get()) }
     factory { ConfigureThresholdUseCase(get()) }
+
+    // People
+    factory { GetPeopleBalancesUseCase(get(), get()) }
+    factory { SaveSplitTransactionUseCase(get(), get(), get()) }
+    factory { GetPersonDetailUseCase(get(), get()) }
+    factory { RecordDebtUseCase(get(), get()) }
+    factory { SettleUpUseCase(get()) }
+
+    // Activity
+    factory { GetActivityUseCase(get(), get(), get(), get()) }
 
     // Location
     factory { TagTransactionLocationUseCase(get()) }
@@ -66,4 +96,7 @@ val domainModule = module {
     // Scanner
     factory { ParseReceiptUseCase(get()) }
     factory { ImportStatementUseCase(get()) }
+    factory { GetReceiptsUseCase(get()) }
+    factory { GetReceiptUseCase(get()) }
+    factory { ConfirmReceiptUseCase(get(), get()) }
 }
