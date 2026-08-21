@@ -7,11 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.component.DivaButton
+import com.divafinance.core.ui.component.DivaOutlinedButton
 import com.divafinance.core.ui.theme.DivaTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -43,77 +41,86 @@ fun CurrencyStep(
     onNext: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(24.dp),
+    OnboardingStepLayout(
+        title = "Select Your Currency",
+        subtitle = "Choose the base currency for tracking your finances.",
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                DivaOutlinedButton(
+                    text = "Back",
+                    onClick = onBack,
+                    modifier = Modifier.weight(1f),
+                )
+                DivaButton(
+                    text = "Next",
+                    onClick = onNext,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        },
     ) {
-        Text(
-            text = "Select Your Currency",
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Choose the base currency for tracking your finances.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(24.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            items(currencies) { currency ->
-                val selected = currency.code == selectedCurrency
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onCurrencySelected(currency.code) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (selected)
-                            MaterialTheme.colorScheme.primaryContainer
-                        else
-                            MaterialTheme.colorScheme.surface,
-                    ),
-                    border = if (selected)
-                        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                    else
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            text = currency.symbol,
-                            style = MaterialTheme.typography.headlineMedium,
-                            textAlign = TextAlign.Center,
-                        )
-                        Text(
-                            text = currency.code,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = currency.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+        // Rows of two rather than a LazyVerticalGrid: seven fixed options never justify
+        // lazy layout, and a lazy list cannot be nested in the step's vertical scroll.
+        currencies.chunked(2).forEach { pair ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                pair.forEach { currency ->
+                    CurrencyCard(
+                        currency = currency,
+                        selected = currency.code == selectedCurrency,
+                        onClick = { onCurrencySelected(currency.code) },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
+                // Keeps the odd last option at half width instead of stretching it.
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+    }
+}
+
+@Composable
+private fun CurrencyCard(
+    currency: CurrencyOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected)
+                MaterialTheme.colorScheme.primaryContainer
+            else
+                MaterialTheme.colorScheme.surface,
+        ),
+        border = if (selected)
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        else
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            com.divafinance.core.ui.component.DivaOutlinedButton(
-                text = "Back",
-                onClick = onBack,
-                modifier = Modifier.weight(1f),
+            Text(
+                text = currency.symbol,
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
             )
-            com.divafinance.core.ui.component.DivaButton(
-                text = "Next",
-                onClick = onNext,
-                modifier = Modifier.weight(1f),
+            Text(
+                text = currency.code,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = currency.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

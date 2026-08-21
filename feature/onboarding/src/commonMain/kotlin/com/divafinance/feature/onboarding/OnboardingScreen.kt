@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +48,14 @@ fun OnboardingScreen(
     // Deliberately not a DivaScaffold: this runs outside the tab shell as the start
     // destination and carries its own step chrome, so a nav bar would be a second,
     // competing header.
-    Column(modifier = Modifier.fillMaxSize().background(diva.canvas)) {
+    //
+    // `imePadding` here rather than per step: the wizard owns the whole window, so the
+    // soft keyboard should shorten all of it at once, including the progress bar. Every
+    // step then lays itself out inside a box that already excludes the keyboard, and
+    // `OnboardingStepLayout` keeps the actions pinned to the bottom of it. Without this
+    // the SECURITY step is a dead end — both PIN fields raise the keyboard on focus and
+    // "Complete Setup" ends up underneath it.
+    Column(modifier = Modifier.fillMaxSize().background(diva.canvas).imePadding()) {
         StatusBarSpacer()
 
         LinearProgressIndicator(

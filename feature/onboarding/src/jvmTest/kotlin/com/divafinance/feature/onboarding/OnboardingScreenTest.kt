@@ -19,6 +19,7 @@ import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeThresholdRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.feature.onboarding.steps.SecurityStep
 import com.divafinance.feature.demo.DemoDataManager
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -60,5 +61,28 @@ class OnboardingScreenTest {
             DivaTheme { OnboardingScreen(viewModel = viewModel()) }
         }
         onNodeWithText("Welcome to Diva Finance").assertIsDisplayed()
+    }
+
+    @Test
+    fun securityStepKeepsItsActionsWithTheFieldsOnScreen() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                SecurityStep(
+                    pin = "1234",
+                    pinConfirm = "1234",
+                    pinError = null,
+                    isCompleting = false,
+                    onPinChanged = {},
+                    onPinConfirmChanged = {},
+                    onComplete = {},
+                    onBack = {},
+                )
+            }
+        }
+        // The step scrolls its body and pins its actions, so both the fields and the
+        // way forward are on screen at once — the shape the keyboard shrinks into.
+        onNodeWithText("Enter PIN").assertIsDisplayed()
+        onNodeWithText("Confirm PIN").assertIsDisplayed()
+        onNodeWithText("Complete Setup").assertIsDisplayed()
     }
 }

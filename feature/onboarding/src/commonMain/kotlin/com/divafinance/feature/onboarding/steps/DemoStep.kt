@@ -1,6 +1,5 @@
 package com.divafinance.feature.onboarding.steps
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,23 +27,31 @@ fun DemoStep(
     onSkipDemo: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(24.dp),
+    OnboardingStepLayout(
+        title = "Try a Demo First?",
+        subtitle = "We can load a few months of sample spending so you can explore every " +
+            "screen before entering anything real.",
+        actions = {
+            DivaButton(
+                text = if (isCompleting) "Loading sample data..." else "Load the demo",
+                onClick = onUseDemo,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isCompleting,
+            )
+            DivaOutlinedButton(
+                text = "Start empty",
+                onClick = onSkipDemo,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isCompleting,
+            )
+            DivaOutlinedButton(
+                text = "Back",
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isCompleting,
+            )
+        },
     ) {
-        Text(
-            text = "Try a Demo First?",
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "We can load a few months of sample spending so you can explore every " +
-                "screen before entering anything real.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(Modifier.height(20.dp))
-
         DivaCard {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("The sample data includes", style = MaterialTheme.typography.titleSmall)
@@ -74,29 +81,6 @@ fun DemoStep(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-
-        Spacer(Modifier.weight(1f))
-
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            DivaButton(
-                text = if (isCompleting) "Loading sample data..." else "Load the demo",
-                onClick = onUseDemo,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isCompleting,
-            )
-            DivaOutlinedButton(
-                text = "Start empty",
-                onClick = onSkipDemo,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isCompleting,
-            )
-            DivaOutlinedButton(
-                text = "Back",
-                onClick = onBack,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isCompleting,
-            )
-        }
     }
 }
 
