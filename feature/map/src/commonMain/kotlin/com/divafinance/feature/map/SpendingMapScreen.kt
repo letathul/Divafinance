@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -18,10 +17,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -29,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.ui.component.LoadingIndicator
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -41,26 +39,18 @@ fun SpendingMapScreen(
     val uiState by viewModel.uiState.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Spending Map") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (isPlatformMapAvailable()) {
-                        IconButton(onClick = { viewModel.toggleMapView() }) {
-                            Icon(
-                                if (uiState.showMapView) Icons.Default.List else Icons.Default.Place,
-                                contentDescription = if (uiState.showMapView) "List view" else "Map view",
-                            )
-                        }
-                    }
-                },
-            )
+    DivaScaffold(
+        title = "Spending Map",
+        onBack = onBack,
+        actions = {
+            if (isPlatformMapAvailable()) {
+                IconButton(onClick = { viewModel.toggleMapView() }) {
+                    Icon(
+                        if (uiState.showMapView) Icons.Default.List else Icons.Default.Place,
+                        contentDescription = if (uiState.showMapView) "List view" else "Map view",
+                    )
+                }
+            }
         },
     ) { padding ->
         when {

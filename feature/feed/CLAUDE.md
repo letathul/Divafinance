@@ -15,8 +15,9 @@ day with notable spends given the full width.
 | File | What it does |
 |------|--------------|
 | `FeedViewModel.kt` | Builds the entire read model from **one** flow — `GetActivityUseCase`, which already merges transactions, ledger entries and insight posts with people resolved. `FeedUiState` carries the today card, the week sparkline, the three `PeriodSummary` cards, the `DaySection` ledger and the latest insight. **`init` calls `generateInsight()`** — constructing this ViewModel has a write side effect. |
-| `FeedScreen.kt` | `DivaRoutes.FEED`. App bar, today card, period cards, insight, day-grouped ledger. Navigation is hoisted as `onOpenReport` / `onOpenTransaction` / `onOpenSearch` / `onOpenInsights` / `onOpenProfile`. |
-| `component/BotInsightBubble.kt` | The generated insight, as a card |
+| `FeedScreen.kt` | `DivaRoutes.FEED`. A `DivaListScaffold` whose title is the `DivaLogo` wordmark, then the story rings, today card, period cards, insight, and the day-grouped ledger as one `DivaGroupedSection` per day. Navigation is hoisted as `onOpenReport` / `onOpenTransaction` / `onOpenSearch` / `onOpenInsights` / `onOpenProfile`. |
+| `component/BotInsightBubble.kt` | The generated insight, as the feed's one editorial card: eyebrow, finding, detail, and the scope it was computed over |
+| `component/StoryRingRow.kt` | The row of rings above the feed. Reads figures the ViewModel already computes — no new state |
 | `component/FeedTimestamp.kt` | Relative timestamp label |
 
 ## Conventions / gotchas
@@ -36,8 +37,11 @@ day with notable spends given the full width.
   expected degraded state, not a bug.
 - Posts are written by `PostTransactionToFeedUseCase` from `:feature:quickadd` — not from
   this module. This feature only reads.
-- The tab capsule overlays the list, so the screen's `contentPadding` leaves room at the
-  bottom rather than a `Scaffold` inset.
+- The tab bar overlays the list, so the screen leaves room with `divaContentPadding()`
+  rather than a `Scaffold` inset.
+- **The rings do not replace the period cards.** A ring holds one glanceable number; a
+  period card holds a total, a delta and a count. Dropping the cards for the rings would
+  lose two of the three.
 
 ## Tests
 

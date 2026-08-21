@@ -18,7 +18,7 @@ module that depends on every feature, and the only place features are composed t
 | File | What it does |
 |------|--------------|
 | `App.kt` | Root composable. Collects `AppearanceStore.appearance` and passes mode + accent into `DivaTheme`, so a change in Settings repaints the whole tree at once. |
-| `MainScreen.kt` | The shell. Runs `InitializeDatabaseUseCase` in a `LaunchedEffect` to pick the start destination (feed vs onboarding) behind a loading state, then a `Box` holding the `NavHost`, the `FloatingTabBar` and the undo snackbar. **No `Scaffold`** — the capsule overlays the content rather than displacing it. |
+| `MainScreen.kt` | The shell. Runs `InitializeDatabaseUseCase` in a `LaunchedEffect` to pick the start destination (feed vs onboarding) behind a loading state, then a `Box` holding the `NavHost`, the `DivaTabBar` and the undo snackbar. **No `Scaffold`** — the bar overlays the content rather than displacing it. |
 | `DivaNavHost.kt` | `DivaRoutes` — every route constant in one object, plus `cardDetail`, `personDetail`, `transactionDetail` and `report(period, anchor)` — and the `NavHost` graph. Hoists `CardsViewModel`, `TransactionsViewModel`, and `GraphsViewModel` here so their form state survives navigation between related screens. |
 | `dynamic/DynamicFeatureLoader.kt` | `DynamicModule` enum + `expect class` with `isInstalled`, `requestInstall`, `requestUninstall` |
 
@@ -58,14 +58,19 @@ module that depends on every feature, and the only place features are composed t
   at runtime.
 - Add routes as constants in `DivaRoutes`, never as string literals at call sites —
   `DivaRoutesTest` guards every literal, so a rename is always a two-file change.
-- **Only `FEED` and `YOU` show the tab capsule** (`tabRoutes` in `MainScreen`).
+- **Only `FEED` and `YOU` show the tab bar** (`tabRoutes` in `MainScreen`).
   `currentBackStackEntryFlow` reports the route *pattern* (`"cards/{cardId}"`), never the
   resolved path, so membership is tested against the patterns in `DivaRoutes`.
 - `QuickAddViewModel` is hoisted in `MainScreen`, not resolved inside the add destination,
   so the undo snackbar outlives the screen that produced it.
-- `MainActivity`'s `enableEdgeToEdge` scrims are hardcoded hex mirroring
-  `LightBackground` / `DarkBackground`. They resolve before Compose runs and cannot read
-  the theme, so they must be updated by hand with any palette change.
+- `MainActivity`'s system bars are **fully transparent** and it sets
+  `isNavigationBarContrastEnforced = false` on API 29+. The scrims used to mirror the
+  theme's background hex by hand — a maintenance trap, since they resolve before Compose
+  runs — and `SystemBarStyle.auto` keys off the *system* dark setting rather than the
+  app's own `ThemeMode`. `DivaTabBar` draws the navigation bar's background now.
+- The bottom inset is `divaContentPadding()` from `:core:ui`, not a literal. It used to
+  be the number `120.dp` copied into the feed and the You tab, and `104.dp` in
+  `MainScreen`'s snackbar.
 - ViewModels hoisted in `DivaNavHost` must not also be resolved with `koinViewModel()`
   inside a screen, or the screen gets a second instance with empty form state.
 - The iOS framework needs `linkerOpts("-lsqlite3")` for SQLDelight's SQLiter cinterop.

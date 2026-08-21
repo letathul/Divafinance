@@ -18,8 +18,13 @@ for the default card directly), `:core:ui`, `:core:common`. Android adds
 | File | What it does |
 |------|--------------|
 | `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, runs `PredictCategoryUseCase`, and loads recent merchants. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
-| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Top bar (close / title / scan), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then the details, `SplitSelector` and split sections. `WhereLine` — the caption under the amount — is the entire entry point for location, and `PlaceDialog` behind it is the whole of the rest. `AddExpenseContent` is the stateless body tests drive directly. |
+| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. A `DivaScaffoldColumn` (Cancel / title / scan action), the amount, `AccountSelector`, `CategoryPickerRow`, keypad, then the details, `SplitSelector` and split sections. `WhereLine` — the caption under the amount — is the entire entry point for location, and `PlaceDialog` behind it is the whole of the rest. `AddExpenseContent` is the stateless body tests drive directly. |
 | `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
+
+`AddExpenseContent` is a scrolling body over a **pinned** save action, not one long
+scroll: the amount is entered on the keypad, so the commit has to stay reachable without
+scrolling back down. Its inner body uses `weight(1f, fill = false)` so the composable
+still measures when a test renders it with no height to divide up.
 
 The keypad now lives in **`:core:ui`** (`component/CalculatorKeypad.kt`) — the add screen
 is no longer its only consumer. Its accessibility contract is load-bearing: visible labels

@@ -37,16 +37,23 @@ fun Avatar(
     }
 }
 
-/** Sweep-ringed avatar — the profile's headline treatment, and one of its two accents. */
+/**
+ * Ringed avatar — the profile's headline treatment.
+ *
+ * The ring is the accent on **both** platforms: it is one of the few pieces of chrome
+ * that stays branded whichever language the app is speaking, which is why it reads
+ * `diva.accent` rather than `colorScheme.primary`.
+ */
 @Composable
 fun AvatarRing(
     initials: String,
     color: Color,
     modifier: Modifier = Modifier,
     size: Dp = 84.dp,
+    ringColor: Color = diva.accent,
 ) {
     Box(
-        modifier.size(size + 6.dp).clip(CircleShape).background(diva.sweepConic),
+        modifier.size(size + 6.dp).clip(CircleShape).background(ringColor),
         contentAlignment = Alignment.Center,
     ) {
         Box(

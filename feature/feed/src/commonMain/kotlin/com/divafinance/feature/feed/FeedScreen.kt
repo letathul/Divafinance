@@ -8,16 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +22,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,25 +36,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.usecase.reports.ReportPeriod
+import com.divafinance.core.ui.adaptive.DivaGroupHeader
+import com.divafinance.core.ui.adaptive.DivaGroupedSection
+import com.divafinance.core.ui.adaptive.DivaListScaffold
+import com.divafinance.core.ui.adaptive.DivaRowDivider
 import com.divafinance.core.ui.component.DivaCard
-import com.divafinance.core.ui.component.DayHeader
+import com.divafinance.core.ui.component.DivaLogo
+import com.divafinance.core.ui.component.DivaLogoSize
 import com.divafinance.core.ui.component.GlassSurface
 import com.divafinance.core.ui.component.Meta
 import com.divafinance.core.ui.component.MomentCard
 import com.divafinance.core.ui.component.StatPill
-import com.divafinance.core.ui.component.StatusBarSpacer
 import com.divafinance.core.ui.component.TransactionRow
 import com.divafinance.core.ui.component.color
 import com.divafinance.core.ui.theme.NumericStyle
-import com.divafinance.core.ui.theme.Pill
 import com.divafinance.core.ui.theme.Space
 import com.divafinance.core.ui.theme.diva
+import com.divafinance.core.ui.theme.isCupertino
 import com.divafinance.core.ui.util.formatCurrency
 import com.divafinance.feature.feed.component.BotInsightBubble
+import com.divafinance.feature.feed.component.StoryRing
+import com.divafinance.feature.feed.component.StoryRingRow
 import kotlinx.datetime.LocalDate
 
 /**
@@ -71,37 +75,42 @@ fun FeedScreen(
     onOpenSearch: () -> Unit = {},
     onOpenInsights: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
-    contentPadding: PaddingValues = PaddingValues(bottom = 120.dp),
+    contentPadding: PaddingValues = com.divafinance.core.ui.adaptive.divaContentPadding(),
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    DivaListScaffold(
+        title = "Feed",
+        // The wordmark stands in for the title: on Cupertino it is the 34sp large title
+        // that scrolls away, on Material it sits in the app bar.
+        titleContent = {
+            DivaLogo(size = if (isCupertino) DivaLogoSize.Large else DivaLogoSize.Medium)
+        },
+        actions = { FeedActions(onOpenSearch, onOpenInsights, onOpenProfile) },
         contentPadding = contentPadding,
     ) {
-        item { StatusBarSpacer() }
-
-        item {
-            FeedAppBar(
-                onSearch = onOpenSearch,
-                onInsights = onOpenInsights,
-                onProfile = onOpenProfile,
+        item(key = "rings") {
+            StoryRingRow(
+                rings = state.rings(),
+                onClick = { ring ->
+                    when (ring.id) {
+                        RING_TRENDS -> onOpenInsights()
+                        else -> onOpenReport(ReportPeriod.DAY, state.today)
+                    }
+                },
             )
         }
 
-        item {
+        item(key = "today") {
             TodayCard(
                 state = state,
-                modifier = Modifier.padding(horizontal = Space.pad),
+                modifier = Modifier.padding(horizontal = Space.pad, vertical = Space.sm),
                 onClick = { onOpenReport(ReportPeriod.DAY, state.today) },
             )
         }
 
-        item {
-            PeriodRow(
-                periods = state.periods,
-                onOpen = onOpenReport,
-            )
+        item(key = "periods") {
+            PeriodRow(periods = state.periods, onOpen = onOpenReport)
         }
 
         state.insight?.let { insight ->
@@ -109,45 +118,64 @@ fun FeedScreen(
                 BotInsightBubble(
                     post = insight,
                     modifier = Modifier.padding(horizontal = Space.pad, vertical = Space.xs),
+                    scope = state.insightScope(),
                 )
             }
         }
 
         if (state.isEmpty) {
-            item { EmptyFeed() }
+            item(key = "empty") { EmptyFeed() }
         }
 
         state.days.forEach { day ->
             item(key = "header:${day.date}") {
-                DayHeader(label = day.label, total = day.total)
+                DivaGroupHeader(
+                    text = day.label,
+                    trailing = formatCurrency(day.total),
+                )
             }
-            items(day.items, key = { it.transaction.id }) { item ->
-                if (item.isMoment) {
-                    MomentCard(
-                        title = item.transaction.merchantName
-                            ?: item.transaction.category.displayName,
-                        subtitle = listOfNotNull(
-                            item.transaction.location?.name,
-                            item.transaction.category.displayName,
-                        ).joinToString(" · "),
-                        amount = formatCurrency(item.ownShare, item.transaction.currency),
-                        caption = "your share of a " +
-                            "${formatCurrency(item.transaction.amount, item.transaction.currency)} bill",
-                        category = item.transaction.category,
-                        badge = "Split ${item.splitWith.size + 1} ways",
-                        splitWith = item.splitWith,
-                        footnote = owedFootnote(item),
-                        modifier = Modifier.padding(horizontal = Space.pad, vertical = Space.md),
-                        onClick = { onOpenTransaction(item.transaction.id) },
-                    )
-                } else {
-                    TransactionRow(
-                        transaction = item.transaction,
-                        onClick = { onOpenTransaction(item.transaction.id) },
-                    )
+            // One inset card per day, rather than a row per day with a rule under the
+            // last one: the card's own edge is the group's boundary.
+            item(key = "day:${day.date}") {
+                DivaGroupedSection {
+                    day.items.forEachIndexed { index, item ->
+                        if (index > 0) DivaRowDivider(startInset = 69.dp)
+                        LedgerEntry(item, onOpenTransaction)
+                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * A split carries information a single line cannot hold — who owes what — so it gets the
+ * full width instead of a row.
+ */
+@Composable
+private fun LedgerEntry(item: LedgerItem, onOpenTransaction: (String) -> Unit) {
+    if (item.isMoment) {
+        MomentCard(
+            title = item.transaction.merchantName ?: item.transaction.category.displayName,
+            subtitle = listOfNotNull(
+                item.transaction.location?.name,
+                item.transaction.category.displayName,
+            ).joinToString(" · "),
+            amount = formatCurrency(item.ownShare, item.transaction.currency),
+            caption = "your share of a " +
+                "${formatCurrency(item.transaction.amount, item.transaction.currency)} bill",
+            category = item.transaction.category,
+            badge = "Split ${item.splitWith.size + 1} ways",
+            splitWith = item.splitWith,
+            footnote = owedFootnote(item),
+            modifier = Modifier.padding(Space.sm),
+            onClick = { onOpenTransaction(item.transaction.id) },
+        )
+    } else {
+        TransactionRow(
+            transaction = item.transaction,
+            onClick = { onOpenTransaction(item.transaction.id) },
+        )
     }
 }
 
@@ -162,41 +190,85 @@ private fun owedFootnote(item: LedgerItem): String? {
     return "$names owe you ${formatCurrency(item.owedBack, item.transaction.currency)}"
 }
 
+private const val RING_TODAY = "today"
+private const val RING_TRENDS = "trends"
+
+/**
+ * The rings read off figures the feed already computes — no new ViewModel state.
+ *
+ * They deliberately do **not** stand in for the period cards below: a ring holds one
+ * glanceable number, a card holds a total, a delta and a count, and dropping the cards
+ * for the rings would lose two of the three.
+ */
 @Composable
-private fun FeedAppBar(
+private fun FeedUiState.rings(): List<StoryRing> = buildList {
+    add(
+        StoryRing(
+            id = RING_TODAY,
+            caption = "Today",
+            tint = diva.accent,
+            icon = Icons.Outlined.Bolt,
+        )
+    )
+    if (topCategoryToday != null) {
+        val share = if (todayTotal > 0) (topAmountToday / todayTotal * 100).toFixed(0) else "0"
+        add(
+            StoryRing(
+                id = "category",
+                caption = topCategoryToday.displayName,
+                tint = topCategoryToday.color,
+                value = "$share%",
+            )
+        )
+    }
+    add(
+        StoryRing(
+            id = RING_TRENDS,
+            caption = "Trends",
+            tint = diva.muted,
+            icon = Icons.AutoMirrored.Outlined.ShowChart,
+            ringed = false,
+        )
+    )
+}
+
+/** What the insight was computed over — the question a reader asks of any such figure. */
+private fun FeedUiState.insightScope(): List<String> = buildList {
+    add("This week")
+    add("All accounts")
+    add(topCategoryToday?.displayName ?: "All categories")
+}
+
+@Composable
+private fun RowScope.FeedActions(
     onSearch: () -> Unit,
     onInsights: () -> Unit,
     onProfile: () -> Unit,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Space.pad, vertical = Space.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            "diva",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-            GlassIconButton(Icons.Outlined.Search, "Search transactions", onSearch)
-            GlassIconButton(Icons.Outlined.Tune, "Filter the feed", onInsights)
-            GlassIconButton(Icons.Outlined.AutoAwesome, "Your profile", onProfile)
-        }
-    }
+    GlassIconButton(Icons.Outlined.Search, "Search transactions", onSearch)
+    GlassIconButton(Icons.Outlined.Tune, "Filter the feed", onInsights)
+    GlassIconButton(Icons.Outlined.AutoAwesome, "Your profile", onProfile)
 }
 
 @Composable
 internal fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    GlassSurface(Modifier.size(40.dp).clickable(onClick = onClick)) {
+    if (isCupertino) {
+        // A HIG bar button is a bare tinted glyph, not a chip.
         Icon(
             icon,
             contentDescription = description,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.align(Alignment.Center).size(20.dp),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp).clickable(onClick = onClick),
         )
+    } else {
+        GlassSurface(Modifier.size(40.dp).clickable(onClick = onClick)) {
+            Icon(
+                icon,
+                contentDescription = description,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(Alignment.Center).size(20.dp),
+            )
+        }
     }
 }
 
@@ -300,11 +372,12 @@ private fun PeriodRow(
     periods: List<PeriodSummary>,
     onOpen: (ReportPeriod, LocalDate) -> Unit,
 ) {
+    if (periods.isEmpty()) return
     Row(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = Space.pad, vertical = Space.md),
+            .padding(horizontal = Space.pad, vertical = Space.sm),
         horizontalArrangement = Arrangement.spacedBy(Space.md),
     ) {
         periods.forEach { summary ->
@@ -315,11 +388,7 @@ private fun PeriodRow(
 
 @Composable
 private fun PeriodCard(summary: PeriodSummary, onClick: () -> Unit) {
-    DivaCard(
-        modifier = Modifier.width(168.dp),
-        shape = MaterialTheme.shapes.medium,
-        onClick = onClick,
-    ) {
+    DivaCard(modifier = Modifier.width(168.dp), onClick = onClick) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Meta(summary.label)
             Text(

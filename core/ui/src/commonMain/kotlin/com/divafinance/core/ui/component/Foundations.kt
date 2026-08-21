@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.theme.NumericStyle
 import com.divafinance.core.ui.theme.Pill
 import com.divafinance.core.ui.theme.Space
+import com.divafinance.core.ui.adaptive.DivaGroupHeader
 import com.divafinance.core.ui.theme.diva
 
 /** Mono, uppercase, wide-tracked. The eyebrow above a figure. */
@@ -41,36 +42,24 @@ fun Meta(text: String, modifier: Modifier = Modifier, color: Color = diva.muted)
     )
 }
 
+/**
+ * The label above a section.
+ *
+ * Delegates to [DivaGroupHeader] so a screen that has not been converted to grouped
+ * lists yet still picks up the platform's own header treatment.
+ */
 @Composable
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
     trailing: String? = null,
     onTrailingClick: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = Space.pad, end = Space.pad, top = Space.lg, bottom = Space.md),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
-        if (trailing != null) {
-            Text(
-                trailing,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = diva.muted,
-                modifier = if (onTrailingClick != null) {
-                    Modifier.clickable(onClick = onTrailingClick)
-                } else {
-                    Modifier
-                },
-            )
-        }
-    }
-}
+) = DivaGroupHeader(
+    text = title,
+    modifier = modifier,
+    trailing = trailing,
+    onTrailingClick = onTrailingClick,
+)
 
 /**
  * Selected state inverts fore- and background together rather than tinting, so contrast
@@ -130,8 +119,10 @@ fun SegmentedControl(
 }
 
 /**
- * Budget / threshold progress. Over-budget swaps to the accent sweep, which is one of the
- * two places per screen the accent is allowed to appear.
+ * Budget / threshold progress.
+ *
+ * Over-budget swaps to [DivaTokens.negative] rather than to a decorative gradient: being
+ * over is a warning, and it should read as one.
  */
 @Composable
 fun BudgetTrack(
@@ -153,9 +144,7 @@ fun BudgetTrack(
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
                 .fillMaxHeight()
                 .clip(Pill)
-                .then(
-                    if (isOver) Modifier.background(diva.sweep) else Modifier.background(color)
-                )
+                .background(if (isOver) diva.negative else color)
         )
     }
 }
@@ -192,10 +181,10 @@ fun Numeric(
     Text(text, modifier = modifier, style = style, color = color)
 }
 
-/** Hairline divider, matching the card border's 12% rule. */
+/** Hairline divider: the card border's 12% rule on Material, a 0.5pt separator on iOS. */
 @Composable
 fun Hairline(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().height(1.dp).background(diva.fgHair))
+    Box(modifier.fillMaxWidth().height(diva.hairline).background(diva.separator))
 }
 
 /**

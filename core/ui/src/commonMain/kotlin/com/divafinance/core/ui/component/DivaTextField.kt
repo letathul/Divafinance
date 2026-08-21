@@ -9,10 +9,12 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.core.ui.theme.diva
+import com.divafinance.core.ui.theme.isCupertino
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -45,19 +47,24 @@ fun DivaTextField(
         trailingIcon = trailingIcon,
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.small,
         // Tonal fill with a hairline, matching DivaCard — an outlined field on a
-        // near-black canvas reads as an empty box otherwise.
+        // near-black canvas reads as an empty box otherwise. On Cupertino the border
+        // goes away entirely: a HIG field is a filled rectangle, not an outlined one.
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            disabledContainerColor = MaterialTheme.colorScheme.surface,
-            focusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-            unfocusedBorderColor = diva.fgHair,
-            disabledBorderColor = diva.fgHair,
+            focusedContainerColor = diva.card,
+            unfocusedContainerColor = diva.card,
+            disabledContainerColor = diva.card,
+            focusedBorderColor = if (isCupertino) {
+                Color.Transparent
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+            },
+            unfocusedBorderColor = if (isCupertino) Color.Transparent else diva.fgHair,
+            disabledBorderColor = if (isCupertino) Color.Transparent else diva.fgHair,
             focusedLabelColor = diva.muted,
             unfocusedLabelColor = diva.muted,
-            cursorColor = MaterialTheme.colorScheme.onSurface,
+            cursorColor = MaterialTheme.colorScheme.primary,
         ),
     )
 }

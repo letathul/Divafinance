@@ -35,15 +35,34 @@ Targets: `androidTarget`, `jvm`, `iosX64`, `iosArm64`, `iosSimulatorArm64`.
 Three surfaces, and everything else is a detail page reached from one of them:
 
 ```
-main shell — a floating glass tab capsule overlaying the content
+main shell — a full-width translucent tab bar overlaying the content
 ├── TAB     feed   → report/{period}/{anchor} · transactions/detail/{id} · people/{id}
 ├── CENTRE  add    → the full-screen expense flow
 └── TAB     you    → budgets · cards · graphs · people · map · scanner
                      backup · automation · settings
 ```
 
-The capsule **overlays** rather than displacing, so screens leave room for it via their
-own `contentPadding` instead of a `Scaffold(bottomBar = ...)`.
+The bar **overlays** rather than displacing, so screens leave room for it via
+`divaContentPadding()` (from `:core:ui`) instead of a `Scaffold(bottomBar = ...)`. It is
+edge-pinned and consumes the navigation-bar inset itself, so on Android it *is* the
+navigation bar's background.
+
+### One design system, two languages
+
+`:core:ui` renders **Material 3 on Android and Apple HIG on iOS** from a single set of
+screens written in `commonMain`. The switch is `DivaPlatform` — an `expect fun
+currentPlatform()` seeding `LocalDivaPlatform`, threaded through `DivaTheme(platform =
+…)` so a test or a preview can render either branch. Divergence is mostly tokens; the
+components that genuinely branch live in `core/ui/.../adaptive/`.
+
+Because every Compose UI test runs on the `jvm` host, which resolves to `MATERIAL`, a
+test that does not pass `platform = CUPERTINO` explicitly is not covering iOS at all.
+
+**Every screen gets its chrome from `DivaScaffold` / `DivaListScaffold`** — no feature
+module constructs a `Scaffold`, `TopAppBar` or `Switch` of its own any more. Two
+deliberate exceptions: `OnboardingScreen`, a full-bleed wizard that runs outside the tab
+shell and carries its own step chrome, and `MapFallbackScreen`, which renders *inside*
+`SpendingMapScreen` and would otherwise draw a second nav bar.
 
 ### Layers
 

@@ -169,7 +169,10 @@ fun DivaNavHost(
         }
 
         composable(DivaRoutes.TRANSACTIONS) {
-            TransactionListScreen(viewModel = transactionsViewModel)
+            TransactionListScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = transactionsViewModel,
+            )
         }
 
         composable(DivaRoutes.TRANSACTION_DETAIL) { backStackEntry ->
@@ -287,6 +290,7 @@ fun DivaNavHost(
                 onPersonClick = { personId ->
                     navController.navigate(DivaRoutes.personDetail(personId))
                 },
+                onBack = { navController.popBackStack() },
                 viewModel = activityViewModel,
             )
         }
@@ -368,6 +372,7 @@ fun DivaNavHost(
             val settingsViewModel: SettingsViewModel = koinViewModel()
             val settingsState by settingsViewModel.uiState.collectAsState()
             SettingsScreen(
+                onBack = { navController.popBackStack() },
                 onNavigateToBackup = { navController.navigate(DivaRoutes.BACKUP) },
                 onNavigateToScanner = { navController.navigate(DivaRoutes.SCANNER) },
                 onNavigateToAutomation = { navController.navigate(DivaRoutes.AUTOMATION) },

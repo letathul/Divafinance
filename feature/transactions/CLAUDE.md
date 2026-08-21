@@ -22,6 +22,12 @@ full add form. (The fast path for entry is `:feature:quickadd`, a separate modul
 
 ## Conventions / gotchas
 
+- `ReportScreen`'s filter affordance is a bar action carrying a dot when
+  `state.filter.isActive` — a filtered report reads identically to an unfiltered one
+  otherwise, and mistaking the two misreads every figure below it.
+- `AddTransactionScreen.kt` is **not reachable**: nothing in `DivaNavHost` or any screen
+  navigates to it. It was converted with the rest to keep the module consistent, but it
+  is a deletion candidate.
 - **Saving a transaction has two side effects beyond the insert.**
   `AddTransactionUseCase` updates the card balance (only for `DEBIT` on a card), and this
   ViewModel additionally calls `PostTransactionToFeedUseCase`. Writing through

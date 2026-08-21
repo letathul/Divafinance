@@ -13,6 +13,7 @@ import com.divafinance.core.model.FeedPost
 import com.divafinance.core.model.enums.FeedPostType
 import com.divafinance.core.model.enums.LedgerEntryKind
 import com.divafinance.core.testing.fake.TestData
+import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.ui.theme.DivaTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,9 +37,17 @@ class ActivityScreenTest {
             FeedPost(id = id, type = FeedPostType.BOT_INSIGHT, title = title, body = "Body", createdAt = TestData.now)
         )
 
+    /**
+     * The title lives in the shared chrome now, not in the stateless body, so this
+     * renders the same pairing the screen does rather than dropping the assertion.
+     */
     @Test
     fun showsTheTitle() = runComposeUiTest {
-        setContent { DivaTheme { ActivityContent(ActivityUiState()) } }
+        setContent {
+            DivaTheme {
+                DivaScaffold(title = "Activity") { ActivityContent(ActivityUiState()) }
+            }
+        }
         onNodeWithText("Activity").assertIsDisplayed()
     }
 

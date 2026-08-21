@@ -1,5 +1,6 @@
 package com.divafinance.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -17,19 +18,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.usecase.onboarding.InitializeDatabaseUseCase
-import com.divafinance.core.ui.component.DivaTab
-import com.divafinance.core.ui.component.FloatingTabBar
+import com.divafinance.core.ui.adaptive.DivaBottomBar
+import com.divafinance.core.ui.adaptive.DivaTab
+import com.divafinance.core.ui.adaptive.DivaTabBar
 import com.divafinance.core.ui.component.LoadingIndicator
+import com.divafinance.core.ui.theme.Space
+import com.divafinance.core.ui.theme.diva
 import com.divafinance.feature.quickadd.QuickAddViewModel
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Routes the tab capsule stays visible over.
+ * Routes the tab bar stays visible over.
  *
  * `currentBackStackEntry` reports the route *pattern* ("cards/{cardId}"), never the
  * resolved path, so membership is tested against the patterns in [DivaRoutes] rather
@@ -52,7 +55,12 @@ fun MainScreen() {
     }
 
     if (isLoading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // Painted, not transparent: an unpainted first frame flashes the M3 default
+        // between the launch screen and the first real one.
+        Box(
+            Modifier.fillMaxSize().background(diva.canvas),
+            contentAlignment = Alignment.Center,
+        ) {
             LoadingIndicator()
         }
         return
@@ -86,8 +94,9 @@ fun MainScreen() {
         }
     }
 
-    // No Scaffold: the capsule floats *over* the content rather than displacing it, so
-    // the ledger keeps scrolling behind it. Screens leave room via their contentPadding.
+    // No Scaffold: the bar sits *over* the content rather than displacing it, so the
+    // ledger keeps scrolling behind its translucency. Screens leave room for it with
+    // `divaContentPadding()` rather than a Scaffold inset.
     Box(Modifier.fillMaxSize()) {
         DivaNavHost(
             navController = navController,
@@ -96,7 +105,7 @@ fun MainScreen() {
         )
 
         if (currentRoute in tabRoutes) {
-            FloatingTabBar(
+            DivaTabBar(
                 selected = if (currentRoute == DivaRoutes.YOU) DivaTab.YOU else DivaTab.FEED,
                 onSelect = { tab ->
                     val route = if (tab == DivaTab.YOU) DivaRoutes.YOU else DivaRoutes.FEED
@@ -109,10 +118,10 @@ fun MainScreen() {
                     }
                 },
                 onCompose = { navController.navigate(DivaRoutes.ADD_EXPENSE) },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 16.dp),
+                // Edge-pinned: the bar adds the navigation-bar inset itself and draws
+                // its fill to the screen edge, so on Android it *is* the nav bar's
+                // background.
+                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
 
@@ -121,7 +130,7 @@ fun MainScreen() {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 104.dp),
+                .padding(bottom = DivaBottomBar.Height + DivaBottomBar.CenterRaise + Space.sm),
         )
     }
 }

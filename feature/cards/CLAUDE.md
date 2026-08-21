@@ -25,6 +25,9 @@ module.
 
 ## Conventions / gotchas
 
+- All five screens use `DivaScaffold`; `CardsListScreen`'s add/best-card/rules affordances
+  are bar `actions` rather than a FAB, because the shell already owns the bottom-right
+  corner and two floating buttons on one screen collide.
 - **Form numerics are `String`, not `Double`.** `creditLimit`, `annualFee`, `multiplier`,
   `capAmount`, `statementDate`, `dueDate` are all strings in form state so partial input
   (`"12."`) doesn't get clobbered; parsing happens at save.

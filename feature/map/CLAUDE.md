@@ -32,6 +32,9 @@ may genuinely be absent at runtime.
 
 ## Conventions / gotchas
 
+- **`MapFallbackScreen` must not gain its own scaffold.** It renders inside
+  `SpendingMapScreen`, which already provides one, and `SpendingMapScreenTest` drives it
+  directly.
 - **The fallback is not a stub — it's a first-class path.** A device without the on-demand
   map module takes it, and so does the desktop test host. That's deliberate: tests
   exercise a real user-facing code path rather than a placeholder.

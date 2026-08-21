@@ -14,15 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image as FoundationImage
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
+import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.ui.component.CategoryPickerItem
 import com.divafinance.core.ui.component.DivaButton
@@ -51,7 +47,6 @@ import org.koin.compose.viewmodel.koinViewModel
  * The step between a scan and a transaction: everything OCR guessed, editable, plus the
  * category prediction. Saving here is the only thing that links a receipt to a transaction.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReceiptReviewScreen(
     onBack: () -> Unit = {},
@@ -65,23 +60,15 @@ fun ReceiptReviewScreen(
         if (saved != null) onSaved()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Review receipt") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    DivaScaffold(
+        title = "Review receipt",
+        onBack = onBack,
     ) { padding ->
         if (uiState.isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 LoadingIndicator()
             }
-            return@Scaffold
+            return@DivaScaffold
         }
 
         Column(

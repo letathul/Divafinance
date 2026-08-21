@@ -62,7 +62,7 @@ fun TransactionRow(
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
             .padding(horizontal = Space.pad, vertical = 9.dp)
-            .heightIn(min = 62.dp),
+            .heightIn(min = diva.rowMinHeight + 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
     ) {

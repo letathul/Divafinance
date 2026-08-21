@@ -53,7 +53,7 @@ This is the only feature module that depends on `:server`.
 
 | File | What it does |
 |------|--------------|
-| `YouScreen.kt` / `YouViewModel.kt` | `DivaRoutes.YOU`. Identity, stats, the budget panel, and the nav rows. Reads `GetActivityUseCase` + `GetThresholdGraphDataUseCase`. |
+| `YouScreen.kt` / `YouViewModel.kt` | `DivaRoutes.YOU`. A `DivaListScaffold` over identity, stats, the budget panel, and the eight nav rows as one `DivaGroupedSection`. Reads `GetActivityUseCase` + `GetThresholdGraphDataUseCase`. |
 | `AppearanceStore.kt` | The theme preference as a **stream**. |
 
 - **Budgets are `GraphThreshold` read in currency.** A threshold stores "this category

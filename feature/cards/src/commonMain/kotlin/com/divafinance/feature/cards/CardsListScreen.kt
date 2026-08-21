@@ -14,10 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Tune
@@ -34,11 +32,11 @@ import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.model.CreditCard
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import com.divafinance.core.ui.component.CreditCardVisual
 import com.divafinance.core.ui.component.DivaCard
+import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.ui.component.GlassSurface
-import com.divafinance.core.ui.theme.Space
+import com.divafinance.core.ui.theme.isCupertino
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -52,36 +50,21 @@ fun CardsListScreen(
 ) {
     val cards by viewModel.cards.collectAsState()
 
-    Column(Modifier.fillMaxSize()) {
-        // Adding a card is a header action rather than a FAB: the shell already owns the
+    DivaScaffold(
+        title = "Cards",
+        onBack = onBack,
+        // Adding a card is a bar action rather than a FAB: the shell already owns the
         // bottom-right corner, and two floating buttons on one screen collide.
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.md),
-            ) {
-                CardsIconButton(Icons.AutoMirrored.Outlined.ArrowBack, "Back", onBack)
-                Text(
-                    "Cards",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                )
+        actions = {
+            CardsIconButton(Icons.Outlined.AutoAwesome, "Best card for a purchase", onBestCard)
+            CardsIconButton(Icons.Outlined.Tune, "Map reward categories", onRewardMapper)
+            CardsIconButton(Icons.Outlined.Add, "Add a card") {
+                viewModel.resetForm()
+                onAddCard()
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                CardsIconButton(Icons.Outlined.AutoAwesome, "Best card for a purchase", onBestCard)
-                CardsIconButton(Icons.Outlined.Tune, "Map reward categories", onRewardMapper)
-                CardsIconButton(Icons.Outlined.Add, "Add a card") {
-                    viewModel.resetForm()
-                    onAddCard()
-                }
-            }
-        }
-
-        Box(Modifier.fillMaxSize()) {
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
             if (cards.isEmpty()) {
                 EmptyCardsView(modifier = Modifier.align(Alignment.Center))
             } else {
@@ -96,13 +79,23 @@ fun CardsListScreen(
 
 @Composable
 private fun CardsIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    GlassSurface(Modifier.size(40.dp).clickable(onClick = onClick)) {
+    if (isCupertino) {
+        // A HIG bar button is a bare tinted glyph, not a chip.
         Icon(
             icon,
             contentDescription = description,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.align(Alignment.Center).size(20.dp),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp).clickable(onClick = onClick),
         )
+    } else {
+        GlassSurface(Modifier.size(40.dp).clickable(onClick = onClick)) {
+            Icon(
+                icon,
+                contentDescription = description,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(Alignment.Center).size(20.dp),
+            )
+        }
     }
 }
 

@@ -33,11 +33,11 @@ import com.divafinance.core.domain.usecase.activity.ActivityItem
 import com.divafinance.core.domain.usecase.activity.ActivityKind
 import com.divafinance.core.domain.usecase.people.PersonBalance
 import com.divafinance.core.model.enums.TransactionType
+import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.ui.component.CategoryChip
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
-import com.divafinance.core.ui.component.StatusBarSpacer
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -48,18 +48,22 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun ActivityScreen(
     onPersonClick: (String) -> Unit = {},
+    onBack: (() -> Unit)? = null,
     viewModel: ActivityViewModel = koinViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    ActivityContent(
-        state = state,
-        onToggleKind = viewModel::onToggleKind,
-        onPeriodChange = viewModel::onPeriodChange,
-        onQueryChange = viewModel::onQueryChange,
-        onClearFilters = viewModel::onClearFilters,
-        onPersonClick = onPersonClick,
-    )
+    DivaScaffold(title = "Activity", onBack = onBack) { padding ->
+        ActivityContent(
+            state = state,
+            onToggleKind = viewModel::onToggleKind,
+            onPeriodChange = viewModel::onPeriodChange,
+            onQueryChange = viewModel::onQueryChange,
+            onClearFilters = viewModel::onClearFilters,
+            onPersonClick = onPersonClick,
+            modifier = Modifier.padding(padding),
+        )
+    }
 }
 
 /** Stateless body, so tests and previews can drive it without a ViewModel. */
@@ -78,8 +82,6 @@ internal fun ActivityContent(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { StatusBarSpacer() }
-        item { Text("Activity", style = MaterialTheme.typography.headlineSmall) }
 
         if (state.openBalances.isNotEmpty()) {
             item { BalancesSummary(state, onPersonClick) }

@@ -9,20 +9,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -40,16 +36,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.domain.usecase.reports.ReportPeriod
+import com.divafinance.core.ui.adaptive.DivaListScaffold
 import com.divafinance.core.ui.component.BudgetTrack
 import com.divafinance.core.ui.component.CategoryTile
 import com.divafinance.core.ui.component.DayHeader
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.GlassSurface
-import com.divafinance.core.ui.component.Hairline
 import com.divafinance.core.ui.component.Meta
 import com.divafinance.core.ui.component.SectionHeader
 import com.divafinance.core.ui.component.StatPill
@@ -80,50 +75,31 @@ fun ReportScreen(
     var showFilters by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 48.dp),
-    ) {
-        item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Space.md),
-                ) {
-                    IconCapsule(
-                        icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                        description = "Back",
-                        onClick = onBack,
+    DivaListScaffold(
+        title = state.title,
+        onBack = onBack,
+        actions = {
+            Box {
+                IconCapsule(
+                    icon = Icons.Outlined.Tune,
+                    description = "Filter this report",
+                    onClick = { showFilters = true },
+                )
+                // A filtered report reads the same as an unfiltered one otherwise, and
+                // mistaking one for the other misreads every figure below.
+                if (state.filter.isActive) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .size(9.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(diva.accent)
                     )
-                    Text(
-                        state.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                }
-                Box {
-                    IconCapsule(
-                        icon = Icons.Outlined.Tune,
-                        description = "Filter this report",
-                        onClick = { showFilters = true },
-                    )
-                    if (state.filter.isActive) {
-                        Box(
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .size(9.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(diva.accent)
-                        )
-                    }
                 }
             }
-        }
-
+        },
+        contentPadding = PaddingValues(bottom = 48.dp),
+    ) {
         item { ReportHeader(state) }
 
         if (state.filter.isActive) {

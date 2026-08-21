@@ -18,5 +18,10 @@ kotlin {
             implementation(compose.components.resources)
             implementation(libs.kotlinx.datetime)
         }
+        // Compose UI tests run on the `jvm` host; `diva.kmp.compose` already wires the
+        // Skiko-backed test runtime into jvmTest, so only the assertion library is left.
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }

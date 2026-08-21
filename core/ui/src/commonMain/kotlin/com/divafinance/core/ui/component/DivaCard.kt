@@ -17,27 +17,32 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.core.ui.theme.diva
+import com.divafinance.core.ui.theme.isCupertino
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * The default raised surface: tonal fill, large corner, hairline inset border.
+ * The default raised surface: card fill, platform corner, no elevation.
  *
- * Separation comes from tone and a 12% hairline rather than a shadow — on a near-black
- * canvas an elevation shadow is invisible, and on white it reads as a box. The border is
- * deliberately faint: present enough to find an edge, not enough to draw one.
+ * Separation comes from tone rather than a shadow — on a near-black canvas an elevation
+ * shadow is invisible, and on white it reads as a box. Material adds a 12% hairline
+ * border on top of that; Cupertino does not, because a white card on the grouped canvas
+ * already has all the edge it needs.
  */
 @Composable
 fun DivaCard(
     modifier: Modifier = Modifier,
-    shape: Shape = MaterialTheme.shapes.large,
+    shape: Shape = MaterialTheme.shapes.medium,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val base = modifier
         .fillMaxWidth()
         .clip(shape)
-        .background(MaterialTheme.colorScheme.surface)
-        .border(BorderStroke(1.dp, diva.fgHair), shape)
+        .background(diva.card)
+        .then(
+            if (isCupertino) Modifier
+            else Modifier.border(BorderStroke(diva.hairline, diva.fgHair), shape)
+        )
     Column(
         modifier = if (onClick != null) base.clickable(onClick = onClick) else base,
         content = content,

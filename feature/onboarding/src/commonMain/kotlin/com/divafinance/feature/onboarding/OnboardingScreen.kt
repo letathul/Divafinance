@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.divafinance.feature.onboarding.steps.AccountSetupStep
 import com.divafinance.feature.onboarding.steps.CardSetupStep
@@ -23,6 +25,8 @@ import com.divafinance.feature.onboarding.steps.LocationStep
 import com.divafinance.feature.onboarding.steps.SecurityStep
 import com.divafinance.feature.onboarding.steps.WelcomeStep
 import com.divafinance.core.ui.component.StatusBarSpacer
+import com.divafinance.core.ui.theme.Pill
+import com.divafinance.core.ui.theme.diva
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -40,14 +44,20 @@ fun OnboardingScreen(
     val stepIndex = OnboardingStep.entries.indexOf(state.currentStep)
     val progress = (stepIndex + 1).toFloat() / OnboardingStep.entries.size
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // Deliberately not a DivaScaffold: this runs outside the tab shell as the start
+    // destination and carries its own step chrome, so a nav bar would be a second,
+    // competing header.
+    Column(modifier = Modifier.fillMaxSize().background(diva.canvas)) {
         StatusBarSpacer()
 
         LinearProgressIndicator(
             progress = { progress },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .clip(Pill),
             color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            trackColor = diva.separator,
         )
 
         AnimatedContent(

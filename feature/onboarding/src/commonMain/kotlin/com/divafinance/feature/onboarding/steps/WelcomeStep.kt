@@ -13,6 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.component.DivaButton
+import com.divafinance.core.ui.component.DivaLogo
+import com.divafinance.core.ui.component.DivaLogoSize
 import com.divafinance.core.ui.theme.DivaTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -23,6 +26,8 @@ fun WelcomeStep(onNext: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        DivaLogo(size = DivaLogoSize.Large)
+        Spacer(Modifier.height(12.dp))
         Text(
             text = "Welcome to Diva Finance",
             style = MaterialTheme.typography.headlineLarge,
@@ -36,7 +41,7 @@ fun WelcomeStep(onNext: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(48.dp))
-        com.divafinance.core.ui.component.DivaButton(
+        DivaButton(
             text = "Get Started",
             onClick = onNext,
             modifier = Modifier.fillMaxWidth(),

@@ -6,7 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,13 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,25 +29,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.divafinance.core.ui.component.DivaCard
-import com.divafinance.core.ui.component.DivaOutlinedButton
 import com.divafinance.core.model.enums.LocationCaptureMode
+import com.divafinance.core.ui.adaptive.DivaGroupedSection
+import com.divafinance.core.ui.adaptive.DivaListRow
+import com.divafinance.core.ui.adaptive.DivaRowDivider
+import com.divafinance.core.ui.adaptive.DivaSwitch
+import com.divafinance.core.ui.adaptive.DivaScaffold
+import com.divafinance.core.ui.component.DivaOutlinedButton
 import com.divafinance.core.ui.component.SegmentedControl
 import com.divafinance.core.ui.theme.AccentTheme
 import com.divafinance.core.ui.theme.DivaTheme
+import com.divafinance.core.ui.theme.Space
 import com.divafinance.core.ui.theme.ThemeMode
 import com.divafinance.core.ui.theme.diva
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onNavigateToBackup: () -> Unit = {},
     onNavigateToScanner: () -> Unit = {},
     onNavigateToAutomation: () -> Unit = {},
+    /**
+     * Null leaves the screen without a back affordance. iOS has no system back, so a
+     * pushed screen that omits this is a dead end there.
+     */
+    onBack: (() -> Unit)? = null,
     isServerRunning: Boolean = false,
     onToggleServer: (Boolean) -> Unit = {},
     serverPort: Int = 8080,
@@ -61,7 +65,7 @@ fun SettingsScreen(
     isRemovingDemo: Boolean = false,
     onRemoveDemo: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    accent: AccentTheme = AccentTheme.SUNSET,
+    accent: AccentTheme = AccentTheme.BLUE,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onAccentChange: (AccentTheme) -> Unit = {},
     /** Null until the user has been asked, which leaves both options unselected. */
@@ -97,18 +101,13 @@ fun SettingsScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Settings") })
-        },
-    ) { padding ->
+    DivaScaffold(title = "Settings", onBack = onBack) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(bottom = Space.xl),
         ) {
             AppearanceSection(
                 themeMode = themeMode,
@@ -122,110 +121,105 @@ fun SettingsScreen(
                 onModeChange = onLocationCaptureModeChange,
             )
 
+            DivaGroupedSection(header = "Data") {
+                DivaListRow(
+                    title = "Backup & Restore",
+                    subtitle = "Export your archive",
+                    showChevron = true,
+                    onClick = onNavigateToBackup,
+                )
+            }
+
+            DivaGroupedSection(header = "Tools") {
+                DivaListRow(
+                    title = "Receipt Scanner",
+                    showChevron = true,
+                    onClick = onNavigateToScanner,
+                )
+                DivaRowDivider()
+                DivaListRow(
+                    title = "Automations",
+                    showChevron = true,
+                    onClick = onNavigateToAutomation,
+                )
+            }
+
+            ServerSection(
+                isServerRunning = isServerRunning,
+                onToggleServer = onToggleServer,
+                serverPort = serverPort,
+                serverUrl = serverUrl,
+                serverError = serverError,
+            )
+
             // Only rendered while the demo is active. Once removed it never comes back,
             // so there is deliberately no "enable" path here.
             if (isDemoActive) {
-                DivaCard {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Demo Data", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "You're exploring with sample data. Remove it when you're ready " +
-                                "to start tracking for real — this is one-way.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        DivaOutlinedButton(
-                            text = if (isRemovingDemo) "Removing..." else "Remove demo data",
-                            onClick = { confirmRemoveDemo = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isRemovingDemo,
-                        )
-                    }
-                }
+                DemoSection(
+                    isRemovingDemo = isRemovingDemo,
+                    onRemove = { confirmRemoveDemo = true },
+                )
             }
+        }
+    }
+}
 
-            DivaCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Data", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    DivaOutlinedButton(
-                        text = "Backup & Restore",
-                        onClick = onNavigateToBackup,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
+@Composable
+private fun ServerSection(
+    isServerRunning: Boolean,
+    onToggleServer: (Boolean) -> Unit,
+    serverPort: Int,
+    serverUrl: String?,
+    serverError: String?,
+) {
+    DivaGroupedSection(
+        header = "Local Server",
+        footer = when {
+            serverError != null -> null
+            serverUrl != null -> "Sign in with your app PIN. Both devices must be on the " +
+                "same Wi-Fi network."
+            else -> null
+        },
+    ) {
+        DivaListRow(
+            title = "Browser Access",
+            subtitle = when {
+                // The URL only exists once the socket is bound, so its absence while
+                // "running" means still starting.
+                serverUrl != null -> "Open $serverUrl"
+                isServerRunning -> "Starting on port $serverPort…"
+                else -> "Start to access from browser"
+            },
+            trailing = {
+                DivaSwitch(checked = isServerRunning, onCheckedChange = onToggleServer)
+            },
+        )
+        if (serverError != null) {
+            DivaRowDivider()
+            Text(
+                serverError,
+                Modifier.padding(horizontal = Space.pad, vertical = Space.md),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
 
-            DivaCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Tools", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    DivaOutlinedButton(
-                        text = "Receipt Scanner",
-                        onClick = onNavigateToScanner,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DivaOutlinedButton(
-                        text = "Automations",
-                        onClick = onNavigateToAutomation,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-
-            DivaCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Local Server", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Browser Access",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Text(
-                                when {
-                                    // The URL only exists once the socket is bound, so
-                                    // its absence while "running" means still starting.
-                                    serverUrl != null -> "Open $serverUrl"
-                                    isServerRunning -> "Starting on port $serverPort…"
-                                    else -> "Start to access from browser"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(
-                            checked = isServerRunning,
-                            onCheckedChange = onToggleServer,
-                        )
-                    }
-                    if (serverError != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            serverError,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    if (serverUrl != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Sign in with your app PIN. Both devices must be on the " +
-                                "same Wi-Fi network.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+@Composable
+private fun DemoSection(isRemovingDemo: Boolean, onRemove: () -> Unit) {
+    DivaGroupedSection(
+        header = "Demo Data",
+        footer = "You're exploring with sample data. Remove it when you're ready to " +
+            "start tracking for real — this is one-way.",
+    ) {
+        Box(Modifier.padding(Space.pad)) {
+            DivaOutlinedButton(
+                text = if (isRemovingDemo) "Removing..." else "Remove demo data",
+                onClick = onRemove,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isRemovingDemo,
+            )
         }
     }
 }
@@ -244,17 +238,12 @@ private fun LocationSection(
     onModeChange: (LocationCaptureMode) -> Unit,
 ) {
     val options = LocationCaptureMode.entries
-    DivaCard {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Location", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Tagging expenses with a place puts them on your spending map and lets " +
-                    "the app suggest shops you've been to before.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+    DivaGroupedSection(
+        header = "Location",
+        footer = "Tagging expenses with a place puts them on your spending map and lets " +
+            "the app suggest shops you've been to before.",
+    ) {
+        Box(Modifier.padding(Space.pad)) {
             SegmentedControl(
                 options = options.map { it.label },
                 selectedIndex = options.indexOf(mode),
@@ -278,11 +267,8 @@ private fun AppearanceSection(
     onThemeModeChange: (ThemeMode) -> Unit,
     onAccentChange: (AccentTheme) -> Unit,
 ) {
-    DivaCard {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Appearance", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(12.dp))
-
+    DivaGroupedSection(header = "Appearance") {
+        Column(Modifier.padding(Space.pad)) {
             val modes = ThemeMode.entries
             SegmentedControl(
                 options = modes.map { it.label },
@@ -290,27 +276,37 @@ private fun AppearanceSection(
                 onSelect = { onThemeModeChange(modes[it]) },
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "Accent",
-                style = MaterialTheme.typography.bodyMedium,
-                color = diva.muted,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AccentTheme.entries.forEach { option ->
-                    AccentSwatch(
-                        option = option,
-                        selected = option == accent,
-                        onClick = { onAccentChange(option) },
-                    )
-                }
-            }
+            Spacer(Modifier.height(Space.pad))
+            Text("Accent", style = MaterialTheme.typography.bodyMedium, color = diva.muted)
+            Spacer(Modifier.height(Space.sm))
+            AccentSwatches(accent, onAccentChange)
         }
     }
 }
 
-/** The swatch paints the actual sweep, so the choice is the thing being previewed. */
+/**
+ * Wraps rather than scrolls: every accent has to be reachable without a gesture, and
+ * there are few enough of them to fit two rows on the narrowest phone.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AccentSwatches(accent: AccentTheme, onAccentChange: (AccentTheme) -> Unit) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Space.md),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
+    ) {
+        AccentTheme.entries.forEach { option ->
+            AccentSwatch(
+                option = option,
+                selected = option == accent,
+                onClick = { onAccentChange(option) },
+            )
+        }
+    }
+}
+
+/** The swatch paints the accent itself, so the choice is the thing being previewed. */
 @Composable
 private fun AccentSwatch(
     option: AccentTheme,
@@ -326,10 +322,10 @@ private fun AccentSwatch(
             Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(option.colors))
+                .background(option.tintFor(diva.isDark))
                 .border(
-                    width = if (selected) 2.dp else 1.dp,
-                    color = if (selected) MaterialTheme.colorScheme.onSurface else diva.fgHair,
+                    width = if (selected) 2.dp else diva.hairline,
+                    color = if (selected) MaterialTheme.colorScheme.onSurface else diva.separator,
                     shape = CircleShape,
                 )
         )

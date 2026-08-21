@@ -1,7 +1,6 @@
 package com.divafinance.feature.quickadd
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -19,11 +18,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.AlertDialog
@@ -31,7 +28,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,24 +40,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
+import com.divafinance.core.ui.adaptive.DivaScaffoldColumn
+import com.divafinance.core.ui.adaptive.DivaSwitch
 import com.divafinance.core.ui.component.CalculatorKeypad
 import com.divafinance.core.ui.component.CategoryChip
 import com.divafinance.core.ui.component.CategoryPickerItem
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
-import com.divafinance.core.ui.component.GlassSurface
 import com.divafinance.core.ui.component.SegmentedControl
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.core.ui.theme.Pill
+import com.divafinance.core.ui.theme.NumericStyle
 import com.divafinance.core.ui.theme.Space
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.util.formatCurrency
@@ -95,19 +95,23 @@ fun AddExpenseScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding(),
-    ) {
-        AddExpenseTopBar(
-            onClose = {
-                viewModel.reset()
-                onDismiss()
-            },
-            onScan = onOpenScanner,
-        )
+    DivaScaffoldColumn(
+        title = "New expense",
+        modifier = modifier,
+        onBack = {
+            viewModel.reset()
+            onDismiss()
+        },
+        backLabel = "Cancel",
+        actions = {
+            Icon(
+                Icons.Outlined.PhotoCamera,
+                contentDescription = "Scan a receipt instead",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp).clickable(onClick = onOpenScanner),
+            )
+        },
+    ) { padding ->
         AddExpenseContent(
             state = state,
             onDigit = viewModel::onDigit,
@@ -135,35 +139,8 @@ fun AddExpenseScreen(
             onAddSplitPerson = { name -> viewModel.onAddSplitPerson(name) },
             onRemoveSplitPerson = viewModel::onRemoveSplitPerson,
             onSave = viewModel::save,
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().padding(padding),
         )
-    }
-}
-
-@Composable
-private fun AddExpenseTopBar(onClose: () -> Unit, onScan: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        GlassSurface(Modifier.size(40.dp).clickable(onClick = onClose)) {
-            Icon(
-                Icons.Outlined.Close,
-                contentDescription = "Discard this expense",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.align(Alignment.Center).size(20.dp),
-            )
-        }
-        Text("New expense", style = MaterialTheme.typography.titleMedium)
-        GlassSurface(Modifier.size(40.dp).clickable(onClick = onScan)) {
-            Icon(
-                Icons.Outlined.PhotoCamera,
-                contentDescription = "Scan a receipt instead",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.align(Alignment.Center).size(20.dp),
-            )
-        }
     }
 }
 
@@ -212,13 +189,17 @@ internal fun AddExpenseContent(
     )
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .imePadding()
-            .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier.fillMaxWidth().imePadding().navigationBarsPadding(),
     ) {
+        Column(
+            // `fill = false` so the body still measures in an unbounded parent — the
+            // tests render this composable on its own, without a height to divide up.
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Space.pad),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         AmountDisplay(
             state = state,
             onWhereTapped = onWhereTapped,
@@ -261,22 +242,29 @@ internal fun AddExpenseContent(
             onRemoveSplitPerson = onRemoveSplitPerson,
         )
 
-        state.error?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
+            Spacer(Modifier.height(Space.sm))
         }
 
-        DivaButton(
-            text = if (state.isSaving) "Saving…" else "Add expense",
-            onClick = onSave,
-            enabled = state.canSave,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(8.dp))
+        // Pinned rather than scrolled to: the amount is entered on the keypad above it,
+        // so the commit has to stay reachable without scrolling back down.
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
+            verticalArrangement = Arrangement.spacedBy(Space.sm),
+        ) {
+            state.error?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            DivaButton(
+                text = if (state.isSaving) "Saving…" else "Add expense",
+                onClick = onSave,
+                enabled = state.canSave,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -299,11 +287,18 @@ private fun AmountDisplay(
     ) {
         Text(
             text = formatCurrency(amount ?: 0.0),
-            style = MaterialTheme.typography.displayLarge,
+            // NumericStyle, not a display slot: the figure changes a digit at a time as
+            // the keypad is used, and tabular figures stop it jittering sideways.
+            style = NumericStyle.copy(
+                fontSize = 48.sp,
+                lineHeight = 56.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-1).sp,
+            ),
             // Greyed until there is a real figure, so the zero reads as a placeholder
             // rather than as an amount someone might save by accident.
             color = if (amount == null || amount == 0.0) {
-                diva.muted
+                diva.muted.copy(alpha = 0.6f)
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
@@ -771,7 +766,7 @@ private fun SplitSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Split this bill", style = MaterialTheme.typography.labelLarge)
-        Switch(checked = state.splitEnabled, onCheckedChange = onSplitToggled)
+        DivaSwitch(checked = state.splitEnabled, onCheckedChange = onSplitToggled)
     }
 
     if (!state.splitEnabled) return

@@ -1,23 +1,17 @@
 package com.divafinance.feature.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.CreditCard
@@ -36,18 +30,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.adaptive.DivaGroupedSection
+import com.divafinance.core.ui.adaptive.DivaListRow
+import com.divafinance.core.ui.adaptive.DivaListScaffold
+import com.divafinance.core.ui.adaptive.DivaRowDivider
+import com.divafinance.core.ui.adaptive.divaContentPadding
 import com.divafinance.core.ui.component.AvatarRing
 import com.divafinance.core.ui.component.BudgetTrack
 import com.divafinance.core.ui.component.CategoryTile
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaOutlinedButton
-import com.divafinance.core.ui.component.Hairline
 import com.divafinance.core.ui.component.Meta
 import com.divafinance.core.ui.component.SectionHeader
-import com.divafinance.core.ui.component.StatusBarSpacer
 import com.divafinance.core.ui.component.color
 import com.divafinance.core.ui.component.initialsOf
 import com.divafinance.core.ui.theme.NumericStyle
@@ -74,49 +70,55 @@ fun YouScreen(
     onOpenBackup: () -> Unit = {},
     onOpenAutomation: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    contentPadding: PaddingValues = PaddingValues(bottom = 120.dp),
+    contentPadding: PaddingValues = divaContentPadding(),
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = contentPadding,
-    ) {
-        item { StatusBarSpacer() }
-        item { Identity(state) }
-        item { Stats(state) }
-        item { Actions(onLogExpense = onLogExpense, onOpenBudgets = onOpenBudgets) }
+    DivaListScaffold(title = "You", contentPadding = contentPadding) {
+        item(key = "identity") { Identity(state) }
+        item(key = "stats") { Stats(state) }
+        item(key = "actions") {
+            Actions(onLogExpense = onLogExpense, onOpenBudgets = onOpenBudgets)
+        }
 
-        item {
+        item(key = "budgetHeader") {
             SectionHeader(
                 title = "${state.monthLabel} budget",
                 trailing = "Manage",
                 onTrailingClick = onOpenBudgets,
             )
         }
-        item { BudgetHero(state, onClick = onOpenBudgets) }
+        item(key = "budgetHero") { BudgetHero(state, onClick = onOpenBudgets) }
 
-        items(state.budgets, key = { it.category.name }) { row ->
-            BudgetRowItem(row, onClick = onOpenBudgets)
+        // One section for the whole list, not one card per row: a run of rows separated
+        // by rules is a group, and a card each reads as five unrelated panels.
+        if (state.budgets.isNotEmpty()) {
+            item(key = "budgets") {
+                DivaGroupedSection(Modifier.padding(top = Space.md)) {
+                    state.budgets.forEachIndexed { index, row ->
+                        if (index > 0) DivaRowDivider(startInset = 62.dp)
+                        BudgetRowItem(row, onClick = onOpenBudgets)
+                    }
+                }
+            }
         }
 
-        item { SectionHeader("Everything else") }
-        item {
-            DivaCard(Modifier.padding(horizontal = Space.pad)) {
+        item(key = "everythingElse") {
+            DivaGroupedSection(header = "Everything else") {
                 NavRow(Icons.Outlined.CreditCard, "Cards", "Rules, limits and best-card", onOpenCards)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.PieChart, "Graphs", "Charts and thresholds", onOpenGraphs)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.Groups, "People & debts", "Who owes what", onOpenPeople)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.Map, "Spending map", "Where the money goes", onOpenMap)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.DocumentScanner, "Receipt scanner", "Scan and import", onOpenScanner)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.Backup, "Backup & restore", "Export your archive", onOpenBackup)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.AutoAwesome, "Automations", "Shortcuts and intents", onOpenAutomation)
-                Hairline()
+                DivaRowDivider(startInset = 64.dp)
                 NavRow(Icons.Outlined.Settings, "Settings", "Appearance, server, data", onOpenSettings)
             }
         }
@@ -125,27 +127,19 @@ fun YouScreen(
 
 @Composable
 private fun Identity(state: YouUiState) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.lg),
-        verticalArrangement = Arrangement.spacedBy(Space.md),
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.pad),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.pad),
-        ) {
-            AvatarRing(initialsOf(state.displayName), diva.accent)
-            Column {
-                Text(
-                    state.displayName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                Text(
-                    state.location ?: "Local to this device",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = diva.muted,
-                )
-            }
+        AvatarRing(initialsOf(state.displayName), diva.accent, size = 64.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(state.displayName, style = MaterialTheme.typography.headlineMedium)
+            Text(
+                state.location ?: "Local to this device",
+                style = MaterialTheme.typography.bodySmall,
+                color = diva.muted,
+            )
         }
     }
 }
@@ -153,7 +147,7 @@ private fun Identity(state: YouUiState) {
 @Composable
 private fun Stats(state: YouUiState) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = Space.pad),
+        Modifier.fillMaxWidth().padding(horizontal = Space.pad, vertical = Space.sm),
         horizontalArrangement = Arrangement.spacedBy(Space.pad),
     ) {
         Stat(state.expensesThisYear.toString(), "expenses this year", Modifier.weight(1f))
@@ -174,7 +168,7 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun VerticalHairline() {
-    Box(Modifier.width(1.dp).height(46.dp).background(diva.fgHair))
+    Box(Modifier.width(diva.hairline).height(46.dp).background(diva.separator))
 }
 
 @Composable
@@ -212,7 +206,7 @@ private fun BudgetHero(state: YouUiState, onClick: () -> Unit) {
                     Meta("Left to spend")
                     Text(
                         "${formatCurrency(state.spentThisMonth)} of ${formatCurrency(budget)}",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = diva.muted,
                     )
                 }
@@ -224,7 +218,7 @@ private fun BudgetHero(state: YouUiState, onClick: () -> Unit) {
                 )
                 BudgetTrack(
                     fraction = state.budgetFraction,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.primary,
                     isOver = state.budgetFraction > 1f,
                 )
                 Text(
@@ -244,21 +238,11 @@ private fun BudgetHero(state: YouUiState, onClick: () -> Unit) {
 
 @Composable
 private fun BudgetRowItem(row: BudgetRow, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = Space.pad, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.md),
-    ) {
-        CategoryTile(row.category, size = 38.dp)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(row.category.displayName, style = MaterialTheme.typography.titleSmall)
+    Column {
+        DivaListRow(
+            title = row.category.displayName,
+            leading = { CategoryTile(row.category, size = 34.dp) },
+            trailing = {
                 Text(
                     when {
                         row.left == null -> formatCurrency(row.spent)
@@ -268,45 +252,41 @@ private fun BudgetRowItem(row: BudgetRow, onClick: () -> Unit) {
                     style = NumericStyle,
                     color = if (row.isOver) diva.negative else diva.muted,
                 )
-            }
-            BudgetTrack(
-                fraction = row.fraction,
-                color = row.category.color,
-                isOver = row.isOver,
-                height = 6.dp,
-            )
-        }
+            },
+            onClick = onClick,
+        )
+        BudgetTrack(
+            fraction = row.fraction,
+            color = row.category.color,
+            isOver = row.isOver,
+            height = 6.dp,
+            modifier = Modifier.padding(start = Space.pad, end = Space.pad, bottom = Space.md),
+        )
     }
 }
 
 @Composable
 private fun NavRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = Space.pad, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.md),
-    ) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = diva.muted, modifier = Modifier.size(18.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = diva.muted)
-        }
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = diva.muted,
-            modifier = Modifier.size(20.dp),
-        )
-    }
+    DivaListRow(
+        title = title,
+        subtitle = subtitle,
+        leading = {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        },
+        showChevron = true,
+        onClick = onClick,
+    )
 }

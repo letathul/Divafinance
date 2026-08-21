@@ -13,16 +13,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.model.enums.CapPeriod
 import com.divafinance.core.model.enums.CardNetwork
 import com.divafinance.core.model.enums.RewardType
@@ -39,7 +37,6 @@ import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
 import com.divafinance.core.ui.component.DivaTextField
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditCardScreen(
     onBack: () -> Unit = {},
@@ -47,100 +44,96 @@ fun AddEditCardScreen(
 ) {
     val formState by viewModel.formState.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(if (formState.isEditing) "Edit Card" else "Add Card") },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            },
-        )
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("Card Details", style = MaterialTheme.typography.titleMedium)
-
-            DivaTextField(
-                value = formState.name,
-                onValueChange = viewModel::updateName,
-                label = "Card Name",
-            )
-
-            DivaTextField(
-                value = formState.lastFour,
-                onValueChange = viewModel::updateLastFour,
-                label = "Last 4 Digits",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
-
-            Text("Network", style = MaterialTheme.typography.labelLarge)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
+    DivaScaffold(
+        title = if (formState.isEditing) "Edit Card" else "Add Card",
+        onBack = onBack,
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                CardNetwork.entries.forEach { network ->
-                    CategoryChip(
-                        label = network.displayName,
-                        selected = formState.network == network,
-                        onClick = { viewModel.updateNetwork(network) },
+                Text("Card Details", style = MaterialTheme.typography.titleMedium)
+
+                DivaTextField(
+                    value = formState.name,
+                    onValueChange = viewModel::updateName,
+                    label = "Card Name",
+                )
+
+                DivaTextField(
+                    value = formState.lastFour,
+                    onValueChange = viewModel::updateLastFour,
+                    label = "Last 4 Digits",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+
+                Text("Network", style = MaterialTheme.typography.labelLarge)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    CardNetwork.entries.forEach { network ->
+                        CategoryChip(
+                            label = network.displayName,
+                            selected = formState.network == network,
+                            onClick = { viewModel.updateNetwork(network) },
+                        )
+                    }
+                }
+
+                DivaTextField(
+                    value = formState.creditLimit,
+                    onValueChange = viewModel::updateCreditLimit,
+                    label = "Credit Limit",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+
+                DivaTextField(
+                    value = formState.annualFee,
+                    onValueChange = viewModel::updateAnnualFee,
+                    label = "Annual Fee",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DivaTextField(
+                        value = formState.statementDate,
+                        onValueChange = viewModel::updateStatementDate,
+                        label = "Statement Day",
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    DivaTextField(
+                        value = formState.dueDate,
+                        onValueChange = viewModel::updateDueDate,
+                        label = "Due Day",
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                 }
+
+                Spacer(Modifier.height(8.dp))
+                RewardRulesSection(
+                    rules = formState.rewardRules,
+                    onAddRule = viewModel::addRewardRule,
+                    onRemoveRule = viewModel::removeRewardRule,
+                    onUpdateRule = viewModel::updateRewardRule,
+                )
+
+                Spacer(Modifier.height(16.dp))
             }
 
-            DivaTextField(
-                value = formState.creditLimit,
-                onValueChange = viewModel::updateCreditLimit,
-                label = "Credit Limit",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            DivaButton(
+                text = if (formState.isSaving) "Saving..." else if (formState.isEditing) "Update Card" else "Add Card",
+                onClick = { viewModel.saveCard(onSuccess = onBack) },
+                modifier = Modifier.padding(16.dp),
+                enabled = formState.name.isNotBlank() && !formState.isSaving,
             )
-
-            DivaTextField(
-                value = formState.annualFee,
-                onValueChange = viewModel::updateAnnualFee,
-                label = "Annual Fee",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DivaTextField(
-                    value = formState.statementDate,
-                    onValueChange = viewModel::updateStatementDate,
-                    label = "Statement Day",
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-                DivaTextField(
-                    value = formState.dueDate,
-                    onValueChange = viewModel::updateDueDate,
-                    label = "Due Day",
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-            RewardRulesSection(
-                rules = formState.rewardRules,
-                onAddRule = viewModel::addRewardRule,
-                onRemoveRule = viewModel::removeRewardRule,
-                onUpdateRule = viewModel::updateRewardRule,
-            )
-
-            Spacer(Modifier.height(16.dp))
         }
-
-        DivaButton(
-            text = if (formState.isSaving) "Saving..." else if (formState.isEditing) "Update Card" else "Add Card",
-            onClick = { viewModel.saveCard(onSuccess = onBack) },
-            modifier = Modifier.padding(16.dp),
-            enabled = formState.name.isNotBlank() && !formState.isSaving,
-        )
     }
 }
 

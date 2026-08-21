@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -15,8 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.divafinance.core.ui.theme.diva
+import com.divafinance.core.ui.theme.isCupertino
 
 /** A key on the pad. Operators are visually distinct from digits. */
 sealed interface Key {
@@ -36,6 +41,14 @@ private val KEY_ROWS: List<List<Key>> = listOf(
  * Numeric pad with arithmetic, so an amount can be entered as "12+8.50" or "120/3"
  * without leaving for a calculator. Replaces the soft keyboard entirely — the field it
  * feeds is never focusable.
+ *
+ * Cupertino draws Calculator's circular keys, operators on grey; Material keeps the
+ * rounded-rectangle grid. There is deliberately **no `=` key** on either: the expression
+ * is evaluated live as it is typed, so one would be a no-op.
+ *
+ * The accessibility contract is load-bearing and must not change: the visible label on an
+ * operator is typographic (÷ × − ⌫) while its `contentDescription` is spelled out
+ * ("Divide", "Backspace"), and the add-expense tests select on those descriptions.
  */
 @Composable
 fun CalculatorKeypad(
@@ -43,20 +56,23 @@ fun CalculatorKeypad(
     onOperator: (Char) -> Unit,
     onBackspace: () -> Unit,
     modifier: Modifier = Modifier,
+    keySize: Dp = 60.dp,
 ) {
+    val cupertino = isCupertino
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(if (cupertino) 10.dp else 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         KEY_ROWS.forEach { row ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = if (cupertino) Modifier else Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(if (cupertino) 10.dp else 8.dp),
             ) {
                 row.forEach { key ->
                     KeyButton(
                         key = key,
-                        modifier = Modifier.weight(1f),
+                        modifier = if (cupertino) Modifier.size(keySize) else Modifier.weight(1f),
                         onClick = {
                             when (key) {
                                 is Key.Digit -> onDigit(key.char)
@@ -92,22 +108,24 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
         Key.Backspace -> "Backspace"
     }
 
+    val cupertino = isCupertino
     Surface(
         onClick = onClick,
         modifier = modifier
-            .height(56.dp)
+            .then(if (cupertino) Modifier else Modifier.height(56.dp))
             .semantics { contentDescription = description },
-        shape = MaterialTheme.shapes.medium,
-        color = if (isOperator) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        } else {
-            MaterialTheme.colorScheme.surface
+        shape = if (cupertino) CircleShape else MaterialTheme.shapes.medium,
+        color = if (isOperator) diva.keyFill else diva.card,
+        contentColor = when {
+            // On iOS an operator is the tinted key, not the muted one.
+            isOperator && cupertino -> MaterialTheme.colorScheme.primary
+            isOperator -> diva.muted
+            else -> MaterialTheme.colorScheme.onSurface
         },
-        contentColor = if (isOperator) diva.muted else MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, diva.fgHair),
+        border = if (cupertino) null else BorderStroke(diva.hairline, diva.fgHair),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
