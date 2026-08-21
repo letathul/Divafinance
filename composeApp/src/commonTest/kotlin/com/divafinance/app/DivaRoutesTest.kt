@@ -34,6 +34,7 @@ class DivaRoutesTest {
         assertEquals("graphs/thresholds", DivaRoutes.THRESHOLD_CONFIG)
         assertEquals("map", DivaRoutes.MAP)
         assertEquals("scanner", DivaRoutes.SCANNER)
+        assertEquals("scanner/review/{receiptId}", DivaRoutes.RECEIPT_REVIEW)
         assertEquals("backup", DivaRoutes.BACKUP)
         assertEquals("automation", DivaRoutes.AUTOMATION)
         assertEquals("settings", DivaRoutes.SETTINGS)
@@ -53,6 +54,16 @@ class DivaRoutesTest {
     @Test
     fun transactionDetailRouteFormatting() {
         assertEquals("transactions/detail/t1", DivaRoutes.transactionDetail("t1"))
+    }
+
+    @Test
+    fun receiptReviewRouteMatchesItsPattern() {
+        val built = DivaRoutes.receiptReview("r1")
+        assertEquals("scanner/review/r1", built)
+        assertEquals(
+            DivaRoutes.RECEIPT_REVIEW.split("/").size,
+            built.split("/").size,
+        )
     }
 
     /**

@@ -24,7 +24,7 @@ modules call use cases; they never call repositories through this module.
 | `usecase/feed/` | `GetFeedPostsUseCase`, `PostTransactionToFeedUseCase`, `GenerateDailyInsightUseCase` |
 | `usecase/backup/` | `ExportBackupUseCase`, `ImportBackupUseCase` |
 | `usecase/location/` | `TagTransactionLocationUseCase`, `GetSpendingByLocationUseCase`, `SuggestNearbyPlacesUseCase` |
-| `usecase/scanner/` | `ParseReceiptUseCase`, `ImportStatementUseCase` |
+| `usecase/scanner/` | `ParseReceiptUseCase`, `ImportStatementUseCase`, `ConfirmReceiptUseCase`, `GetReceiptUseCase`, `GetReceiptsUseCase`, and `ReceiptParser` — a pure object holding all the OCR extraction (total, merchant, date). `today` is passed into `parse` so the date sanity window is deterministic; the use case persists, the parser never does. |
 | `engine/NearbyPlaceEngine.kt` | `nearby(history, origin, radiusMetres, limit)` — finds shops the user has already spent at near a point, ranked by visits and distance. Their own history is the whole data source: it works offline and sends location nowhere, but a never-visited shop can't be suggested. Pure, like the other two engines. |
 | `premium/PremiumGate.kt` | `interface PremiumGate { isPremium: Flow<Boolean>; isPremiumNow() }` + `SettingsPremiumGate`, reading `UserSettings.KEY_IS_PREMIUM`. **No billing integration** — nothing sets the flag yet; the boundary exists so premium features aren't written against a concrete implementation. |
 
@@ -40,6 +40,11 @@ Behaviours worth knowing before touching them:
   any removal, or the card stays permanently overstated.
 - `PredictCategoryUseCase` always returns `limit` categories, padding a thin prediction
   from a fixed fallback list so a new install still gets a full chip row.
+- `ReceiptStatus.PROCESSED` means **"linked to a transaction"** and is set only by
+  `ConfirmReceiptUseCase`, which writes both sides of the receipt↔transaction link and saves
+  through `AddTransactionUseCase` so the card balance stays right. `ParseReceiptUseCase` always
+  stores `PENDING` (or `FAILED` when OCR returned nothing), which is what makes a scan
+  resumable from the scanner's history tab.
 
 ## Conventions / gotchas
 

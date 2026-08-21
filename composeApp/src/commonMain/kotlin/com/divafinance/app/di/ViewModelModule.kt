@@ -13,6 +13,7 @@ import com.divafinance.feature.automation.AutomationViewModel
 import com.divafinance.feature.quickadd.QuickAddViewModel
 import com.divafinance.feature.scanner.ScannerViewModel
 import com.divafinance.feature.scanner.ocr.OcrEngine
+import com.divafinance.feature.scanner.review.ReceiptReviewViewModel
 import com.divafinance.feature.settings.AppearanceStore
 import com.divafinance.feature.settings.YouViewModel
 import com.divafinance.feature.settings.SettingsViewModel
@@ -40,7 +41,9 @@ val viewModelModule = module {
     // Period and anchor come from the nav route, so they are passed in rather than resolved.
     viewModel { params -> ReportViewModel(params.get(), params.get(), get(), get()) }
     viewModel { MapViewModel(get(), get()) }
-    viewModel { ScannerViewModel(get(), get(), get()) }
+    viewModel { ScannerViewModel(get(), get(), get(), get()) }
+    // Scoped to one receipt, so the id comes from the nav route rather than the graph.
+    viewModel { params -> ReceiptReviewViewModel(params.get(), get(), get(), get(), get(), get()) }
     viewModel { AutomationViewModel(get()) }
     viewModel { SettingsViewModel(get(), get(), get(), get(), get()) }
 }

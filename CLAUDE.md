@@ -71,8 +71,8 @@ Rules that matter when adding dependencies:
 - Three features break the "no feature→feature edge" rule deliberately:
   `:feature:onboarding` and `:feature:settings` both depend on `:feature:demo`.
   `:feature:settings` is also the only feature depending on `:server`.
-- Three features declare `:core:data` directly (`quickadd`, `settings`, `demo`) because
-  they write through repositories that have no use-case wrapper yet.
+- Four features declare `:core:data` directly (`quickadd`, `settings`, `demo`, `scanner`)
+  because they read or write through repositories that have no use-case wrapper yet.
 - Charts live in `:core:ui` (`component/chart/`) and take neutral `ChartSlice` /
   `ChartPoint` / `ChartBar` types rather than domain ones, so both `:feature:graphs` and
   the period report can render them without `:core:ui` gaining a dependency.

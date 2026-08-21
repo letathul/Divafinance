@@ -1,5 +1,6 @@
 package com.divafinance.feature.scanner
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,43 +10,78 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.divafinance.core.common.toFixed
+import com.divafinance.core.model.Receipt
+import com.divafinance.core.model.enums.ReceiptStatus
+import com.divafinance.core.ui.component.AmountDisplay
 import com.divafinance.core.ui.component.DivaButton
-import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.component.DivaCard
+import com.divafinance.core.ui.component.DivaOutlinedButton
 import com.divafinance.core.ui.component.DivaTextField
 import com.divafinance.core.ui.component.LoadingIndicator
+import com.divafinance.core.ui.component.Meta
+import com.divafinance.core.ui.component.SegmentedControl
+import com.divafinance.core.ui.component.StatPill
+import com.divafinance.core.ui.theme.diva
+import com.divafinance.core.ui.util.formatDate
+import com.divafinance.feature.scanner.capture.ImageSource
+import com.divafinance.feature.scanner.capture.rememberImageCaptureRequester
 import org.koin.compose.viewmodel.koinViewModel
 
+private val TABS = listOf("Scan", "History", "Import")
+
+/**
+ * Two ways to get transactions in without typing them, plus the record of what has been
+ * scanned. `onReviewReceipt` and `onOpenTransaction` default to no-ops so
+ * `:dynamic:scanner_dynamic`, which hosts this screen in a bare Activity with no NavHost,
+ * still compiles.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScannerScreen(
     onBack: () -> Unit = {},
+    onReviewReceipt: (String) -> Unit = {},
+    onOpenTransaction: (String) -> Unit = {},
     viewModel: ScannerViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val receipts by viewModel.receipts.collectAsState()
+    val captureRequester = rememberImageCaptureRequester()
+
+    // The ViewModel decides whether to launch; the launcher lives here because Android needs
+    // an Activity result contract. Keyed on the nonce so every decision is acted on once.
+    LaunchedEffect(uiState.captureRequestNonce) {
+        val source = uiState.pendingSource
+        if (uiState.captureRequestNonce > 0 && source != null) {
+            captureRequester.request(source, viewModel::onImageCaptured)
+        }
+    }
+
+    LaunchedEffect(uiState.reviewReceiptId) {
+        uiState.reviewReceiptId?.let { id ->
+            viewModel.onReviewNavigated()
+            onReviewReceipt(id)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -66,40 +102,31 @@ fun ScannerScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = uiState.currentTab == ScannerTab.RECEIPT,
-                    onClick = { viewModel.switchTab(ScannerTab.RECEIPT) },
-                    label = { Text("Receipt Scanner") },
-                )
-                FilterChip(
-                    selected = uiState.currentTab == ScannerTab.IMPORT,
-                    onClick = { viewModel.switchTab(ScannerTab.IMPORT) },
-                    label = { Text("CSV Import") },
-                )
-            }
+            SegmentedControl(
+                options = TABS,
+                selectedIndex = uiState.currentTab.ordinal,
+                onSelect = { viewModel.switchTab(ScannerTab.entries[it]) },
+            )
             Spacer(Modifier.height(16.dp))
 
             when (uiState.currentTab) {
                 ScannerTab.RECEIPT -> ReceiptScannerContent(
                     uiState = uiState,
                     isOcrAvailable = viewModel.isOcrAvailable(),
-                    onScanImage = { path -> viewModel.scanImage(path) },
-                    onScanDemo = {
-                        viewModel.processOcrResult(
-                            imagePath = "demo_receipt.jpg",
-                            ocrText = "STARBUCKS\n123 Main St\nLatte 5.50\nTotal: \$5.50",
-                        )
-                    },
-                    onClear = { viewModel.clearResult() },
+                    onCapture = viewModel::onCaptureRequested,
+                )
+                ScannerTab.HISTORY -> ReceiptHistoryContent(
+                    receipts = receipts,
+                    onReviewReceipt = onReviewReceipt,
+                    onOpenTransaction = onOpenTransaction,
                 )
                 ScannerTab.IMPORT -> StatementImportContent(
                     uiState = uiState,
-                    onCsvChange = { viewModel.updateCsvContent(it) },
-                    onAccountIdChange = { viewModel.updateAccountId(it) },
-                    onCardIdChange = { viewModel.updateCardId(it) },
-                    onImport = { viewModel.importCsvStatement() },
-                    onClear = { viewModel.clearResult() },
+                    onCsvChange = viewModel::updateCsvContent,
+                    onAccountIdChange = viewModel::updateAccountId,
+                    onCardIdChange = viewModel::updateCardId,
+                    onImport = viewModel::importCsvStatement,
+                    onClear = viewModel::clearResult,
                 )
             }
         }
@@ -110,54 +137,17 @@ fun ScannerScreen(
 private fun ReceiptScannerContent(
     uiState: ScannerUiState,
     isOcrAvailable: Boolean,
-    onScanImage: (String) -> Unit,
-    onScanDemo: () -> Unit,
-    onClear: () -> Unit,
+    onCapture: (ImageSource) -> Unit,
 ) {
-    var imagePath by remember { mutableStateOf("") }
-
     DivaCard {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Receipt Scanner", style = MaterialTheme.typography.titleMedium)
+            Text("Scan a receipt", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
             if (isOcrAvailable) {
                 Text(
-                    "Enter the path to a receipt image to extract merchant name and total amount using OCR.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-
-                DivaTextField(
-                    value = imagePath,
-                    onValueChange = { imagePath = it },
-                    label = "Image path",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-
-                if (uiState.isProcessing) {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        LoadingIndicator()
-                    }
-                } else {
-                    DivaButton(
-                        text = "Scan Receipt",
-                        onClick = { if (imagePath.isNotBlank()) onScanImage(imagePath) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = onScanDemo,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Scan Demo Receipt")
-                    }
-                }
-            } else {
-                Text(
-                    "OCR is not available on this device. Use the demo to preview functionality.",
+                    "Photograph a receipt and we'll read the merchant, total and date off it. " +
+                        "You get to check everything before it's saved.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -169,26 +159,25 @@ private fun ReceiptScannerContent(
                     }
                 } else {
                     DivaButton(
-                        text = "Scan Demo Receipt",
-                        onClick = onScanDemo,
-                        modifier = Modifier.fillMaxWidth(),
+                        text = "Take photo",
+                        onClick = { onCapture(ImageSource.CAMERA) },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    DivaOutlinedButton(
+                        text = "Choose photo",
+                        onClick = { onCapture(ImageSource.PHOTO_LIBRARY) },
                     )
                 }
-            }
-        }
-    }
-
-    uiState.lastReceipt?.let { receipt ->
-        Spacer(Modifier.height(12.dp))
-        DivaCard {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Scan Result", style = MaterialTheme.typography.titleMedium)
+            } else {
+                // No demo path: a fabricated result reads as a working scanner and hides a
+                // genuinely unsupported device.
+                Meta("Receipt scanning isn't available on this device")
                 Spacer(Modifier.height(8.dp))
-                ResultRow("Merchant", receipt.merchantName ?: "Unknown")
-                ResultRow("Total", receipt.totalAmount?.let { "$" + it.toFixed(2) } ?: "Not found")
-                ResultRow("Status", receipt.status.name)
-                Spacer(Modifier.height(12.dp))
-                DivaButton(text = "Clear", onClick = onClear, modifier = Modifier.fillMaxWidth())
+                Text(
+                    "You can still import a statement from the Import tab.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -196,6 +185,87 @@ private fun ReceiptScannerContent(
     uiState.error?.let { error ->
         Spacer(Modifier.height(8.dp))
         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun ReceiptHistoryContent(
+    receipts: List<Receipt>,
+    onReviewReceipt: (String) -> Unit,
+    onOpenTransaction: (String) -> Unit,
+) {
+    if (receipts.isEmpty()) {
+        EmptyReceipts()
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        receipts.forEach { receipt ->
+            ReceiptRow(
+                receipt = receipt,
+                onClick = {
+                    // A receipt already turned into a transaction opens that transaction
+                    // rather than offering to save it a second time.
+                    val transactionId = receipt.transactionId
+                    if (transactionId != null) onOpenTransaction(transactionId)
+                    else onReviewReceipt(receipt.id)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReceiptRow(receipt: Receipt, onClick: () -> Unit) {
+    DivaCard(onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    receipt.merchantName ?: "Unknown merchant",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.height(2.dp))
+                Meta(receipt.date?.let { formatDate(it) } ?: "No date found")
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                receipt.totalAmount?.let { AmountDisplay(amount = it) }
+                    ?: Meta("No total")
+                if (receipt.transactionId == null) {
+                    Spacer(Modifier.height(4.dp))
+                    StatPill(
+                        text = if (receipt.status == ReceiptStatus.FAILED) "Unread" else "Review",
+                        tint = diva.muted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyReceipts() {
+    DivaCard {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                Icons.Outlined.PhotoCamera,
+                contentDescription = null,
+                tint = diva.muted,
+                modifier = Modifier.size(32.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Text("No scans yet", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Receipts you scan will collect here, so you can finish one later.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -275,16 +345,5 @@ private fun StatementImportContent(
     uiState.error?.let { error ->
         Spacer(Modifier.height(8.dp))
         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun ResultRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }

@@ -33,4 +33,9 @@ class FakeReceiptRepository : ReceiptRepository {
     }
 
     fun getReceipts(): List<Receipt> = receipts.value
+
+    /** Seeds without needing a suspend context, mirroring `FakeCardRepository.setCards`. */
+    fun setReceipts(list: List<Receipt>) {
+        receipts.value = list
+    }
 }

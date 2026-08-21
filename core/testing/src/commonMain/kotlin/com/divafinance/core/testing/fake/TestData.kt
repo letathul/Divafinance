@@ -87,6 +87,27 @@ object TestData {
         createdAt = now,
     )
 
+    fun receipt(
+        id: String = "receipt-1",
+        transactionId: String? = null,
+        imagePath: String? = "/images/receipt.jpg",
+        ocrText: String? = "Test Merchant\nTotal: 50.00",
+        merchantName: String? = "Test Merchant",
+        totalAmount: Double? = 50.0,
+        date: LocalDate? = LocalDate(2024, 6, 15),
+        status: ReceiptStatus = ReceiptStatus.PENDING,
+    ) = Receipt(
+        id = id,
+        transactionId = transactionId,
+        imagePath = imagePath,
+        ocrText = ocrText,
+        merchantName = merchantName,
+        totalAmount = totalAmount,
+        date = date,
+        status = status,
+        createdAt = now,
+    )
+
     fun person(
         id: String = "person-1",
         name: String = "Sam",

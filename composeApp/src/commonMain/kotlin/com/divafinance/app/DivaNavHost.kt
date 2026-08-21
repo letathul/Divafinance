@@ -36,6 +36,8 @@ import com.divafinance.feature.quickadd.AddExpenseScreen
 import com.divafinance.feature.quickadd.QuickAddViewModel
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.scanner.ScannerViewModel
+import com.divafinance.feature.scanner.review.ReceiptReviewScreen
+import com.divafinance.feature.scanner.review.ReceiptReviewViewModel
 import com.divafinance.feature.settings.SettingsScreen
 import com.divafinance.feature.settings.SettingsViewModel
 import com.divafinance.feature.settings.YouScreen
@@ -83,6 +85,7 @@ object DivaRoutes {
     const val THRESHOLD_CONFIG = "graphs/thresholds"
     const val MAP = "map"
     const val SCANNER = "scanner"
+    const val RECEIPT_REVIEW = "scanner/review/{receiptId}"
     const val BACKUP = "backup"
     const val AUTOMATION = "automation"
     const val SETTINGS = "settings"
@@ -92,6 +95,8 @@ object DivaRoutes {
     fun personDetail(personId: String) = "people/$personId"
 
     fun transactionDetail(transactionId: String) = "transactions/detail/$transactionId"
+
+    fun receiptReview(receiptId: String) = "scanner/review/$receiptId"
 
     /**
      * A period plus any date inside it. Two segments rather than a start and an end,
@@ -325,7 +330,25 @@ fun DivaNavHost(
             val scannerViewModel: ScannerViewModel = koinViewModel()
             ScannerScreen(
                 onBack = { navController.popBackStack() },
+                onReviewReceipt = { id -> navController.navigate(DivaRoutes.receiptReview(id)) },
+                onOpenTransaction = { id ->
+                    navController.navigate(DivaRoutes.transactionDetail(id))
+                },
                 viewModel = scannerViewModel,
+            )
+        }
+
+        composable(DivaRoutes.RECEIPT_REVIEW) { backStackEntry ->
+            val receiptId = backStackEntry.arguments?.read { getStringOrNull("receiptId") }
+                ?: return@composable
+            val reviewViewModel: ReceiptReviewViewModel =
+                koinViewModel(key = receiptId) { parametersOf(receiptId) }
+            ReceiptReviewScreen(
+                onBack = { navController.popBackStack() },
+                // Saving returns to where the scan started rather than leaving a stale
+                // review form on the back stack.
+                onSaved = { navController.popBackStack(DivaRoutes.SCANNER, inclusive = false) },
+                viewModel = reviewViewModel,
             )
         }
 

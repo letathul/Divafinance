@@ -30,6 +30,9 @@ import com.divafinance.core.domain.usecase.onboarding.CompleteOnboardingUseCase
 import com.divafinance.core.domain.usecase.onboarding.InitializeDatabaseUseCase
 import com.divafinance.core.domain.usecase.onboarding.SetPinUseCase
 import com.divafinance.core.domain.usecase.onboarding.ValidatePinUseCase
+import com.divafinance.core.domain.usecase.scanner.ConfirmReceiptUseCase
+import com.divafinance.core.domain.usecase.scanner.GetReceiptUseCase
+import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
@@ -93,4 +96,7 @@ val domainModule = module {
     // Scanner
     factory { ParseReceiptUseCase(get()) }
     factory { ImportStatementUseCase(get()) }
+    factory { GetReceiptsUseCase(get()) }
+    factory { GetReceiptUseCase(get()) }
+    factory { ConfirmReceiptUseCase(get(), get()) }
 }

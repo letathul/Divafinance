@@ -2,7 +2,10 @@ package com.divafinance.core.domain.usecase.scanner
 
 import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.model.enums.ReceiptStatus
+import kotlin.time.Clock
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -27,7 +30,9 @@ class ParseReceiptUseCaseTest {
         assertEquals("/images/receipt.jpg", result.imagePath)
         assertEquals("Starbucks Coffee", result.merchantName)
         assertEquals(5.50, result.totalAmount)
-        assertEquals(ReceiptStatus.PROCESSED, result.status)
+        // PENDING even though it parsed cleanly — PROCESSED now means "linked to a
+        // transaction", which only ConfirmReceiptUseCase can do.
+        assertEquals(ReceiptStatus.PENDING, result.status)
     }
 
     @Test
@@ -64,5 +69,21 @@ class ParseReceiptUseCaseTest {
         val result = useCase("/img.jpg", "Store\nTotal: $1,234.56")
 
         assertEquals(1234.56, result.totalAmount)
+    }
+
+    @Test
+    fun persistsTheParsedDate() = runTest {
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val result = useCase("/img.jpg", "Store\n$today\nTotal: $10.00")
+
+        assertEquals(today, result.date)
+    }
+
+    @Test
+    fun marksStatusFailedWhenOcrProducedNothing() = runTest {
+        // The engine returns empty text rather than throwing when it can't read an image.
+        val result = useCase("/img.jpg", "")
+
+        assertEquals(ReceiptStatus.FAILED, result.status)
     }
 }
