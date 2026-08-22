@@ -1,6 +1,7 @@
 package com.divafinance.core.domain.usecase.scanner
 
 import com.divafinance.core.testing.fake.FakeReceiptRepository
+import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.model.enums.ReceiptStatus
 import kotlin.time.Clock
 import kotlinx.coroutines.test.runTest
@@ -14,7 +15,7 @@ import kotlin.test.assertNull
 class ParseReceiptUseCaseTest {
 
     private val receiptRepo = FakeReceiptRepository()
-    private val useCase = ParseReceiptUseCase(receiptRepo)
+    private val useCase = ParseReceiptUseCase(receiptRepo, FakeSettingsRepository())
 
     @Test
     fun parsesReceiptWithTotal() = runTest {

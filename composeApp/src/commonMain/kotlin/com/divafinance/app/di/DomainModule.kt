@@ -94,7 +94,7 @@ val domainModule = module {
     factory { GenerateDailyInsightUseCase(get(), get()) }
 
     // Scanner
-    factory { ParseReceiptUseCase(get()) }
+    factory { ParseReceiptUseCase(get(), get(), get()) }
     factory { ImportStatementUseCase(get()) }
     factory { GetReceiptsUseCase(get()) }
     factory { GetReceiptUseCase(get()) }

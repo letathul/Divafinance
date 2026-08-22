@@ -2,6 +2,7 @@ package com.divafinance.feature.scanner.review
 
 import com.divafinance.core.data.repository.TransactionRepository
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
+import com.divafinance.core.domain.usecase.cards.GetBestCardForCategoryUseCase
 import com.divafinance.core.domain.usecase.scanner.ConfirmReceiptUseCase
 import com.divafinance.core.domain.usecase.scanner.GetReceiptUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
@@ -9,6 +10,7 @@ import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.model.enums.ReceiptStatus
 import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeReceiptRepository
+import com.divafinance.core.testing.fake.FakeRewardRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.testing.fake.TestData
@@ -40,6 +42,7 @@ class ReceiptReviewViewModelTest {
     private val transactionRepo = FakeTransactionRepository()
     private val cardRepo = FakeCardRepository()
     private val settingsRepo = FakeSettingsRepository()
+    private val rewardRepo = FakeRewardRepository()
 
     private fun viewModel(
         receiptId: String = "r1",
@@ -54,6 +57,7 @@ class ReceiptReviewViewModelTest {
         predictCategory = PredictCategoryUseCase(transactionRepo),
         getAllCards = GetAllCardsUseCase(cardRepo),
         settingsRepository = settingsRepo,
+        getBestCard = GetBestCardForCategoryUseCase(cardRepo, rewardRepo, settingsRepo),
     )
 
     @Test

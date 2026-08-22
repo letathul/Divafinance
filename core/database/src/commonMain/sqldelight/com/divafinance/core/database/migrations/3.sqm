@@ -1,0 +1,29 @@
+-- v3 -> v4
+--
+-- Richer receipts: the amounts a receipt prints besides the total, the currency it was
+-- printed in, the extra pages of a multi-page scan, and the purchased items themselves.
+--
+-- Every statement here is mirrored in DivaFinance.sq, which is what fresh installs run via
+-- Schema.create(); this file is what existing installs run via Schema.migrate().
+-- verifyMigrations fails the build if the two disagree.
+--
+-- All five columns are nullable: an existing receipt was parsed by a version that could not
+-- read any of them, and "not recorded" is the honest value rather than 0.0. The columns land
+-- at the end of the table, so DivaFinance.sq declares them last too.
+ALTER TABLE Receipt ADD COLUMN subtotal_amount REAL;
+ALTER TABLE Receipt ADD COLUMN tax_amount REAL;
+ALTER TABLE Receipt ADD COLUMN tip_amount REAL;
+ALTER TABLE Receipt ADD COLUMN currency TEXT;
+ALTER TABLE Receipt ADD COLUMN page_paths TEXT;
+
+CREATE TABLE ReceiptLineItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    receipt_id TEXT NOT NULL REFERENCES Receipt(id),
+    position INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    quantity REAL,
+    unit_price REAL,
+    total_price REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_line_item_receipt ON ReceiptLineItem(receipt_id);

@@ -23,8 +23,14 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.mlkit.text.recognition)
+            // Edge detection, auto-shutter, perspective correction, crop editor and
+            // multi-page — all of it delivered by Play services rather than built here.
+            implementation(libs.mlkit.document.scanner)
             // Camera and photo-picker result launchers.
             implementation(libs.androidx.activity.compose)
+            // Phone cameras record orientation in EXIF instead of rotating pixels; without
+            // this the OCR pass reads every portrait photo sideways.
+            implementation(libs.androidx.exifinterface)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

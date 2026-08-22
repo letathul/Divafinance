@@ -4,6 +4,7 @@ import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
 import com.divafinance.core.testing.fake.FakeReceiptRepository
+import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.testing.installTestMainDispatcher
@@ -33,7 +34,7 @@ class ScannerViewModelTest {
     private val transactionRepo = FakeTransactionRepository()
 
     private fun viewModel() = ScannerViewModel(
-        ParseReceiptUseCase(receiptRepo),
+        ParseReceiptUseCase(receiptRepo, FakeSettingsRepository()),
         ImportStatementUseCase(transactionRepo),
         GetReceiptsUseCase(receiptRepo),
     )

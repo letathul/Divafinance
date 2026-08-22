@@ -101,6 +101,19 @@ class BackupRepositoryImpl(
                 date = row.date?.let { LocalDate.parse(it) },
                 status = runCatching { ReceiptStatus.valueOf(row.status) }.getOrDefault(ReceiptStatus.PENDING),
                 createdAt = Instant.parse(row.created_at),
+                subtotalAmount = row.subtotal_amount, taxAmount = row.tax_amount,
+                tipAmount = row.tip_amount, currency = row.currency,
+                pagePaths = row.page_paths?.split("\n")?.filter { it.isNotBlank() }.orEmpty(),
+                lineItems = db.receiptLineItemQueries.selectByReceipt(row.id)
+                    .executeAsList()
+                    .map { item ->
+                        ReceiptLineItem(
+                            id = item.id, receiptId = item.receipt_id,
+                            position = item.position.toInt(), description = item.description,
+                            quantity = item.quantity, unitPrice = item.unit_price,
+                            totalPrice = item.total_price,
+                        )
+                    },
             )
         }
 
@@ -147,7 +160,11 @@ class BackupRepositoryImpl(
                 db.ledgerEntryQueries.selectAll().executeAsList().forEach { db.ledgerEntryQueries.delete(it.id) }
                 db.personQueries.selectAll().executeAsList().forEach { db.personQueries.delete(it.id) }
                 db.feedPostQueries.deleteOlderThan("9999-12-31T23:59:59Z")
-                db.receiptQueries.selectAll().executeAsList().forEach { db.receiptQueries.delete(it.id) }
+                db.receiptQueries.selectAll().executeAsList().forEach {
+                    // Items first — they reference the receipt they belong to.
+                    db.receiptLineItemQueries.deleteByReceipt(it.id)
+                    db.receiptQueries.delete(it.id)
+                }
                 db.transactionQueries.selectAll().executeAsList().forEach { db.transactionQueries.delete(it.id) }
                 db.rewardRuleQueries.selectAll().executeAsList().forEach { db.rewardRuleQueries.delete(it.id) }
                 db.creditCardQueries.selectAll().executeAsList().forEach { db.creditCardQueries.delete(it.id) }
@@ -222,7 +239,19 @@ class BackupRepositoryImpl(
                     merchant_name = receipt.merchantName, total_amount = receipt.totalAmount,
                     date = receipt.date?.toString(), status = receipt.status.name,
                     created_at = receipt.createdAt.toString(),
+                    subtotal_amount = receipt.subtotalAmount, tax_amount = receipt.taxAmount,
+                    tip_amount = receipt.tipAmount, currency = receipt.currency,
+                    // An archive written before multi-page scans has no extra pages, which is
+                    // the same thing an empty list means.
+                    page_paths = receipt.pagePaths.takeIf { it.isNotEmpty() }?.joinToString("\n"),
                 )
+                receipt.lineItems.forEachIndexed { index, item ->
+                    db.receiptLineItemQueries.insert(
+                        id = item.id, receipt_id = receipt.id, position = index.toLong(),
+                        description = item.description, quantity = item.quantity,
+                        unit_price = item.unitPrice, total_price = item.totalPrice,
+                    )
+                }
             }
 
             archive.feedPosts.forEach { post ->

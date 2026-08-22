@@ -3,6 +3,7 @@ package com.divafinance.feature.scanner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
+import com.divafinance.core.domain.usecase.scanner.OcrLine
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
 import com.divafinance.core.model.Receipt
@@ -20,6 +21,8 @@ import kotlinx.coroutines.launch
 data class ScannerUiState(
     val currentTab: ScannerTab = ScannerTab.RECEIPT,
     val isProcessing: Boolean = false,
+    /** "Reading page 2 of 3…" — null for a single page, where the spinner says enough. */
+    val scanProgress: String? = null,
     val error: String? = null,
     /**
      * Bumped whenever the OS camera or picker should be launched. Carried as a value rather
@@ -83,34 +86,62 @@ class ScannerViewModel(
                     error = result.message,
                 )
 
-            is ImageCaptureResult.Success -> scanImage(result.path)
+            is ImageCaptureResult.Success -> scanImages(result.paths)
         }
     }
 
-    private fun scanImage(imagePath: String) {
+    /**
+     * A document scan can return several pages of one receipt. They are recognised in order and
+     * concatenated before a single parse, so the totals block on the last page is read in the
+     * context of the merchant header on the first — parsing per page and merging afterwards
+     * would give every page an equal claim to being "the" total.
+     */
+    private fun scanImages(imagePaths: List<String>) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isProcessing = true,
                 error = null,
                 pendingSource = null,
+                scanProgress = progressLabel(0, imagePaths.size),
             )
             try {
-                // An unavailable engine returns empty text rather than throwing, which
-                // ParseReceiptUseCase records as a FAILED receipt — still reviewable by hand.
-                val ocrResult = ocrEngine.recognizeText(imagePath)
-                val receipt = parseReceipt(imagePath, ocrResult.fullText)
+                val texts = mutableListOf<String>()
+                val lines = mutableListOf<OcrLine>()
+                imagePaths.forEachIndexed { index, path ->
+                    _uiState.value = _uiState.value.copy(
+                        scanProgress = progressLabel(index, imagePaths.size),
+                    )
+                    // An unavailable engine returns empty text rather than throwing, which
+                    // ParseReceiptUseCase records as a FAILED receipt — still reviewable by hand.
+                    val ocrResult = ocrEngine.recognizeText(path)
+                    texts += ocrResult.fullText
+                    // Only single-page geometry is meaningful: two pages' coordinates both span
+                    // 0..1 and would interleave into rows that never existed.
+                    if (imagePaths.size == 1) lines += ocrResult.lines
+                }
+                val receipt = parseReceipt(
+                    imagePath = imagePaths.first(),
+                    ocrText = texts.joinToString("\n"),
+                    lines = lines,
+                    additionalPagePaths = imagePaths.drop(1),
+                )
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
+                    scanProgress = null,
                     reviewReceiptId = receipt.id,
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
+                    scanProgress = null,
                     error = e.message ?: "Failed to scan image",
                 )
             }
         }
     }
+
+    private fun progressLabel(index: Int, total: Int): String? =
+        if (total <= 1) null else "Reading page ${index + 1} of $total…"
 
     /** Clears the navigation signal so returning from the review step doesn't re-fire it. */
     fun onReviewNavigated() {

@@ -39,6 +39,7 @@ import com.divafinance.core.ui.component.StatPill
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.util.formatDate
 import com.divafinance.feature.scanner.capture.ImageSource
+import com.divafinance.feature.scanner.capture.isDocumentScanSupported
 import com.divafinance.feature.scanner.capture.rememberImageCaptureRequester
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -60,6 +61,7 @@ fun ScannerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val receipts by viewModel.receipts.collectAsState()
     val captureRequester = rememberImageCaptureRequester()
+    val canScanDocument = isDocumentScanSupported()
 
     // The ViewModel decides whether to launch; the launcher lives here because Android needs
     // an Activity result contract. Keyed on the nonce so every decision is acted on once.
@@ -99,6 +101,7 @@ fun ScannerScreen(
                 ScannerTab.RECEIPT -> ReceiptScannerContent(
                     uiState = uiState,
                     isOcrAvailable = viewModel.isOcrAvailable(),
+                    canScanDocument = canScanDocument,
                     onCapture = viewModel::onCaptureRequested,
                 )
                 ScannerTab.HISTORY -> ReceiptHistoryContent(
@@ -123,6 +126,7 @@ fun ScannerScreen(
 private fun ReceiptScannerContent(
     uiState: ScannerUiState,
     isOcrAvailable: Boolean,
+    canScanDocument: Boolean,
     onCapture: (ImageSource) -> Unit,
 ) {
     DivaCard {
@@ -132,8 +136,14 @@ private fun ReceiptScannerContent(
 
             if (isOcrAvailable) {
                 Text(
-                    "Photograph a receipt and we'll read the merchant, total and date off it. " +
-                        "You get to check everything before it's saved.",
+                    if (canScanDocument) {
+                        "Hold the receipt in frame and it'll capture, straighten and crop " +
+                            "itself — several pages if the receipt is long. You get to check " +
+                            "everything before it's saved."
+                    } else {
+                        "Photograph a receipt and we'll read the merchant, total and date " +
+                            "off it. You get to check everything before it's saved."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -141,13 +151,35 @@ private fun ReceiptScannerContent(
 
                 if (uiState.isProcessing) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        LoadingIndicator()
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            LoadingIndicator()
+                            // Only set for a multi-page scan, where the wait is long enough
+                            // that a bare spinner reads as a hang.
+                            uiState.scanProgress?.let {
+                                Spacer(Modifier.height(8.dp))
+                                Meta(it)
+                            }
+                        }
                     }
                 } else {
-                    DivaButton(
-                        text = "Take photo",
-                        onClick = { onCapture(ImageSource.CAMERA) },
-                    )
+                    // The document scanner is the primary action where it exists: it does the
+                    // framing, cropping and de-skewing that a plain photo leaves to OCR.
+                    if (canScanDocument) {
+                        DivaButton(
+                            text = "Scan receipt",
+                            onClick = { onCapture(ImageSource.DOCUMENT_SCAN) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        DivaOutlinedButton(
+                            text = "Take photo",
+                            onClick = { onCapture(ImageSource.CAMERA) },
+                        )
+                    } else {
+                        DivaButton(
+                            text = "Take photo",
+                            onClick = { onCapture(ImageSource.CAMERA) },
+                        )
+                    }
                     Spacer(Modifier.height(8.dp))
                     DivaOutlinedButton(
                         text = "Choose photo",

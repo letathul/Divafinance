@@ -43,7 +43,9 @@ val viewModelModule = module {
     viewModel { MapViewModel(get(), get()) }
     viewModel { ScannerViewModel(get(), get(), get(), get()) }
     // Scoped to one receipt, so the id comes from the nav route rather than the graph.
-    viewModel { params -> ReceiptReviewViewModel(params.get(), get(), get(), get(), get(), get()) }
+    viewModel { params ->
+        ReceiptReviewViewModel(params.get(), get(), get(), get(), get(), get(), get())
+    }
     viewModel { AutomationViewModel(get()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get()) }
 }

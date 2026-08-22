@@ -3,8 +3,8 @@ package com.divafinance.feature.scanner.capture
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.CoreGraphics.CGFloat
 import platform.Foundation.NSData
+import platform.Foundation.NSError
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSItemProvider
@@ -27,6 +27,9 @@ import platform.UIKit.UIImagePickerControllerSourceType
 import platform.UIKit.UINavigationController
 import platform.UIKit.UINavigationControllerDelegateProtocol
 import platform.UIKit.UIViewController
+import platform.VisionKit.VNDocumentCameraScan
+import platform.VisionKit.VNDocumentCameraViewController
+import platform.VisionKit.VNDocumentCameraViewControllerDelegateProtocol
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -44,12 +47,17 @@ actual fun rememberImageCaptureRequester(): ImageCaptureRequester {
     }
 }
 
+@Composable
+actual fun isDocumentScanSupported(): Boolean =
+    remember { VNDocumentCameraViewController.isSupported() }
+
 @OptIn(ExperimentalForeignApi::class)
 private class IosImageCaptureHolder {
 
     private var onResult: ((ImageCaptureResult) -> Unit)? = null
     private var cameraDelegate: CameraDelegate? = null
     private var pickerDelegate: PickerDelegate? = null
+    private var scannerDelegate: ScannerDelegate? = null
 
     fun request(source: ImageSource, callback: (ImageCaptureResult) -> Unit) {
         onResult = callback
@@ -59,9 +67,28 @@ private class IosImageCaptureHolder {
             return
         }
         when (source) {
+            ImageSource.DOCUMENT_SCAN -> presentScanner(presenter)
             ImageSource.CAMERA -> presentCamera(presenter)
             ImageSource.PHOTO_LIBRARY -> presentLibrary(presenter)
         }
+    }
+
+    /**
+     * VisionKit's own scanner: it finds the page edges, fires the shutter when the receipt is
+     * square in frame, corrects the perspective and lets the user retake or crop — the same
+     * feature set the Android side gets from ML Kit, and multi-page for free.
+     */
+    private fun presentScanner(presenter: UIViewController) {
+        if (!VNDocumentCameraViewController.isSupported()) {
+            // No camera, so no scanner; the simulator lands here.
+            finish(ImageCaptureResult.Failed("Document scanning isn't available on this device"))
+            return
+        }
+        val controller = VNDocumentCameraViewController()
+        val delegate = ScannerDelegate(this)
+        scannerDelegate = delegate
+        controller.delegate = delegate
+        presenter.presentViewController(controller, animated = true, completion = null)
     }
 
     private fun presentCamera(presenter: UIViewController) {
@@ -92,23 +119,40 @@ private class IosImageCaptureHolder {
 
     fun onImage(image: UIImage?) {
         val data = image?.let { UIImageJPEGRepresentation(it, JPEG_QUALITY) }
-        finish(writeToDisk(data))
+        finish(writeToDisk(listOfNotNull(data)))
     }
 
-    fun onData(data: NSData?) = finish(writeToDisk(data))
+    fun onData(data: NSData?) = finish(writeToDisk(listOfNotNull(data)))
+
+    fun onPages(images: List<UIImage>) {
+        finish(writeToDisk(images.mapNotNull { UIImageJPEGRepresentation(it, JPEG_QUALITY) }))
+    }
 
     fun onCancelled() = finish(ImageCaptureResult.Cancelled)
 
-    private fun writeToDisk(data: NSData?): ImageCaptureResult {
-        if (data == null) return ImageCaptureResult.Failed("Couldn't read that image")
+    fun onFailed(message: String) = finish(ImageCaptureResult.Failed(message))
+
+    /**
+     * All or nothing: half a multi-page receipt would parse into a total the user never paid,
+     * so a page that fails to write discards the ones already written with it.
+     */
+    private fun writeToDisk(pages: List<NSData>): ImageCaptureResult {
+        if (pages.isEmpty()) return ImageCaptureResult.Failed("Couldn't read that image")
         val directory = receiptDirectory()
             ?: return ImageCaptureResult.Failed("Couldn't save that image")
-        val path = "$directory/receipt-${NSUUID().UUIDString}.jpg"
-        return if (data.writeToFile(path, atomically = true)) {
-            ImageCaptureResult.Success(path)
-        } else {
-            ImageCaptureResult.Failed("Couldn't save that image")
+
+        val written = mutableListOf<String>()
+        for (data in pages) {
+            val path = "$directory/receipt-${NSUUID().UUIDString}.jpg"
+            if (!data.writeToFile(path, atomically = true)) {
+                written.forEach {
+                    NSFileManager.defaultManager.removeItemAtPath(it, error = null)
+                }
+                return ImageCaptureResult.Failed("Couldn't save that image")
+            }
+            written += path
         }
+        return ImageCaptureResult.Success(written)
     }
 
     /**
@@ -120,6 +164,7 @@ private class IosImageCaptureHolder {
         onResult = null
         cameraDelegate = null
         pickerDelegate = null
+        scannerDelegate = null
         dispatch_async(dispatch_get_main_queue()) { callback?.invoke(result) }
     }
 
@@ -179,8 +224,41 @@ private class PickerDelegate(
     }
 }
 
+@OptIn(ExperimentalForeignApi::class)
+private class ScannerDelegate(
+    private val holder: IosImageCaptureHolder,
+) : NSObject(), VNDocumentCameraViewControllerDelegateProtocol {
+
+    override fun documentCameraViewController(
+        controller: VNDocumentCameraViewController,
+        didFinishWithScan: VNDocumentCameraScan,
+    ) {
+        // The scan object is only valid until the controller goes away, so the pages are
+        // pulled out before dismissing rather than in the completion block.
+        val pages = (0uL until didFinishWithScan.pageCount).mapNotNull {
+            didFinishWithScan.imageOfPageAtIndex(it)
+        }
+        controller.dismissViewControllerAnimated(true) { holder.onPages(pages) }
+    }
+
+    override fun documentCameraViewControllerDidCancel(
+        controller: VNDocumentCameraViewController,
+    ) {
+        controller.dismissViewControllerAnimated(true) { holder.onCancelled() }
+    }
+
+    override fun documentCameraViewController(
+        controller: VNDocumentCameraViewController,
+        didFailWithError: NSError,
+    ) {
+        controller.dismissViewControllerAnimated(true) {
+            holder.onFailed(didFailWithError.localizedDescription)
+        }
+    }
+}
+
 // File scope rather than a companion: Kotlin/Native forbids fields on the companion of an
-// ObjC-derived class, which both delegates are.
+// ObjC-derived class, which all three delegates are.
 private const val PUBLIC_IMAGE = "public.image"
 
 /** Walks past anything already presented, or the picker is attached to a hidden controller. */

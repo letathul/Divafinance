@@ -38,10 +38,12 @@ navigation-compose = "2.9.0"
 lifecycle-viewmodel = "2.9.6"
 
 androidx-activity-compose = "1.9.3"
+androidx-exifinterface = "1.3.7"
 play-feature-delivery = "2.1.0"
 play-feature-delivery-ktx = "2.1.0"
 
 mlkit-text-recognition = "16.0.1"
+mlkit-document-scanner = "16.0.0"
 maps-compose = "6.2.1"
 play-services-maps = "19.0.0"
 
@@ -88,6 +90,7 @@ lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecyc
 
 # AndroidX
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "androidx-exifinterface" }
 
 # Play Feature Delivery
 play-feature-delivery = { module = "com.google.android.play:feature-delivery", version.ref = "play-feature-delivery" }
@@ -95,6 +98,9 @@ play-feature-delivery-ktx = { module = "com.google.android.play:feature-delivery
 
 # ML Kit
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-text-recognition" }
+# Play-services delivered, so the scanner UI is not in the APK — the same reasoning that put
+# text recognition behind an on-demand split.
+mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "mlkit-document-scanner" }
 
 # Google Maps
 maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "maps-compose" }

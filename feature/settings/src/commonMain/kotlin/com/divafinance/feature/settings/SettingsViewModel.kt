@@ -3,6 +3,8 @@ package com.divafinance.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.divafinance.core.data.repository.SettingsRepository
+import com.divafinance.core.domain.usecase.scanner.ExtractorAvailability
+import com.divafinance.core.domain.usecase.scanner.ReceiptExtractor
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.LocationCaptureMode
 import com.divafinance.core.ui.theme.AccentTheme
@@ -33,6 +35,15 @@ data class SettingsUiState(
      * neither option as chosen until then.
      */
     val locationCaptureMode: LocationCaptureMode? = null,
+    /**
+     * Whether this device has an on-device language model that can read a receipt. The
+     * section is hidden outright when it hasn't — a switch that cannot do anything is worse
+     * than no switch.
+     */
+    val isSmartReadingSupported: Boolean = false,
+    val isSmartReadingEnabled: Boolean = true,
+    /** True while the system is still fetching the model, so the row can say so. */
+    val isSmartReadingDownloading: Boolean = false,
     /** The demo section only exists while the demo is active; removal is one-way. */
     val isDemoActive: Boolean = false,
     val isRemovingDemo: Boolean = false,
@@ -51,6 +62,7 @@ class SettingsViewModel(
     private val divaServer: DivaServer,
     private val serverLauncher: ServerLauncher,
     private val demoDataManager: DemoDataManager,
+    private val receiptExtractor: ReceiptExtractor,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -69,11 +81,20 @@ class SettingsViewModel(
                 ?: ServerConfig().port
             val captureMode = settingsRepository.get(UserSettings.KEY_LOCATION_CAPTURE_MODE)
                 ?.let { stored -> LocationCaptureMode.entries.firstOrNull { it.name == stored } }
+            val availability = runCatching { receiptExtractor.availability() }
+                .getOrDefault(ExtractorAvailability.UNSUPPORTED)
+            // Absent means on: the row is only reachable where a model exists.
+            val smartReading = settingsRepository.get(UserSettings.KEY_SMART_RECEIPT_READING)
+                ?.toBooleanStrictOrNull() ?: true
             _uiState.update {
                 it.copy(
                     currency = currency,
                     serverPort = port,
                     locationCaptureMode = captureMode,
+                    isSmartReadingSupported = availability != ExtractorAvailability.UNSUPPORTED,
+                    isSmartReadingDownloading =
+                        availability == ExtractorAvailability.DOWNLOADING,
+                    isSmartReadingEnabled = smartReading,
                     isDemoActive = demoDataManager.status() == DemoStatus.ACTIVE,
                 )
             }
@@ -116,6 +137,18 @@ class SettingsViewModel(
             _uiState.update { it.copy(isRemovingDemo = true) }
             demoDataManager.clear()
             _uiState.update { it.copy(isRemovingDemo = false, isDemoActive = false) }
+        }
+    }
+
+    /**
+     * Persisted one-shot rather than through a reactive store: the only reader is
+     * `ParseReceiptUseCase`, which looks it up when a scan happens, so nothing is observing
+     * it that would need to be told.
+     */
+    fun setSmartReading(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.set(UserSettings.KEY_SMART_RECEIPT_READING, enabled.toString())
+            _uiState.update { it.copy(isSmartReadingEnabled = enabled) }
         }
     }
 

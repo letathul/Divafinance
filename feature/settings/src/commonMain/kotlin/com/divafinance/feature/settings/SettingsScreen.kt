@@ -71,6 +71,11 @@ fun SettingsScreen(
     /** Null until the user has been asked, which leaves both options unselected. */
     locationCaptureMode: LocationCaptureMode? = null,
     onLocationCaptureModeChange: (LocationCaptureMode) -> Unit = {},
+    /** False on every device with no on-device language model, which hides the row. */
+    isSmartReadingSupported: Boolean = false,
+    isSmartReadingEnabled: Boolean = true,
+    isSmartReadingDownloading: Boolean = false,
+    onSmartReadingChange: (Boolean) -> Unit = {},
 ) {
     var confirmRemoveDemo by remember { mutableStateOf(false) }
 
@@ -120,6 +125,14 @@ fun SettingsScreen(
                 mode = locationCaptureMode,
                 onModeChange = onLocationCaptureModeChange,
             )
+
+            if (isSmartReadingSupported) {
+                SmartReadingSection(
+                    enabled = isSmartReadingEnabled,
+                    isDownloading = isSmartReadingDownloading,
+                    onChange = onSmartReadingChange,
+                )
+            }
 
             DivaGroupedSection(header = "Data") {
                 DivaListRow(
@@ -232,6 +245,41 @@ private fun DemoSection(isRemovingDemo: Boolean, onRemove: () -> Unit) {
  * There is no off switch because "only when I tap" already is one: nothing is read until
  * the place line is tapped, and the OS permission is a separate gate on top.
  */
+/**
+ * Only rendered where a model exists. The footer says where the work happens because that is
+ * the question the feature raises — an app that reads your receipts with "AI" has to be
+ * explicit that nothing left the phone.
+ */
+@Composable
+private fun SmartReadingSection(
+    enabled: Boolean,
+    isDownloading: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    DivaGroupedSection(
+        header = "Receipts",
+        footer = "Runs on this device using Apple's built-in model. Nothing is uploaded. " +
+            "The amount, date and merchant still come from the receipt itself — the model " +
+            "only fills in what couldn't be read.",
+    ) {
+        DivaListRow(
+            title = "Smart receipt reading",
+            subtitle = when {
+                isDownloading -> "Preparing the model…"
+                enabled -> "Also pick out items, tax and tip"
+                else -> "Read receipts with the built-in rules only"
+            },
+            trailing = {
+                DivaSwitch(
+                    checked = enabled,
+                    onCheckedChange = onChange,
+                    enabled = !isDownloading,
+                )
+            },
+        )
+    }
+}
+
 @Composable
 private fun LocationSection(
     mode: LocationCaptureMode?,

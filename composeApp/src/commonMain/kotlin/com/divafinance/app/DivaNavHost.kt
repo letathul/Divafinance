@@ -390,6 +390,10 @@ fun DivaNavHost(
                 onAccentChange = settingsViewModel::setAccent,
                 locationCaptureMode = settingsState.locationCaptureMode,
                 onLocationCaptureModeChange = settingsViewModel::setLocationCaptureMode,
+                isSmartReadingSupported = settingsState.isSmartReadingSupported,
+                isSmartReadingEnabled = settingsState.isSmartReadingEnabled,
+                isSmartReadingDownloading = settingsState.isSmartReadingDownloading,
+                onSmartReadingChange = settingsViewModel::setSmartReading,
             )
         }
     }

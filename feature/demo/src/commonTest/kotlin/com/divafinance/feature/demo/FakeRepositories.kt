@@ -18,6 +18,7 @@ import com.divafinance.core.model.GraphThreshold
 import com.divafinance.core.model.LedgerEntry
 import com.divafinance.core.model.Person
 import com.divafinance.core.model.Receipt
+import com.divafinance.core.model.ReceiptLineItem
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.FeedPostType
@@ -122,9 +123,18 @@ class FakeReceiptRepository : ReceiptRepository {
         items.value.find { it.transactionId == transactionId }
     override suspend fun getByStatus(status: ReceiptStatus) =
         items.value.filter { it.status == status }
+    // The demo dataset seeds no receipts and never reads line items, so these two carry the
+    // items on the receipt itself rather than modelling the real split storage.
+    override suspend fun getLineItems(receiptId: String) =
+        items.value.find { it.id == receiptId }?.lineItems.orEmpty()
     override suspend fun insert(receipt: Receipt) { items.value = items.value + receipt }
     override suspend fun update(receipt: Receipt) {
         items.value = items.value.map { if (it.id == receipt.id) receipt else it }
+    }
+    override suspend fun replaceLineItems(receiptId: String, items0: List<ReceiptLineItem>) {
+        items.value = items.value.map {
+            if (it.id == receiptId) it.copy(lineItems = items0) else it
+        }
     }
     override suspend fun delete(id: String) { items.value = items.value.filterNot { it.id == id } }
 }

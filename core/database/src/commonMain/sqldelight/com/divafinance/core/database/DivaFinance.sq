@@ -82,8 +82,31 @@ CREATE TABLE Receipt (
     total_amount REAL,
     date TEXT,
     status TEXT NOT NULL DEFAULT 'PENDING',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    -- Added in 3.sqm. ALTER TABLE ADD COLUMN appends, so these must stay last and in this
+    -- order; see the note in 2.sqm.
+    subtotal_amount REAL,
+    tax_amount REAL,
+    tip_amount REAL,
+    currency TEXT,
+    -- Pages 2..n of a multi-page scan, newline-separated. Page 1 stays in image_path so every
+    -- existing reader keeps working and single-page receipts are unchanged on disk.
+    page_paths TEXT
 );
+
+CREATE TABLE ReceiptLineItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    receipt_id TEXT NOT NULL REFERENCES Receipt(id),
+    -- Printed order on the receipt. Kept explicitly because the rows are rewritten wholesale
+    -- when a review is saved and insertion order is not a guarantee.
+    position INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    quantity REAL,
+    unit_price REAL,
+    total_price REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_line_item_receipt ON ReceiptLineItem(receipt_id);
 
 CREATE TABLE FeedPost (
     id TEXT NOT NULL PRIMARY KEY,

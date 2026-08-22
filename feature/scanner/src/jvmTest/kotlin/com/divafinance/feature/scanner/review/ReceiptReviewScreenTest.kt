@@ -9,12 +9,14 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
+import com.divafinance.core.domain.usecase.cards.GetBestCardForCategoryUseCase
 import com.divafinance.core.domain.usecase.scanner.ConfirmReceiptUseCase
 import com.divafinance.core.domain.usecase.scanner.GetReceiptUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeReceiptRepository
+import com.divafinance.core.testing.fake.FakeRewardRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.testing.fake.TestData
@@ -38,6 +40,7 @@ class ReceiptReviewScreenTest {
     private val transactionRepo = FakeTransactionRepository()
     private val cardRepo = FakeCardRepository()
     private val settingsRepo = FakeSettingsRepository()
+    private val rewardRepo = FakeRewardRepository()
 
     private fun viewModel() = ReceiptReviewViewModel(
         receiptId = "r1",
@@ -49,6 +52,7 @@ class ReceiptReviewScreenTest {
         predictCategory = PredictCategoryUseCase(transactionRepo),
         getAllCards = GetAllCardsUseCase(cardRepo),
         settingsRepository = settingsRepo,
+        getBestCard = GetBestCardForCategoryUseCase(cardRepo, rewardRepo, settingsRepo),
     )
 
     @Test

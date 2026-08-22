@@ -10,6 +10,19 @@ data class ParsedReceipt(
     val merchantName: String?,
     val totalAmount: Double?,
     val date: LocalDate?,
+    val subtotal: Double? = null,
+    val tax: Double? = null,
+    val tip: Double? = null,
+    /** ISO code, resolved from a symbol where the receipt only printed one. */
+    val currency: String? = null,
+    val items: List<ParsedLineItem> = emptyList(),
+)
+
+/** One purchased item as printed. [price] is what the line was charged at, not a unit price. */
+data class ParsedLineItem(
+    val description: String,
+    val price: Double?,
+    val quantity: Double? = null,
 )
 
 /**
@@ -21,14 +34,66 @@ data class ParsedReceipt(
  */
 object ReceiptParser {
 
-    fun parse(ocrText: String, today: LocalDate, dayFirst: Boolean = false): ParsedReceipt {
-        val lines = ocrText.lines().map { it.trim() }.filter { it.isNotBlank() }
+    fun parse(ocrText: String, today: LocalDate, dayFirst: Boolean = false): ParsedReceipt =
+        parse(ocrText.lines().map { OcrLine(it) }, today, dayFirst)
+
+    /**
+     * The layout-aware entry point. Lines carrying geometry are regrouped into visual rows
+     * first, which is what lets `TOTAL` in the left column and `45.99` in the right column be
+     * read as one line by the rules below. Without geometry this collapses to the plain
+     * line order and every rule behaves exactly as it did before.
+     */
+    fun parse(lines: List<OcrLine>, today: LocalDate, dayFirst: Boolean = false): ParsedReceipt {
+        val rows = groupIntoRows(lines)
         return ParsedReceipt(
-            merchantName = extractMerchant(lines),
-            totalAmount = extractTotal(lines),
-            date = extractDate(lines, today, dayFirst),
+            merchantName = extractMerchant(rows),
+            totalAmount = extractTotal(rows),
+            date = extractDate(rows, today, dayFirst),
+            subtotal = extractLabelled(rows, SUBTOTAL_LABEL),
+            tax = extractLabelled(rows, TAX_LABEL),
+            tip = extractLabelled(rows, TIP_LABEL),
+            currency = extractCurrency(rows),
+            items = extractItems(rows),
         )
     }
+
+    // ── Layout ───────────────────────────────────────────────────────────────────────
+
+    /**
+     * Lines whose vertical centres sit within [ROW_TOLERANCE] of each other are one printed row,
+     * joined left-to-right. This is the single highest-value use of geometry: OCR engines emit
+     * text block by block, so a receipt's label column and amount column arrive as two separate
+     * runs of lines and every rule that reads "the figure on the total line" would otherwise
+     * never see one.
+     *
+     * All-or-nothing on geometry — a partially positioned set would interleave positioned and
+     * unpositioned lines unpredictably, so it falls back to the given order instead.
+     */
+    private fun groupIntoRows(lines: List<OcrLine>): List<String> {
+        val present = lines.filter { it.text.isNotBlank() }
+        if (present.isEmpty() || present.any { !it.hasGeometry }) {
+            return present.map { it.text.trim() }.filter { it.isNotBlank() }
+        }
+
+        val rows = mutableListOf<MutableList<OcrLine>>()
+        for (line in present.sortedBy { it.verticalCentre }) {
+            val current = rows.lastOrNull()
+            val anchor = current?.first()
+            val tolerance = ROW_TOLERANCE * maxOf(line.height, anchor?.height ?: 0f)
+            if (anchor != null && line.verticalCentre - anchor.verticalCentre <= tolerance) {
+                current.add(line)
+            } else {
+                rows.add(mutableListOf(line))
+            }
+        }
+        // Two spaces, so a label and its figure never fuse into one token for [MONEY].
+        return rows
+            .map { row -> row.sortedBy { it.left }.joinToString("  ") { it.text.trim() }.trim() }
+            .filter { it.isNotBlank() }
+    }
+
+    /** Fraction of a line's own height that two lines' centres may differ by and still be one row. */
+    private const val ROW_TOLERANCE = 0.6f
 
     // ── Total ────────────────────────────────────────────────────────────────────────
 
@@ -76,12 +141,119 @@ object ReceiptParser {
     }
 
     private fun money(text: String): Double? {
-        MONEY.findAll(text).lastOrNull()?.let { match ->
-            val whole = match.groupValues[1].replace(",", "")
-            return "$whole.${match.groupValues[2]}".toDoubleOrNull()
-        }
+        MONEY.findAll(text).lastOrNull()?.let { return moneyOf(it) }
         return MONEY_LOOSE.findAll(text).lastOrNull()
             ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+    }
+
+    private fun moneyOf(match: MatchResult): Double? {
+        val whole = match.groupValues[1].replace(",", "")
+        return "$whole.${match.groupValues[2]}".toDoubleOrNull()
+    }
+
+    // ── Subtotal, tax, tip ───────────────────────────────────────────────────────────
+
+    /**
+     * The same vocabulary [EXCLUDED_LINE] uses to keep these figures *out* of the total, read
+     * here as positive labels. They are worth capturing in their own right: a total that does
+     * not equal subtotal plus tax plus tip is the cheapest signal available that a scan went
+     * wrong, and tip is the one figure a card statement will disagree with.
+     */
+    private val SUBTOTAL_LABEL = Regex("""(?i)\bsub[\s-]?total\b""")
+    private val TAX_LABEL = Regex("""(?i)\b(sales\s+tax|vat|gst|hst|tax)\b""")
+    private val TIP_LABEL = Regex("""(?i)\b(tip|gratuity|service\s+charge)\b""")
+
+    /** Bottom-up like [extractTotal] — all three print in the footer block. */
+    private fun extractLabelled(lines: List<String>, label: Regex): Double? {
+        for ((index, line) in lines.withIndex().reversed()) {
+            val match = label.find(line) ?: continue
+            val amount = money(line.substring(match.range.last + 1))
+                // Two-column layouts print the label alone with the figure below it.
+                ?: lines.getOrNull(index + 1)?.let { money(it) }
+            if (amount != null) return amount
+        }
+        return null
+    }
+
+    // ── Currency ─────────────────────────────────────────────────────────────────────
+
+    private val CURRENCY_CODE = Regex(
+        """(?i)\b(USD|EUR|GBP|INR|JPY|CAD|AUD|CHF|CNY|SEK|NOK|DKK|NZD|SGD|HKD|AED|ZAR|MXN|BRL|PLN)\b""",
+    )
+
+    /**
+     * `$` is shared by several currencies and resolving it to USD is a guess — but it is the
+     * guess the review screen already made when it fell back to the base currency, and here at
+     * least an explicit code on the receipt overrides it.
+     */
+    private val CURRENCY_SYMBOLS = mapOf(
+        '$' to "USD", '€' to "EUR", '£' to "GBP", '¥' to "JPY", '₹' to "INR",
+        '₩' to "KRW", '₪' to "ILS", '₺' to "TRY", '₽' to "RUB",
+    )
+
+    private fun extractCurrency(lines: List<String>): String? {
+        for (line in lines) {
+            CURRENCY_CODE.find(line)?.let { return it.groupValues[1].uppercase() }
+        }
+        for (line in lines) {
+            for (character in line) {
+                CURRENCY_SYMBOLS[character]?.let { return it }
+            }
+        }
+        return null
+    }
+
+    // ── Line items ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Where the itemised body ends. Everything from the first of these labels down is the
+     * totals block, and reading items out of it would list "Subtotal" as a purchase.
+     */
+    private val FOOTER_LABEL = Regex(
+        """(?i)\b(sub[\s-]?total|totals?|amount\s+due|balance\s+due|grand\s+total|sales\s+tax|""" +
+            """vat|gst|hst|tax|tip|gratuity|change|tender(?:ed)?|cash|visa|mastercard|""" +
+            """amex|debit|credit\s+card|payment|auth\s*code)\b""",
+    )
+
+    /** Leading `2 x`, `2X`, `2 @` — the forms receipts print a count in. */
+    private val ITEM_QUANTITY = Regex("""^(\d{1,3})\s*[xX*@]\s*""")
+
+    private const val MAX_ITEM_DESCRIPTION = 60
+
+    /**
+     * An item is a line with a description on the left and a figure with cents on the right.
+     * Requiring the cents is doing the same work it does in [MONEY]: it is what keeps loyalty
+     * numbers, weights and item counts from being read as prices. No loose fallback here —
+     * a wrongly invented item is worse than a missing one, because the user has to notice it
+     * to delete it.
+     */
+    private fun extractItems(lines: List<String>): List<ParsedLineItem> {
+        val footerStart = lines.indexOfFirst { FOOTER_LABEL.containsMatchIn(it) }
+        val body = if (footerStart >= 0) lines.take(footerStart) else lines
+
+        return body.mapNotNull { line ->
+            val match = MONEY.findAll(line).lastOrNull() ?: return@mapNotNull null
+            // A dated line with a figure on it is a header, not a purchase.
+            if (ISO.containsMatchIn(line) || NUMERIC.containsMatchIn(line)) return@mapNotNull null
+
+            val head = line.substring(0, match.range.first)
+                .trim()
+                .trimEnd('.', ',', ':', ';', '-', '@', '$', '€', '£', '¥', '₹')
+                .trim()
+            if (head.isBlank() || head.length > MAX_ITEM_DESCRIPTION) return@mapNotNull null
+            if (NOT_A_MERCHANT.matches(head)) return@mapNotNull null
+            if (LETTER.findAll(head).take(2).count() < 2) return@mapNotNull null
+
+            val quantity = ITEM_QUANTITY.find(head)
+            val description = quantity?.let { head.substring(it.range.last + 1) } ?: head
+            if (description.isBlank()) return@mapNotNull null
+
+            ParsedLineItem(
+                description = clean(description),
+                price = moneyOf(match),
+                quantity = quantity?.groupValues?.get(1)?.toDoubleOrNull(),
+            )
+        }
     }
 
     // ── Merchant ─────────────────────────────────────────────────────────────────────

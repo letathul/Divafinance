@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,18 +32,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image as FoundationImage
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilterChip
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.ui.adaptive.DivaScaffold
 import com.divafinance.core.model.enums.SpendingCategory
+import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.component.CategoryPickerItem
 import com.divafinance.core.ui.component.DivaButton
 import com.divafinance.core.ui.component.DivaCard
+import com.divafinance.core.ui.component.DivaOutlinedButton
 import com.divafinance.core.ui.component.DivaTextField
 import com.divafinance.core.ui.component.LoadingIndicator
 import com.divafinance.core.ui.component.Meta
 import com.divafinance.core.ui.component.SectionHeader
+import com.divafinance.core.ui.component.SegmentedControl
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.feature.scanner.capture.rememberReceiptThumbnail
 import org.koin.compose.viewmodel.koinViewModel
+
+/** Ordered to match `TransactionType.entries`, which is what the control indexes into. */
+private val TYPE_OPTIONS = listOf("Purchase", "Refund")
 
 /**
  * The step between a scan and a transaction: everything OCR guessed, editable, plus the
@@ -78,7 +87,7 @@ fun ReceiptReviewScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            ReceiptPreview(uiState.receipt?.imagePath)
+            ReceiptPages(uiState.receipt?.imagePath, uiState.pagePaths)
             Spacer(Modifier.height(16.dp))
 
             DivaTextField(
@@ -100,7 +109,51 @@ fun ReceiptReviewScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
             Spacer(Modifier.height(8.dp))
-            uiState.date?.let { Meta("Dated $it") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DivaTextField(
+                    value = uiState.dateText,
+                    onValueChange = viewModel::onDateTextChanged,
+                    label = "Date",
+                    isError = uiState.hasDateError,
+                    supportingText = if (uiState.hasDateError) "Use YYYY-MM-DD" else null,
+                    modifier = Modifier.weight(2f),
+                )
+                DivaTextField(
+                    value = uiState.currency,
+                    onValueChange = viewModel::onCurrencyChanged,
+                    label = "Currency",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            DivaTextField(
+                value = uiState.note,
+                onValueChange = viewModel::onNoteChanged,
+                label = "Note (optional)",
+            )
+
+            Spacer(Modifier.height(16.dp))
+            // A receipt is usually a purchase, but a refund is printed on one too.
+            SegmentedControl(
+                options = TYPE_OPTIONS,
+                selectedIndex = uiState.type.ordinal,
+                onSelect = { viewModel.onTypeSelected(TransactionType.entries[it]) },
+            )
+
+            if (uiState.items.isNotEmpty() || uiState.taxAmount != null) {
+                Spacer(Modifier.height(20.dp))
+                ItemisedSection(
+                    items = uiState.items,
+                    itemsTotal = uiState.itemsTotal,
+                    taxAmount = uiState.taxAmount,
+                    tipAmount = uiState.tipAmount,
+                    disagrees = uiState.itemsDisagreeWithTotal,
+                    onDescriptionChange = viewModel::onItemDescriptionChanged,
+                    onPriceChange = viewModel::onItemPriceChanged,
+                    onRemove = viewModel::onItemRemoved,
+                    onAdd = viewModel::onItemAdded,
+                )
+            }
 
             Spacer(Modifier.height(20.dp))
             SectionHeader("Category")
@@ -133,6 +186,16 @@ fun ReceiptReviewScreen(
                         )
                     }
                 }
+            }
+
+            uiState.betterCard?.let { recommendation ->
+                Spacer(Modifier.height(12.dp))
+                BetterCardNudge(
+                    cardName = recommendation.card.name,
+                    rewardValue = recommendation.estimatedRewardValue,
+                    currency = uiState.currency,
+                    onUse = { viewModel.onCardSelected(recommendation.card.id) },
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -183,9 +246,150 @@ private fun CategoryRow(
 }
 
 /**
- * The photo, where the platform can decode one. The placeholder is not a failure state — most
- * targets have no common file decoder — so it reads as "photo attached" rather than an error.
+ * What the receipt printed besides the total. Editable, because the point of showing it is
+ * that the user can fix a misread line rather than only look at one.
  */
+@Composable
+private fun ItemisedSection(
+    items: List<LineItemDraft>,
+    itemsTotal: Double?,
+    taxAmount: Double?,
+    tipAmount: Double?,
+    disagrees: Boolean,
+    onDescriptionChange: (String, String) -> Unit,
+    onPriceChange: (String, String) -> Unit,
+    onRemove: (String) -> Unit,
+    onAdd: () -> Unit,
+) {
+    SectionHeader("Items")
+    Spacer(Modifier.height(8.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { item ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DivaTextField(
+                    value = item.description,
+                    onValueChange = { onDescriptionChange(item.id, it) },
+                    label = "Item",
+                    modifier = Modifier.weight(2f),
+                )
+                DivaTextField(
+                    value = item.priceText,
+                    onValueChange = { onPriceChange(item.id, it) },
+                    label = "Price",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { onRemove(item.id) }) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "Remove ${item.description.ifBlank { "item" }}",
+                        tint = diva.muted,
+                    )
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column {
+            itemsTotal?.let { Meta("Items ${it.toFixed(2)}") }
+            taxAmount?.let { Meta("Tax ${it.toFixed(2)}") }
+            tipAmount?.let { Meta("Tip ${it.toFixed(2)}") }
+        }
+        DivaOutlinedButton(text = "Add item", onClick = onAdd)
+    }
+
+    if (disagrees) {
+        Spacer(Modifier.height(8.dp))
+        // Deliberately not blocking the save: a discount or deposit line this parser doesn't
+        // recognise makes the sums disagree on a receipt that is perfectly fine.
+        Text(
+            "The items, tax and tip don't add up to the total — worth a second look.",
+            style = MaterialTheme.typography.bodySmall,
+            color = diva.muted,
+        )
+    }
+}
+
+/**
+ * Surfaced only when a different card would have earned more, and offered as a one-tap
+ * correction: the recommendation is worthless if acting on it means going back to the chips.
+ */
+@Composable
+private fun BetterCardNudge(
+    cardName: String,
+    rewardValue: Double,
+    currency: String,
+    onUse: () -> Unit,
+) {
+    DivaCard {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("$cardName earns more here", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(2.dp))
+                Meta("About ${rewardValue.toFixed(2)} $currency back")
+            }
+            DivaOutlinedButton(text = "Use it", onClick = onUse)
+        }
+    }
+}
+
+/**
+ * The photo, where the platform can decode one, plus a strip for the extra pages of a
+ * multi-page scan. The placeholder is not a failure state — most targets have no common file
+ * decoder — so it reads as "photo attached" rather than an error.
+ */
+@Composable
+private fun ReceiptPages(imagePath: String?, pagePaths: List<String>) {
+    ReceiptPreview(imagePath)
+    if (pagePaths.isEmpty()) return
+
+    Spacer(Modifier.height(8.dp))
+    Meta("${pagePaths.size + 1} pages")
+    Spacer(Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        pagePaths.forEach { page ->
+            val thumbnail = rememberReceiptThumbnail(page, maxDimension = 128)
+            DivaCard {
+                Box(
+                    modifier = Modifier.size(72.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (thumbnail != null) {
+                        FoundationImage(
+                            bitmap = thumbnail,
+                            contentDescription = "Additional receipt page",
+                            modifier = Modifier.size(72.dp),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Icon(
+                            Icons.Outlined.PhotoCamera,
+                            contentDescription = null,
+                            tint = diva.muted,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ReceiptPreview(imagePath: String?) {
     val thumbnail = rememberReceiptThumbnail(imagePath)

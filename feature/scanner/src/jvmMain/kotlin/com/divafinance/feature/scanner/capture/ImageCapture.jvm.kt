@@ -16,3 +16,6 @@ actual fun rememberImageCaptureRequester(): ImageCaptureRequester = remember {
         onResult(ImageCaptureResult.Failed("Receipt scanning isn't available on this platform"))
     }
 }
+
+@Composable
+actual fun isDocumentScanSupported(): Boolean = false

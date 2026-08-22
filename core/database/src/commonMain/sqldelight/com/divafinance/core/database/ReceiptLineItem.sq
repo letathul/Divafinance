@@ -1,0 +1,9 @@
+selectByReceipt:
+SELECT * FROM ReceiptLineItem WHERE receipt_id = ? ORDER BY position;
+
+insert:
+INSERT INTO ReceiptLineItem(id, receipt_id, position, description, quantity, unit_price, total_price)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+deleteByReceipt:
+DELETE FROM ReceiptLineItem WHERE receipt_id = ?;

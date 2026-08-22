@@ -75,5 +75,15 @@ data class UserSettings(
          * is the only state in which the offer is shown. See DemoStatus.
          */
         const val KEY_DEMO_STATUS = "demo_status"
+
+        /**
+         * Whether a scanned receipt is also passed to the device's own language model, as
+         * `"true"`/`"false"`. Absent means on — the setting is only offered on devices where
+         * a model exists, so the default is what those users would have chosen.
+         *
+         * The model never overrides an amount, date or merchant the rules already read; it
+         * only fills gaps. See `ParseReceiptUseCase.filledInBy`.
+         */
+        const val KEY_SMART_RECEIPT_READING = "smart_receipt_reading"
     }
 }
