@@ -17,7 +17,7 @@ and every `feature/*` module.
 | `commonMain/.../DispatcherProvider.kt` | `expect` wrapper over IO/Default/Main so ViewModels and use cases can be given a test dispatcher |
 | `commonMain/.../FileSystem.kt` | `expect class` — backup directory, read/write text, list/delete backup files. Backs `:feature:backup`. |
 | `commonMain/.../UuidGenerator.kt` | ID generation for new entities |
-| `commonMain/.../ExpressionEvaluator.kt` | Evaluates `+ - * /` over decimal literals with standard precedence, for the quick-add keypad (`"12+8.50"`, `"120/3"`). No parentheses — the keypad can't produce them. Returns `null` for anything not acceptable as an amount, including division by zero. |
+| `commonMain/.../ExpressionEvaluator.kt` | Evaluates `+ - * / ( )` over decimal literals with standard precedence, for the quick-add keypad (`"12+8.50"`, `"120/3"`, `"12*(3+4)"`). `2(3+4)` reads as multiplication. Returns `null` for anything not acceptable as an amount, including division by zero and an unbalanced group; `preview()` closes an unclosed group rather than falling back past it. |
 | `commonMain/.../NumberFormat.kt` | `Double.toFixed(decimals)` / `Float.toFixed(decimals)` — multiplatform stand-in for `"%.2f".format()`, which is JVM-only and breaks the iOS targets. Also `Double.roundToCents()`, half-up and sign-preserving. |
 | `commonMain/.../Result.kt` | `DivaResult<T>` sealed class: `Success` / `Error` / `Loading`, with `map` and `getOrNull` |
 | `commonMain/.../BackupFileInfo.kt` | Name/path/size/mtime record returned by `FileSystem.listBackupFiles()` |

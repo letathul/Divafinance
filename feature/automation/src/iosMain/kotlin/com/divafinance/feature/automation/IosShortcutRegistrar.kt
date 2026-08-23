@@ -7,13 +7,17 @@ import platform.Intents.INVoiceShortcutCenter
 // category, so cinterop exposes it as an extension rather than a member.
 import platform.Intents.setSuggestedInvocationPhrase
 
-actual class AutomationHandler actual constructor() {
+/**
+ * Siri suggestions. The activity type is the shortcut id, which is what `iOSApp.swift`
+ * hands back through `continueUserActivity` when one is invoked.
+ */
+class IosShortcutRegistrar : ShortcutRegistrar {
 
-    private val registeredShortcuts = mutableListOf<ShortcutInfo>()
+    private val registered = mutableListOf<ShortcutInfo>()
 
-    actual fun registerShortcuts(shortcuts: List<ShortcutInfo>) {
-        registeredShortcuts.clear()
-        registeredShortcuts.addAll(shortcuts)
+    override fun registerShortcuts(shortcuts: List<ShortcutInfo>) {
+        registered.clear()
+        registered.addAll(shortcuts)
 
         val siriShortcuts = shortcuts.map { shortcut ->
             val activity = NSUserActivity(shortcut.id).apply {
@@ -28,14 +32,13 @@ actual class AutomationHandler actual constructor() {
         INVoiceShortcutCenter.sharedCenter().setShortcutSuggestions(siriShortcuts)
     }
 
-    actual fun unregisterShortcut(id: String) {
-        registeredShortcuts.removeAll { it.id == id }
-        registerShortcuts(registeredShortcuts.toList())
+    override fun unregisterShortcut(id: String) {
+        registered.removeAll { it.id == id }
+        registerShortcuts(registered.toList())
     }
 
-    actual fun getRegisteredShortcuts(): List<ShortcutInfo> =
-        registeredShortcuts.toList()
+    override fun getRegisteredShortcuts(): List<ShortcutInfo> = registered.toList()
 
-    actual fun handleDeepLink(uri: String): ShortcutInfo? =
-        registeredShortcuts.find { it.deepLinkUri == uri }
+    override fun handleDeepLink(uri: String): ShortcutInfo? =
+        registered.find { it.deepLinkUri == uri }
 }

@@ -180,12 +180,22 @@ Divafinance/
 - [x] DI: FeedViewModel registered in ViewModelModule, TransactionsViewModel updated with 4th dependency
 - [x] Navigation: feed route wired with FeedViewModel
 
-### Increment 12: Spending Map (Feature D) + Dynamic Delivery — PENDING ⬜
+### Increment 12: Spending Map (Feature D) + Dynamic Delivery — DONE ✅
 
-- [ ] Google Maps Compose (Android) / MKMapView (iOS) — expect/actual
-- [ ] MapFallbackScreen for non-map grouped list view
-- [ ] Wire `dynamic:map-dynamic` module with SplitInstallManager download flow
-- [ ] MapViewModel
+- [x] `PlatformMapView` expect/actual — real `GoogleMap` + markers on Android,
+      `UIKitView` hosting a real `MKMapView` with `MKPointAnnotation`s on iOS. The jvm
+      actual reports `isPlatformMapAvailable() = false`, so tests exercise the fallback.
+- [x] `MapFallbackScreen` — grouped list, rendered inside `SpendingMapScreen`
+- [x] `MapViewModel`, registered in `ViewModelModule`; `DivaRoutes.MAP` wired
+- [x] Google Maps API key read from `MAPS_API_KEY` in `local.properties` (or the
+      environment) into `manifestPlaceholders`, substituted into the manifest's
+      `com.google.android.geo.API_KEY`. **Without a key Maps draws a grey tile grid** —
+      the map is unusable and the list fallback is the intended path.
+
+**Known gap:** `dynamic:map_dynamic` exists but achieves nothing. `maps.compose` and
+`play-services-maps` are declared in `:feature:map`'s `androidMain`, so the SDK ships in
+the base APK regardless; `DynamicFeatureAvailability.installMap()` has no callers and
+`MapDynamicActivity` is unreachable. See "Dynamic delivery" below.
 
 ### Increment 13: Embedded Ktor Server (Feature F) + Dynamic Delivery — DONE ✅
 
@@ -208,23 +218,60 @@ Divafinance/
 - [x] `DivaServerTest` (JVM): serves the UI, rejects `/api` without a session, accepts the PIN,
       unlocks on cookie, revokes on logout, and reports a bind failure
 
-### Increment 14: Receipt Scanning & Statement Import (Feature H) + Dynamic Delivery — PENDING ⬜
+### Increment 14: Receipt Scanning & Statement Import (Feature H) + Dynamic Delivery — DONE ✅
 
-- [ ] OcrEngine expect/actual: ML Kit (Android), Vision framework (iOS)
-- [ ] Wire `dynamic:scanner-dynamic` module
-- [ ] StatementParser for CSV; file picker UI
-- [ ] ScannerViewModel
+- [x] `OcrEngine` expect/actual — ML Kit `TextRecognition` on Android, `VNRecognizeTextRequest`
+      on iOS (with the bottom-left→top-left y-flip); jvm returns an empty result, which
+      `ParseReceiptUseCase` records as `FAILED` rather than throwing
+- [x] `ImageCapture` expect/actual on all three targets — ML Kit's document scanner,
+      `VNDocumentCameraViewController` + `PHPickerViewController` on iOS, multi-page
+- [x] `ScannerViewModel` + `ReceiptReviewScreen`/`ReceiptReviewViewModel`
+- [x] CSV parsing in `ImportStatementUseCase` — quote-aware, header row dropped
+- [x] **File picker for CSV import** — `TextFilePicker` expect/actual: `OpenDocument` on
+      Android, `UIDocumentPickerViewController` on iOS (inside a security-scoped access
+      window), unavailable on jvm. The paste box remains as a second way in.
+- [x] **Account and card pickers** replace the free-text "Account ID"/"Card ID" fields that
+      asked the user to type raw UUIDs. A single account is preselected.
+- [x] Imported rows are categorised through `CategoryPredictionEngine` on the merchant
+      string, instead of every row landing in `SpendingCategory.OTHER`. Falls back to
+      `OTHER` for income and for a first import against an empty history.
 
-### Increment 15: Native Automations (Feature I) — PENDING ⬜
+**Known gap:** the scanner split has the same problem as the map's — ML Kit is declared in
+`:feature:scanner`'s `androidMain`, `installScanner()` has no callers, and
+`ScannerDynamicActivity` is unreachable.
 
-- [ ] Android: IntentFilter + BroadcastReceiver handler
-- [ ] iOS: INIntent + SiriKit Shortcuts registration
-- [ ] AutomationScreen showing available shortcuts
-- [ ] AutomationViewModel
+### Increment 15: Native Automations (Feature I) — DONE ✅
 
-### Increment 16: Integration Testing & Polish — PENDING ⬜
+- [x] `ShortcutRegistrar` interface + three implementations. Replaced
+      `expect class AutomationHandler()`, whose no-argument constructor could not carry the
+      Android `Context` a real implementation needs.
+- [x] **Android: real dynamic app shortcuts** via `ShortcutManagerCompat.setDynamicShortcuts`,
+      each carrying an `ACTION_VIEW` intent for its `divafinance://` URI, trimmed to
+      `getMaxShortcutCountPerActivity`. This was previously an in-memory list that reached
+      no OS API at all.
+- [x] iOS: SiriKit `INShortcut` + `INVoiceShortcutCenter` suggestions
+- [x] **The `divafinance://` scheme is registered on both platforms** — a second
+      `<intent-filter>` on `MainActivity` (now `singleTask`) plus `CFBundleURLTypes` and
+      `NSUserActivityTypes` in `Info.plist`. It previously existed on neither, so even the
+      working Siri suggestion opened nothing.
+- [x] **Deep links are handled.** `MainActivity.onCreate`/`onNewIntent` and the iOS
+      `AppDelegate` publish into `DeepLinks`; `MainScreen` collects it and navigates via
+      `DivaRoutes.forAutomationDeepLink`. Onboarding is not jumped past.
+- [x] **Toggles persist** in `UserSettings.KEY_ENABLED_AUTOMATIONS` and are re-registered
+      on construction — the OS keeps shortcuts across launches, so the stored set is the
+      only thing that says what they should be
+- [x] `AutomationScreen` + `AutomationViewModel`, reachable from the You tab and Settings
 
-- [ ] End-to-end flow testing on real devices
+### Increment 16: Integration Testing & Polish — PARTIAL ⬛
+
+- [x] Unit and Compose UI tests across every module with logic; production code carries no
+      `TODO`/`FIXME` markers
+- [ ] **No instrumented or E2E coverage at all** — there is no `androidTest`,
+      `androidInstrumentedTest` or `iosTest` source set anywhere, so ML Kit, Vision,
+      `MKMapView`, `GoogleMap`, `SplitInstall`, `ShortcutManagerCompat`, deep links and
+      `FileProvider` are exercised only through their no-op jvm actuals
+- [ ] **No tests in `core/data`, `core/database`, `core/model` or `core/network`** — the
+      whole persistence layer is covered only indirectly, through `core:domain`'s fakes
 - [ ] Performance profiling, memory leak testing
 - [ ] Dynamic feature download/install testing
 - [ ] Accessibility pass, empty/error state handling
@@ -246,13 +293,44 @@ Divafinance/
 | 9 | Financial Graphs | ✅ Done |
 | 10 | Backup & Restore | ✅ Done |
 | 11 | Social Feed & Daily Bot | ✅ Done |
-| 12 | Spending Map + Dynamic Delivery | ⬜ Pending |
+| 12 | Spending Map + Dynamic Delivery | ✅ Done |
 | 13 | Embedded Ktor Server + Dynamic Delivery | ✅ Done |
-| 14 | Receipt Scanning + Dynamic Delivery | ⬜ Pending |
-| 15 | Native Automations | ⬜ Pending |
-| 16 | Integration Testing & Polish | ⬜ Pending |
+| 14 | Receipt Scanning + Dynamic Delivery | ✅ Done |
+| 15 | Native Automations | ✅ Done |
+| 16 | Integration Testing & Polish | ⬛ Partial |
 
-**Progress: 12 / 16 increments complete (75%)**
+**Progress: 15 / 16 increments complete (94%)**
+
+## Known gaps
+
+Recorded here because they are not visible from the increment list — each one is a shipped
+feature with something real still missing.
+
+### Dynamic delivery does nothing
+
+All four `:dynamic:*` modules are declared and build, but none of them reduces the base
+APK. Their heavy dependencies — `maps.compose` + `play-services-maps` in
+`feature/map/build.gradle.kts`, ML Kit in `feature/scanner/build.gradle.kts` — are declared
+in the **base** feature modules, so the code ships in the base APK regardless. Meanwhile
+`DynamicFeatureAvailability.installMap()` / `installScanner()` have **zero callers**:
+`DivaNavHost` navigates straight to the screens with no install gate, and
+`MapDynamicActivity` / `ScannerDynamicActivity` are unreachable. Only the *demo* split is
+genuinely wired, through `PlayDemoModuleInstaller`.
+
+Fixing this means moving dependencies between modules and building install-gate UI, and
+until it happens each `dynamic/*/CLAUDE.md`'s stated purpose is aspirational.
+
+### Receipt attachments are captured but never displayed
+
+Receipts are scanned, parsed and stored, but nothing outside the review form shows the
+image: `TransactionDetailScreen` renders the receipt's raw UUID as a text row, and
+`core:ui` has no image pipeline at all. `IMPLEMENTATION_PLAN.md` is the design for this —
+**planned, not started**; none of its seven tasks are implemented.
+
+### Premium is a boundary with nothing behind it
+
+`PremiumGate` reads `UserSettings.KEY_IS_PREMIUM`, and nothing ever sets it. There is no
+billing integration.
 
 ---
 
@@ -274,6 +352,11 @@ Divafinance/
 ## Build Notes
 
 - **Google Maven blocked in remote CI** — `dl.google.com` returns 403 through the proxy. Build must be verified locally.
-- **iOS targets commented out** — re-enable in convention plugins when ready to test on iOS.
+- **iOS targets are live**, not commented out. `androidTarget`, `jvm`, `iosX64`, `iosArm64`
+  and `iosSimulatorArm64` all build; `:composeApp:linkDebugFrameworkIosSimulatorArm64` is
+  the task that catches a missing iOS actual, which never surfaces as a `commonMain`
+  compile error.
+- **`MAPS_API_KEY` goes in `local.properties`** (gitignored) or the environment. Absent is
+  a valid build — Maps then renders a grey tile grid.
 - **gradle.properties** — contains macOS Java home paths for local builds (`/Users/athulbabu/Library/Java/...`).
 - **Branch**: `claude/financial-app-phase-1-nm9j5s` on `letathul/Divafinance`

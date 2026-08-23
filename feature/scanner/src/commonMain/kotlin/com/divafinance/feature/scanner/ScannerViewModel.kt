@@ -6,9 +6,14 @@ import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
 import com.divafinance.core.domain.usecase.scanner.OcrLine
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
+import com.divafinance.core.data.repository.AccountRepository
+import com.divafinance.core.data.repository.CardRepository
+import com.divafinance.core.model.Account
+import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.Receipt
 import com.divafinance.feature.scanner.capture.ImageCaptureResult
 import com.divafinance.feature.scanner.capture.ImageSource
+import com.divafinance.feature.scanner.capture.TextFileResult
 import com.divafinance.feature.scanner.ocr.OcrEngine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,9 +39,17 @@ data class ScannerUiState(
     /** Set once a scan has been stored; the screen navigates to the review step on it. */
     val reviewReceiptId: String? = null,
     val csvContent: String = "",
+    /** What the user picked, for showing them what is about to be imported. */
+    val csvFileName: String? = null,
     val importedCount: Int? = null,
-    val accountId: String = "",
-    val cardId: String = "",
+    /**
+     * The chosen account and card, or null for none. Ids again, but never typed — the
+     * screen offers [accounts] and [cards] and stores the id behind the chosen name.
+     */
+    val accountId: String? = null,
+    val cardId: String? = null,
+    val accounts: List<Account> = emptyList(),
+    val cards: List<CreditCard> = emptyList(),
 )
 
 enum class ScannerTab { RECEIPT, HISTORY, IMPORT }
@@ -45,11 +58,33 @@ class ScannerViewModel(
     private val parseReceipt: ParseReceiptUseCase,
     private val importStatement: ImportStatementUseCase,
     getReceipts: GetReceiptsUseCase,
+    accountRepository: AccountRepository,
+    cardRepository: CardRepository,
     private val ocrEngine: OcrEngine = OcrEngine(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
+
+    init {
+        // The import form used to ask the user to type these ids by hand, which nobody
+        // knows. Defaulting to the only account when there is exactly one means the common
+        // case needs no choice at all.
+        viewModelScope.launch {
+            accountRepository.getAll().collect { accounts ->
+                _uiState.value = _uiState.value.copy(
+                    accounts = accounts,
+                    accountId = _uiState.value.accountId
+                        ?: accounts.singleOrNull()?.id,
+                )
+            }
+        }
+        viewModelScope.launch {
+            cardRepository.getAll().collect { cards ->
+                _uiState.value = _uiState.value.copy(cards = cards)
+            }
+        }
+    }
 
     /** Newest first, straight from the database — a scan appears here the moment it is stored. */
     val receipts: StateFlow<List<Receipt>> = getReceipts()
@@ -149,14 +184,28 @@ class ScannerViewModel(
     }
 
     fun updateCsvContent(content: String) {
-        _uiState.value = _uiState.value.copy(csvContent = content)
+        // Typed or pasted, so it is no longer what any picked file contained.
+        _uiState.value = _uiState.value.copy(csvContent = content, csvFileName = null)
     }
 
-    fun updateAccountId(id: String) {
+    /** A file chosen through [com.divafinance.feature.scanner.capture.TextFilePicker]. */
+    fun onCsvFilePicked(result: TextFileResult) {
+        _uiState.value = when (result) {
+            is TextFileResult.Cancelled -> _uiState.value
+            is TextFileResult.Failed -> _uiState.value.copy(error = result.message)
+            is TextFileResult.Success -> _uiState.value.copy(
+                csvContent = result.content,
+                csvFileName = result.fileName,
+                error = null,
+            )
+        }
+    }
+
+    fun updateAccountId(id: String?) {
         _uiState.value = _uiState.value.copy(accountId = id)
     }
 
-    fun updateCardId(id: String) {
+    fun updateCardId(id: String?) {
         _uiState.value = _uiState.value.copy(cardId = id)
     }
 
@@ -166,8 +215,9 @@ class ScannerViewModel(
             _uiState.value = state.copy(error = "No CSV content provided")
             return
         }
-        if (state.accountId.isBlank()) {
-            _uiState.value = state.copy(error = "Account ID is required")
+        val accountId = state.accountId
+        if (accountId == null) {
+            _uiState.value = state.copy(error = "Choose an account to import into")
             return
         }
         viewModelScope.launch {
@@ -175,8 +225,8 @@ class ScannerViewModel(
             try {
                 val count = importStatement(
                     csvContent = state.csvContent,
-                    accountId = state.accountId,
-                    cardId = state.cardId.ifBlank { null },
+                    accountId = accountId,
+                    cardId = state.cardId,
                 )
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,

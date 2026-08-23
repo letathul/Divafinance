@@ -21,6 +21,7 @@ module that depends on every feature, and the only place features are composed t
 | `MainScreen.kt` | The shell. Runs `InitializeDatabaseUseCase` in a `LaunchedEffect` to pick the start destination (feed vs onboarding) behind a loading state, then a `Box` holding the `NavHost`, the `DivaTabBar` and the undo snackbar. **No `Scaffold`** — the bar overlays the content rather than displacing it. |
 | `DivaNavHost.kt` | `DivaRoutes` — every route constant in one object, plus `cardDetail`, `personDetail`, `transactionDetail` and `report(period, anchor)` — and the `NavHost` graph. Hoists `CardsViewModel`, `TransactionsViewModel`, and `GraphsViewModel` here so their form state survives navigation between related screens. |
 | `dynamic/DynamicFeatureLoader.kt` | `DynamicModule` enum + `expect class` with `isInstalled`, `requestInstall`, `requestUninstall` |
+| `DeepLinks.kt` | A process-wide `StateFlow<String?>` of the pending URI. The platform entry points (`MainActivity.onNewIntent`, iOS `AppDelegate`) can't reach composition or a Koin scope, so they publish here and `MainScreen` collects and consumes it. |
 
 **`di/`** — Koin. `appModules()` returns `platformModule()`, `dataModule`, `domainModule`,
 `viewModelModule`, `serverModule`, `demoModule`; `initKoin()` adds `dynamicFeatureModule`.
@@ -42,7 +43,7 @@ module that depends on every feature, and the only place features are composed t
 | File | What it does |
 |------|--------------|
 | `androidMain/.../DivaApplication.kt` | Calls `SplitCompat.install()` in `attachBaseContext` — without it, code from an on-demand split isn't on the classloader until the app restarts — then `initKoin`. |
-| `androidMain/.../MainActivity.kt` | Sets `App()` as content |
+| `androidMain/.../MainActivity.kt` | Sets `App()` as content. `singleTask`, and publishes `ACTION_VIEW` intents into `DeepLinks` from both `onCreate` and `onNewIntent`. |
 | `androidMain/.../server/ForegroundServerLauncher.kt` | `ServerLauncher` impl. Starts the server in `server_dynamic`'s foreground service when the split is installed, **falling back to in-process** when it isn't. The service is referenced **by name, not class literal** — the base APK can't link against a module that may be absent. |
 | `iosMain/.../MainViewController.kt` | iOS framework entry point |
 
@@ -58,6 +59,11 @@ module that depends on every feature, and the only place features are composed t
   at runtime.
 - Add routes as constants in `DivaRoutes`, never as string literals at call sites —
   `DivaRoutesTest` guards every literal, so a rename is always a two-file change.
+- **`DivaRoutes.forAutomationDeepLink` returns null for an unknown id**, so a stale
+  launcher shortcut from an older install does nothing rather than crashing. Adding an
+  `AutomationAction` means adding its mapping here, or the shortcut silently no-ops.
+- **Look a transaction up through `transactionsViewModel.transactions`, not
+  `filteredTransactions`** — see `feature/transactions/CLAUDE.md`.
 - **Only `FEED` and `YOU` show the tab bar** (`tabRoutes` in `MainScreen`).
   `currentBackStackEntryFlow` reports the route *pattern* (`"cards/{cardId}"`), never the
   resolved path, so membership is tested against the patterns in `DivaRoutes`.

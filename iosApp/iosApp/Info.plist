@@ -54,6 +54,32 @@
     <string>Diva Finance uses the camera to scan receipts.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Diva Finance uses your location to tag transactions on the spending map.</string>
+    <!-- The target of every automation shortcut. `AutomationViewModel` mints
+         `divafinance://automation/{id}` and the Siri suggestions registered by
+         `IosShortcutRegistrar` open it; without this the scheme resolves to nothing. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.divafinance.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>divafinance</string>
+            </array>
+        </dict>
+    </array>
+    <!-- The activity types `IosShortcutRegistrar` donates to Siri, one per automation id.
+         iOS will not hand back an activity whose type isn't declared here. -->
+    <key>NSUserActivityTypes</key>
+    <array>
+        <string>quick_expense</string>
+        <string>daily_summary</string>
+        <string>budget_alert</string>
+        <string>android_widget</string>
+        <string>android_nfc</string>
+        <string>ios_siri</string>
+        <string>ios_shortcuts</string>
+    </array>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
 </dict>

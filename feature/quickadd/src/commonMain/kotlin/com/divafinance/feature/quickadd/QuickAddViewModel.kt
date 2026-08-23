@@ -7,6 +7,7 @@ import com.divafinance.core.common.Coordinates
 import com.divafinance.core.common.LocationSource
 import com.divafinance.core.common.UuidGenerator
 import com.divafinance.core.common.roundToCents
+import com.divafinance.core.common.toFixed
 import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.common.toMinorUnits
 import com.divafinance.core.data.repository.PersonRepository
@@ -26,6 +27,7 @@ import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.CreditCard
+import com.divafinance.core.model.Currency
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Transaction
 import com.divafinance.core.model.UserSettings
@@ -56,17 +58,30 @@ enum class QuickAddDay(val label: String) {
     YESTERDAY("Yesterday"),
 }
 
-/** What the sheet is asking the user about location, if anything. */
+/**
+ * What the sheet is asking the user about location, if anything.
+ *
+ * One value, not two. This was `CHOICE` (capture always or on tap?) followed by
+ * `RATIONALE` (why we want it) as separate dialogs; `LocationBlock` now answers both with
+ * a single consent card, and rendered the same card for either value — a distinction the
+ * UI could not express.
+ */
 enum class LocationPrompt {
-    /** First run only: capture on every entry, or only when the place line is tapped. */
-    CHOICE,
-
     /** Why we want the position, shown before the OS prompt rather than instead of it. */
-    RATIONALE,
+    CONSENT,
 }
 
 data class QuickAddUiState(
     val expression: String = "",
+    /**
+     * Whether the amount sheet is up. The keypad lives behind the amount rather than
+     * under it: everything else on this screen has a usable default, so the form is
+     * short enough to read whole once the pad is out of the way.
+     */
+    val calculatorOpen: Boolean = false,
+    /** What the entry is denominated in. Seeded from the base currency each time. */
+    val currency: String = Currency.USD.code,
+    val currencyPickerOpen: Boolean = false,
     val type: TransactionType = TransactionType.DEBIT,
     val category: SpendingCategory = SpendingCategory.OTHER,
     val suggestedCategories: List<SpendingCategory> = emptyList(),
@@ -84,6 +99,11 @@ data class QuickAddUiState(
     val locationCaptureMode: LocationCaptureMode? = null,
     /** The dialog currently in front of the sheet, if any. */
     val locationPrompt: LocationPrompt? = null,
+    /**
+     * Whether the location block under the detail chips is showing. The chip is the whole
+     * entry point, so this doubles as "the user has asked for location on this entry".
+     */
+    val showLocation: Boolean = false,
     /** What the last OS prompt answered. Drives whether the rationale is shown again. */
     val locationPermissionGranted: Boolean = false,
     /**
@@ -118,6 +138,21 @@ data class QuickAddUiState(
 ) {
     /** Running total shown while typing; tolerates a dangling operator. */
     val previewAmount: Double? get() = ExpressionEvaluator.preview(expression)?.roundToCents()
+
+    /** The symbol and name the amount and its picker are labelled with. */
+    val currencyInfo: Currency get() = Currency.fromCode(currency)
+
+    /** Capture on every entry, rather than only when the chip is tapped. */
+    val autoCaptureLocation: Boolean get() = locationCaptureMode == LocationCaptureMode.ALWAYS
+
+    /**
+     * Whether the consent card is what the location block should show.
+     *
+     * Consent is two questions — do you want this at all, and will the OS allow it — and
+     * the block asks them as one card, because to the user they are the same question.
+     */
+    val locationNeedsConsent: Boolean
+        get() = showLocation && location == null && !locationPermissionGranted && !isLocatingNow
 
     /** The amount that would actually be saved, or null if the entry is not valid. */
     val committedAmount: Double?
@@ -249,16 +284,21 @@ class QuickAddViewModel(
     fun onOpened() {
         viewModelScope.launch {
             val defaultCardId = setting(UserSettings.KEY_DEFAULT_CARD_ID)
+            val baseCurrency = setting(UserSettings.KEY_BASE_CURRENCY) ?: Currency.USD.code
             val captureMode = locationCaptureMode()
             val predicted = predictCategoryUseCase(limit = SUGGESTED_CATEGORY_COUNT)
             val recentMerchants = suggestMerchantsUseCase()
             _uiState.update {
                 it.copy(
                     selectedCardId = defaultCardId,
+                    currency = baseCurrency,
                     suggestedCategories = predicted,
                     category = predicted.firstOrNull() ?: SpendingCategory.OTHER,
                     merchantSuggestions = recentMerchants,
                     locationCaptureMode = captureMode,
+                    // Capturing without being asked has to be visible, or the entry
+                    // acquires a place the user never saw it acquire.
+                    showLocation = it.showLocation || captureMode == LocationCaptureMode.ALWAYS,
                     // ALWAYS was chosen explicitly, so opening the sheet is the ask. The
                     // prompt is silent once permission is held, which it is by then —
                     // the choice dialog walks through the rationale and the OS prompt.
@@ -282,6 +322,25 @@ class QuickAddViewModel(
     fun onDigit(char: Char) = appendToExpression(char.toString())
 
     fun onOperator(symbol: Char) = appendToExpression(symbol.toString())
+
+    /** `(` and `)`. The evaluator reads "2(3+4)" as multiplication, so no rule is needed here. */
+    fun onGroup(char: Char) = appendToExpression(char.toString())
+
+    /**
+     * Folds the running result back into the expression, so the next key continues from
+     * the total rather than from the sum that produced it. A no-op while the expression
+     * is unfinished — there is nothing to fold in yet.
+     */
+    fun onEquals() {
+        val result = ExpressionEvaluator.evaluate(_uiState.value.expression)?.roundToCents() ?: return
+        val text = if (result % 1.0 == 0.0) result.toLong().toString() else result.toFixed(2)
+        _uiState.update { it.copy(expression = text, error = null) }
+    }
+
+    fun onToggleCalculator() =
+        _uiState.update { it.copy(calculatorOpen = !it.calculatorOpen, currencyPickerOpen = false) }
+
+    fun onCalculatorDismissed() = _uiState.update { it.copy(calculatorOpen = false) }
 
     fun onBackspace() {
         _uiState.update { it.copy(expression = it.expression.dropLast(1), error = null) }
@@ -357,6 +416,16 @@ class QuickAddViewModel(
 
     fun onNoteChange(note: String) = _uiState.update { it.copy(note = note) }
 
+    fun onToggleCurrencyPicker() =
+        _uiState.update { it.copy(currencyPickerOpen = !it.currencyPickerOpen) }
+
+    /**
+     * Denominates this one entry. The base currency is left alone — a trip abroad should
+     * not re-label every report on the way home.
+     */
+    fun onCurrencyChange(code: String) =
+        _uiState.update { it.copy(currency = code, currencyPickerOpen = false) }
+
     fun onCardChange(cardId: String?) = _uiState.update { it.copy(selectedCardId = cardId) }
 
     fun onDayChange(day: QuickAddDay) = _uiState.update { it.copy(day = day) }
@@ -369,46 +438,15 @@ class QuickAddViewModel(
      * permission request, and as a refresh once a fix is already on screen.
      */
     fun onWhereTapped() {
-        val state = _uiState.value
-        when {
-            // Never been asked. Consent to the idea comes before consent to the OS prompt.
-            state.locationCaptureMode == null ->
-                _uiState.update { it.copy(locationPrompt = LocationPrompt.CHOICE) }
-
-            // Explain before the system dialog, which cannot say why we are asking.
-            !state.locationPermissionGranted ->
-                _uiState.update { it.copy(locationPrompt = LocationPrompt.RATIONALE) }
-
-            else -> beginCapture()
+        // Without permission, show the consent card — it is the rationale the OS prompt
+        // cannot give. `onLocationAllowed` carries on from there and records the opt-in,
+        // so the never-asked and permission-refused cases need no separate handling.
+        if (_uiState.value.locationPermissionGranted) {
+            beginCapture()
+        } else {
+            _uiState.update { it.copy(locationPrompt = LocationPrompt.CONSENT) }
         }
     }
-
-    /**
-     * Records the first-run answer and moves straight on to the rationale — the user has
-     * just said they want this, so stopping to make them tap the line again would be a
-     * step for its own sake.
-     */
-    fun onLocationCaptureModeChosen(mode: LocationCaptureMode) {
-        viewModelScope.launch {
-            settingsRepository.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, mode.name)
-        }
-        _uiState.update {
-            it.copy(locationCaptureMode = mode, locationPrompt = LocationPrompt.RATIONALE)
-        }
-    }
-
-    /** The user read why we want it. The OS prompt is the screen's to launch. */
-    fun onLocationRationaleAccepted() {
-        _uiState.update {
-            it.copy(
-                locationPrompt = null,
-                permissionRequestNonce = it.permissionRequestNonce + 1,
-            )
-        }
-    }
-
-    /** Backing out of either dialog leaves the entry exactly as it was. */
-    fun onLocationPromptDismissed() = _uiState.update { it.copy(locationPrompt = null) }
 
     /**
      * What the OS prompt answered. A refusal is recorded rather than retried: the next tap
@@ -468,6 +506,71 @@ class QuickAddViewModel(
     }
 
     /**
+     * The location chip, which is the whole entry point for location on this screen.
+     *
+     * Turning it on with permission already held reads the position straight away —
+     * asking again for something already granted is a step for its own sake. Without
+     * permission the block shows the consent card instead, and [onLocationAllowed] is
+     * what carries on from there.
+     */
+    fun onLocationChipToggled() {
+        val state = _uiState.value
+        if (state.showLocation) {
+            _uiState.update { it.copy(showLocation = false, locationPrompt = null) }
+            return
+        }
+        _uiState.update { it.copy(showLocation = true) }
+        if (state.location == null && state.locationPermissionGranted) beginCapture()
+    }
+
+    /**
+     * The consent card's Allow.
+     *
+     * One tap settles both questions the two-dialog flow asks separately: the card is
+     * itself the rationale the OS prompt cannot give, so accepting it records the opt-in
+     * and launches the system prompt in the same move. [ON_TAP] is the recorded default
+     * — capturing on every entry is opt-in from the toggle below, not from here.
+     */
+    fun onLocationAllowed() {
+        val existing = _uiState.value.locationCaptureMode
+        if (existing == null) {
+            viewModelScope.launch {
+                settingsRepository.set(
+                    UserSettings.KEY_LOCATION_CAPTURE_MODE,
+                    LocationCaptureMode.ON_TAP.name,
+                )
+            }
+        }
+        _uiState.update {
+            it.copy(
+                showLocation = true,
+                locationCaptureMode = existing ?: LocationCaptureMode.ON_TAP,
+                locationPrompt = null,
+                permissionRequestNonce = it.permissionRequestNonce + 1,
+            )
+        }
+    }
+
+    /**
+     * The consent card's Not now. Nothing is recorded: declining once is not a standing
+     * answer, and the chip is there to be tapped again whenever it is wanted.
+     */
+    fun onLocationDeclined() =
+        _uiState.update { it.copy(showLocation = false, locationPrompt = null) }
+
+    /**
+     * The auto-capture toggle under a captured place. Writes straight through rather than
+     * going via [onLocationAllowed], which would re-request a permission already granted.
+     */
+    fun onAutoCaptureChanged(enabled: Boolean) {
+        val mode = if (enabled) LocationCaptureMode.ALWAYS else LocationCaptureMode.ON_TAP
+        viewModelScope.launch {
+            settingsRepository.set(UserSettings.KEY_LOCATION_CAPTURE_MODE, mode.name)
+        }
+        _uiState.update { it.copy(locationCaptureMode = mode) }
+    }
+
+    /**
      * Takes the place off this entry entirely.
      *
      * Cancels any read still in flight, or a fix landing a moment later would put back the
@@ -479,6 +582,7 @@ class QuickAddViewModel(
         _uiState.update {
             it.copy(
                 isLocatingNow = false,
+                showLocation = false,
                 location = null,
                 locationName = "",
                 locationNameEdited = false,
@@ -524,6 +628,7 @@ class QuickAddViewModel(
         val previous = _uiState.value
         return QuickAddUiState(
             cards = cards.value,
+            currency = previous.currency,
             locationCaptureMode = previous.locationCaptureMode,
             locationPermissionGranted = previous.locationPermissionGranted,
             permissionRequestNonce = previous.permissionRequestNonce,
@@ -641,7 +746,7 @@ class QuickAddViewModel(
                 accountId = defaultAccountId(),
                 cardId = state.selectedCardId,
                 amount = chargedAmount,
-                currency = setting(UserSettings.KEY_BASE_CURRENCY) ?: "USD",
+                currency = state.currency,
                 category = state.category,
                 merchantName = state.merchantName.ifBlank { null },
                 note = state.note.ifBlank { null },

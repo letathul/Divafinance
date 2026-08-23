@@ -23,6 +23,7 @@ interfaces), `kotlinx-coroutines-test` (`api`)
 | `fake/FakeRewardRepository.kt` | In-memory `RewardRepository` |
 | `fake/FakeTransactionRepository.kt` | In-memory `TransactionRepository` |
 | `fake/FakeReceiptRepository.kt` | In-memory `ReceiptRepository` |
+| `fake/FakeReceiptFileStore.kt` | `ReceiptFileStore` that tracks deletions instead of performing them. `seed(...)` makes the "file already gone" case testable: an unseeded path reports `false`, as the real filesystem does. |
 | `fake/FakeFeedRepository.kt` | In-memory `FeedRepository` |
 | `fake/FakeThresholdRepository.kt` | In-memory `ThresholdRepository` |
 | `fake/FakeSettingsRepository.kt` | In-memory `SettingsRepository` |

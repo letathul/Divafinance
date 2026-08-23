@@ -12,7 +12,7 @@ full add form. (The fast path for entry is `:feature:quickadd`, a separate modul
 
 | File | What it does |
 |------|--------------|
-| `TransactionsViewModel.kt` | Owns `TransactionFilterState` (category filter, type filter, `TransactionSortOrder`, search query) and `TransactionFormState`. The visible list is `combine(transactions, filterState)` published via `stateIn`. Takes `GetTransactionsUseCase`, `AddTransactionUseCase`, `GetAllCardsUseCase`, `PostTransactionToFeedUseCase`. |
+| `TransactionsViewModel.kt` | Owns `TransactionFilterState` (category filter, type filter, `TransactionSortOrder`, search query) and `TransactionFormState`. Publishes **two** lists: `transactions` (unfiltered) and `filteredTransactions` = `combine(transactions, filterState)`. Takes `GetTransactionsUseCase`, `AddTransactionUseCase`, `GetAllCardsUseCase`, `PostTransactionToFeedUseCase`. |
 | `TransactionListScreen.kt` | `DivaRoutes.TRANSACTIONS` |
 | `TransactionDetailScreen.kt` | Single transaction view |
 | `AddTransactionScreen.kt` | `DivaRoutes.TRANSACTION_ADD` — amount, category, type, merchant, note, card |
@@ -32,6 +32,11 @@ full add form. (The fast path for entry is `:feature:quickadd`, a separate modul
   `AddTransactionUseCase` updates the card balance (only for `DEBIT` on a card), and this
   ViewModel additionally calls `PostTransactionToFeedUseCase`. Writing through
   `TransactionRepository` directly skips both.
+- **Look a transaction up by id through `transactions`, never `filteredTransactions`.**
+  The detail route used to read the filtered list and `return@composable` on a miss, so any
+  active category, type or search filter rendered a blank screen — including when arriving
+  from the feed, which shares this hoisted ViewModel. Both flows start at `emptyList()`, so
+  a miss on first composition means "not loaded yet" and deserves a spinner, not a blank.
 - Filtering and sorting happen **in the ViewModel**, over the full flow — there is no
   paging and no SQL-level filter. If the list gets large this is the thing to change, and
   the query belongs in `:core:data`.

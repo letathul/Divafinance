@@ -9,6 +9,8 @@ import com.divafinance.core.common.FileSystem
 import com.divafinance.core.common.LocationProvider
 import com.divafinance.core.common.LocationSource
 import com.divafinance.core.database.DatabaseDriverFactory
+import com.divafinance.feature.automation.IosShortcutRegistrar
+import com.divafinance.feature.automation.ShortcutRegistrar
 import com.divafinance.server.InProcessServerLauncher
 import com.divafinance.server.LocalAddressResolver
 import com.divafinance.server.NoLocalAddressResolver
@@ -21,6 +23,7 @@ actual fun platformModule(): Module = module {
     single { DynamicFeatureLoader() }
     single { FileSystem() }
     single<LocationSource> { LocationProvider() }
+    single<ShortcutRegistrar> { IosShortcutRegistrar() }
     // Present only when the Swift side handed one over, which it does on an iOS with Apple
     // Intelligence and not otherwise. The unavailable default is not a degraded mode — the
     // rules-based parser is the primary path on every platform.

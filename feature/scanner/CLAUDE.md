@@ -24,16 +24,17 @@ those reads have no use-case wrapper.
 | `review/ReceiptReviewViewModel.kt` | The review form. Its **only** input is a `receiptId`. |
 | `review/ReceiptReviewScreen.kt` | `DivaRoutes.RECEIPT_REVIEW` (`scanner/review/{receiptId}`) |
 | `capture/ImageCapture.kt` | `ImageSource` · `ImageCaptureResult` · `fun interface ImageCaptureRequester` + `@Composable expect fun rememberImageCaptureRequester()` |
+| `capture/TextFilePicker.kt` | `TextFileResult` · `fun interface TextFilePicker` + `@Composable expect fun rememberTextFilePicker()` — the CSV import's file chooser |
 | `capture/ReceiptThumbnail.kt` | `@Composable expect fun rememberReceiptThumbnail(path, maxDimension)` |
 | `ocr/OcrEngine.kt` | `expect class OcrEngine()` — `suspend recognizeText(imagePath): OcrResult` and `isAvailable()` |
 
 ### Actuals
 
-| Source set | `OcrEngine` | `ImageCapture` | `ReceiptThumbnail` |
-|------------|-------------|----------------|--------------------|
-| `androidMain` | ML Kit | `TakePicture` + `PickVisualMedia` + runtime CAMERA permission | downsampled `BitmapFactory` |
-| `iosMain` | Vision | `UIImagePickerController` + `PHPickerViewController` | `null` |
-| `jvmMain` | unavailable, empty result | reports `Failed` | `null` |
+| Source set | `OcrEngine` | `ImageCapture` | `TextFilePicker` | `ReceiptThumbnail` |
+|------------|-------------|----------------|------------------|--------------------|
+| `androidMain` | ML Kit | `TakePicture` + `PickVisualMedia` + runtime CAMERA permission | `OpenDocument` | downsampled `BitmapFactory` |
+| `iosMain` | Vision | `UIImagePickerController` + `PHPickerViewController` | `UIDocumentPickerViewController` | `null` |
+| `jvmMain` | unavailable, empty result | reports `Failed` | reports `Failed` | `null` |
 
 ## Conventions / gotchas
 
@@ -60,6 +61,21 @@ those reads have no use-case wrapper.
 - `ScannerScreen`'s `onReviewReceipt`/`onOpenTransaction` **must keep their no-op defaults** —
   `ScannerDynamicActivity` hosts the screen with no NavHost.
 - Don't add ML Kit imports to `commonMain`.
+- **`TextFilePicker` returns content, not a path**, unlike `ImageCaptureRequester`. A
+  statement is read once and never referred to again, so copying it into app storage the
+  way a receipt image is copied would leave a file nothing ever reads. On iOS the read
+  happens inside a `startAccessingSecurityScopedResource` window — a picked file is outside
+  the sandbox and the read fails without it.
+- **`iosMain` has two files in this package with private helpers.** A private top-level
+  name is file-scoped but still collides in resolution, so `TextFilePicker.ios.kt` uses
+  `DocumentPickerDelegate` / `topViewControllerForFilePicker` rather than reusing
+  `ImageCapture.ios.kt`'s `PickerDelegate` / `topViewController` names.
+- **The import form never asks for a raw id.** Account and card come from chip rows over
+  `AccountRepository` / `CardRepository`; a single account is preselected, and tapping the
+  selected card chip clears it (that's how the optional card is unset).
+- Imported rows are categorised by `CategoryPredictionEngine` on the merchant string.
+  History is read **once, before the loop**, and rows imported in the same pass don't feed
+  the next — so the result doesn't depend on the file's row order.
 
 ## Tests
 

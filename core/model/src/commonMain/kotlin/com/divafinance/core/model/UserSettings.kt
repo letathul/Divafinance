@@ -85,5 +85,15 @@ data class UserSettings(
          * only fills gaps. See `ParseReceiptUseCase.filledInBy`.
          */
         const val KEY_SMART_RECEIPT_READING = "smart_receipt_reading"
+
+        /**
+         * The ids of the automation shortcuts the user has switched on, comma-separated.
+         * Absent means none.
+         *
+         * Persisted because enabling one now registers a real OS shortcut: forgetting the
+         * set on the next launch would leave the launcher advertising shortcuts the app no
+         * longer believes in, and re-registration is what keeps the two in step.
+         */
+        const val KEY_ENABLED_AUTOMATIONS = "enabled_automations"
     }
 }

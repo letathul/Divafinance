@@ -64,11 +64,18 @@ class TransactionsViewModel(
     val cards: StateFlow<List<CreditCard>> = getAllCardsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val allTransactions = getTransactionsUseCase()
+    /**
+     * Every transaction, unfiltered.
+     *
+     * Public because looking one up by id must not go through [filteredTransactions] — an
+     * active category, type or search filter would hide the very row being opened, and the
+     * detail route would render nothing.
+     */
+    val transactions: StateFlow<List<Transaction>> = getTransactionsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val filteredTransactions: StateFlow<List<Transaction>> =
-        combine(allTransactions, _filterState) { transactions, filter ->
+        combine(transactions, _filterState) { transactions, filter ->
             transactions
                 .filter { tx ->
                     (filter.categoryFilter == null || tx.category == filter.categoryFilter) &&

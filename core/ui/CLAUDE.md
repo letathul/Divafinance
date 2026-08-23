@@ -46,7 +46,7 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | `LedgerRow.kt` | `DayHeader` + `TransactionRow` — the ledger's two building blocks |
 | `MomentCard.kt` | The feed's full-width "post" for a split or notable spend |
 | `Avatar.kt` | `Avatar`, `AvatarRing` (accent-ringed), `initialsOf()` |
-| `CalculatorKeypad.kt` | The 4×4 arithmetic pad — circular keys on Cupertino, rounded rects on Material. Visible labels are typographic (`÷ × − ⌫`), `contentDescription` is spelled out — tests select on the descriptions. |
+| `CalculatorKeypad.kt` | The 4×4 arithmetic pad — circular keys on Cupertino, rounded rects on Material. `extended = true` swaps in the 5×4 pad the add-expense amount sheet uses, adding `( ) C` and `=` (`onGroup` / `onClear` / `onEquals`). Visible labels are typographic (`÷ × − ⌫`), `contentDescription` is spelled out (`Open bracket`, `Clear`, `Equals`, …) — tests select on the descriptions. |
 | `chart/` | `SpendingPieChart`, `ThresholdBarChart`, `TrendLineChart`, and `Sparkline` (the bare inline line, no axes or empty state) over neutral `ChartSlice`/`ChartPoint`/`ChartBar` types |
 | `DivaLogo.kt` | The brand wordmark, drawn in type. No asset pipeline — replacing it is this file plus the two `DivaBrand*` colours |
 | `DivaTextField.kt` | Themed text field; supports `visualTransformation` and `keyboardOptions` (used for PIN and amount entry) |
@@ -59,7 +59,7 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | File | What it does |
 |------|--------------|
 | `CurrencyFormatter.kt` | `formatCurrency(amount, currency)` → symbol + 2dp, via `toFixed` from `core:common`. Takes `abs(amount)` — **the sign is dropped**, callers render it themselves. Falls back to the currency code when the symbol is unknown. |
-| `DateFormatter.kt` | Display formatting for `Instant`/`LocalDate` |
+| `DateFormatter.kt` | Display formatting for `Instant`/`LocalDate`, plus `formatShortDate` (`"Aug 21"`) for chips and captions |
 
 ## Conventions / gotchas
 

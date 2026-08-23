@@ -37,7 +37,13 @@ Behaviours worth knowing before touching them:
 - `AddTransactionUseCase` also updates the card balance — but only for `DEBIT`
   transactions on a card. Inserting a transaction through the repository directly skips
   this side effect. `DeleteTransactionUseCase` is its exact inverse and must be used for
-  any removal, or the card stays permanently overstated.
+  any removal, or the card stays permanently overstated. It also removes the linked
+  `Receipt` row **and its image files** (`imagePath` plus every `pagePaths` entry), through
+  `ReceiptFileStore` — a receipt is found by `transaction_id`, so that step has to happen
+  *before* the transaction is deleted or the row and files are stranded forever.
+- `ImportStatementUseCase` categorises imported rows through `CategoryPredictionEngine`
+  rather than writing `OTHER` for everything. History is read once, before the loop, so a
+  300-row statement is one query and the result doesn't depend on row order.
 - `PredictCategoryUseCase` always returns `limit` categories, padding a thin prediction
   from a fixed fallback list so a new install still gets a full chip row.
 - `ReceiptStatus.PROCESSED` means **"linked to a transaction"** and is set only by

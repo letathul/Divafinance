@@ -96,6 +96,7 @@ object TestData {
         totalAmount: Double? = 50.0,
         date: LocalDate? = LocalDate(2024, 6, 15),
         status: ReceiptStatus = ReceiptStatus.PENDING,
+        pagePaths: List<String> = emptyList(),
     ) = Receipt(
         id = id,
         transactionId = transactionId,
@@ -106,6 +107,7 @@ object TestData {
         date = date,
         status = status,
         createdAt = now,
+        pagePaths = pagePaths,
     )
 
     fun person(

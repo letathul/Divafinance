@@ -1,9 +1,13 @@
 package com.divafinance.feature.automation
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.divafinance.core.data.repository.SettingsRepository
+import com.divafinance.core.model.UserSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class AutomationAction(
     val id: String,
@@ -20,11 +24,29 @@ data class AutomationUiState(
 )
 
 class AutomationViewModel(
-    private val automationHandler: AutomationHandler = AutomationHandler(),
+    private val shortcutRegistrar: ShortcutRegistrar,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AutomationUiState())
     val uiState: StateFlow<AutomationUiState> = _uiState.asStateFlow()
+
+    init {
+        // Re-register on every construction rather than only on a toggle. The OS keeps
+        // shortcuts across launches and upgrades, so the stored set is the only thing that
+        // says what they should be — and a reinstall drops them while the setting survives.
+        viewModelScope.launch {
+            val enabled = settingsRepository.get(UserSettings.KEY_ENABLED_AUTOMATIONS)
+                ?.split(',')
+                ?.filter { it.isNotBlank() }
+                .orEmpty()
+                .toSet()
+            _uiState.value = _uiState.value.copy(
+                actions = _uiState.value.actions.map { it.copy(enabled = it.id in enabled) },
+            )
+            syncShortcuts()
+        }
+    }
 
     fun toggleAction(id: String) {
         _uiState.value = _uiState.value.copy(
@@ -33,20 +55,29 @@ class AutomationViewModel(
             },
         )
         syncShortcuts()
+        viewModelScope.launch {
+            settingsRepository.set(
+                UserSettings.KEY_ENABLED_AUTOMATIONS,
+                enabledActions().joinToString(",") { it.id },
+            )
+        }
     }
 
+    /** The URI a shortcut carries, and the single place its format is defined. */
+    private fun deepLinkFor(id: String) = "divafinance://automation/$id"
+
+    private fun enabledActions() = _uiState.value.actions.filter { it.enabled }
+
     private fun syncShortcuts() {
-        val enabledShortcuts = _uiState.value.actions
-            .filter { it.enabled }
-            .map { action ->
-                ShortcutInfo(
-                    id = action.id,
-                    title = action.title,
-                    description = action.description,
-                    deepLinkUri = "divafinance://automation/${action.id}",
-                )
-            }
-        automationHandler.registerShortcuts(enabledShortcuts)
+        val enabledShortcuts = enabledActions().map { action ->
+            ShortcutInfo(
+                id = action.id,
+                title = action.title,
+                description = action.description,
+                deepLinkUri = deepLinkFor(action.id),
+            )
+        }
+        shortcutRegistrar.registerShortcuts(enabledShortcuts)
     }
 }
 

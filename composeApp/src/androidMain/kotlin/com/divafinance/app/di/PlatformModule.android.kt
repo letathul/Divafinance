@@ -8,6 +8,8 @@ import com.divafinance.core.common.LocationSource
 import com.divafinance.core.database.DatabaseDriverFactory
 import com.divafinance.core.domain.usecase.scanner.ReceiptExtractor
 import com.divafinance.core.domain.usecase.scanner.UnavailableReceiptExtractor
+import com.divafinance.feature.automation.AndroidShortcutRegistrar
+import com.divafinance.feature.automation.ShortcutRegistrar
 import com.divafinance.server.AndroidLocalAddressResolver
 import com.divafinance.server.LocalAddressResolver
 import com.divafinance.server.ServerLauncher
@@ -19,6 +21,7 @@ actual fun platformModule(): Module = module {
     single { DynamicFeatureLoader(get()) }
     single { FileSystem(get()) }
     single<LocationSource> { LocationProvider(get()) }
+    single<ShortcutRegistrar> { AndroidShortcutRegistrar(get()) }
     single<ServerLauncher> { ForegroundServerLauncher(get(), get(), get()) }
     single<LocalAddressResolver> { AndroidLocalAddressResolver(get()) }
     // No system language model is reachable here yet: the AI Edge prompt API for Gemini Nano

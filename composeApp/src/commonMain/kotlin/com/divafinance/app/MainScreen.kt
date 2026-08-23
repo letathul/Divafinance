@@ -74,6 +74,22 @@ fun MainScreen() {
         }
     }
 
+    // An automation shortcut. Collected here rather than handled at the platform entry
+    // point because this is the first place a NavController exists — a URI that arrived
+    // during launch is still pending by the time this runs.
+    val pendingDeepLink by DeepLinks.pending.collectAsState()
+    LaunchedEffect(pendingDeepLink, startDestination) {
+        val uri = pendingDeepLink ?: return@LaunchedEffect
+        // Onboarding owns the whole screen until it is finished; jumping past it would
+        // land on a shell with no account behind it.
+        if (startDestination == DivaRoutes.ONBOARDING) {
+            DeepLinks.consume()
+            return@LaunchedEffect
+        }
+        DivaRoutes.forAutomationDeepLink(uri)?.let { navController.navigate(it) }
+        DeepLinks.consume()
+    }
+
     // The sheet's ViewModel is hoisted here, not resolved inside the add destination, so
     // the undo snackbar outlives the screen that produced it.
     val quickAddViewModel: QuickAddViewModel = koinViewModel()

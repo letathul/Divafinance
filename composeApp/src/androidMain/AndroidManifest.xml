@@ -24,16 +24,34 @@
         android:label="Diva Finance"
         android:supportsRtl="true"
         android:theme="@style/Theme.DivaFinance">
+        <!-- `singleTask`: a shortcut tapped while the app is already open must reuse this
+             instance and arrive at onNewIntent, not stack a second copy of the shell. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.DivaFinance"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- The target of every automation shortcut. `AutomationViewModel` mints
+                 `divafinance://automation/{id}`; without this the URI opens nothing. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="divafinance" />
+            </intent-filter>
         </activity>
+
+        <!-- Without this the Maps SDK authenticates as nobody and draws a grey tile grid
+             instead of a map. Substituted from `MAPS_API_KEY` in local.properties (or the
+             environment) by composeApp/build.gradle.kts; empty when neither is set. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
 
         <!-- The camera app writes the receipt photo into our own files dir, so it needs a
              grantable URI. Declared here rather than in :feature:scanner because that

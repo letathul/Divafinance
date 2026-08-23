@@ -3,6 +3,7 @@ package com.divafinance.app
 import com.divafinance.core.domain.usecase.reports.ReportPeriod
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.datetime.LocalDate
 
@@ -95,5 +96,41 @@ class DivaRoutesTest {
         assertTrue(DivaRoutes.FEED != DivaRoutes.YOU)
         assertTrue(!DivaRoutes.FEED.contains("/"))
         assertTrue(!DivaRoutes.YOU.contains("/"))
+    }
+
+    @Test
+    fun theAutomationUriPrefixMatchesWhatAutomationViewModelMints() {
+        // Stated in :feature:automation too, which sits below this module and can't import
+        // DivaRoutes. This is the assertion that keeps the two halves in step.
+        assertEquals("divafinance://automation/", DivaRoutes.AUTOMATION_URI_PREFIX)
+    }
+
+    @Test
+    fun automationDeepLinksResolveToDestinations() {
+        assertEquals(
+            DivaRoutes.ADD_EXPENSE,
+            DivaRoutes.forAutomationDeepLink("divafinance://automation/quick_expense"),
+        )
+        assertEquals(
+            DivaRoutes.FEED,
+            DivaRoutes.forAutomationDeepLink("divafinance://automation/daily_summary"),
+        )
+        assertEquals(
+            DivaRoutes.BUDGETS,
+            DivaRoutes.forAutomationDeepLink("divafinance://automation/budget_alert"),
+        )
+    }
+
+    /** A stale shortcut from an older install must do nothing, not crash or misroute. */
+    @Test
+    fun anUnknownAutomationDeepLinkResolvesToNothing() {
+        assertNull(DivaRoutes.forAutomationDeepLink("divafinance://automation/gone"))
+        assertNull(DivaRoutes.forAutomationDeepLink("divafinance://automation/"))
+    }
+
+    @Test
+    fun aNonAutomationUriResolvesToNothing() {
+        assertNull(DivaRoutes.forAutomationDeepLink("https://example.com/quick_expense"))
+        assertNull(DivaRoutes.forAutomationDeepLink("quick_expense"))
     }
 }

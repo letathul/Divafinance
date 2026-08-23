@@ -8,7 +8,6 @@ import com.divafinance.feature.feed.FeedViewModel
 import com.divafinance.feature.graphs.GraphsViewModel
 import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.onboarding.OnboardingViewModel
-import com.divafinance.feature.automation.AutomationHandler
 import com.divafinance.feature.automation.AutomationViewModel
 import com.divafinance.feature.quickadd.QuickAddViewModel
 import com.divafinance.feature.scanner.ScannerViewModel
@@ -26,7 +25,6 @@ val viewModelModule = module {
     single { OcrEngine() }
     // Held as a singleton so the app root and the settings screen read one stream.
     single { AppearanceStore(get()) }
-    single { AutomationHandler() }
     viewModel { OnboardingViewModel(get(), get(), get()) }
     viewModel { CardsViewModel(get(), get(), get(), get()) }
     viewModel { TransactionsViewModel(get(), get(), get(), get()) }
@@ -41,11 +39,11 @@ val viewModelModule = module {
     // Period and anchor come from the nav route, so they are passed in rather than resolved.
     viewModel { params -> ReportViewModel(params.get(), params.get(), get(), get()) }
     viewModel { MapViewModel(get(), get()) }
-    viewModel { ScannerViewModel(get(), get(), get(), get()) }
+    viewModel { ScannerViewModel(get(), get(), get(), get(), get(), get()) }
     // Scoped to one receipt, so the id comes from the nav route rather than the graph.
     viewModel { params ->
         ReceiptReviewViewModel(params.get(), get(), get(), get(), get(), get(), get())
     }
-    viewModel { AutomationViewModel(get()) }
+    viewModel { AutomationViewModel(get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get()) }
 }

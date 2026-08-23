@@ -1,5 +1,6 @@
 package com.divafinance.app
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -26,8 +27,25 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
+        // The launch intent, for a shortcut tapped while the app was not running.
+        publishDeepLink(intent)
         setContent {
             App()
         }
+    }
+
+    /**
+     * The activity is `singleTask`, so a shortcut tapped while it is already open is
+     * delivered here rather than through a second [onCreate].
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        publishDeepLink(intent)
+    }
+
+    private fun publishDeepLink(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        intent.data?.toString()?.let(DeepLinks::open)
     }
 }

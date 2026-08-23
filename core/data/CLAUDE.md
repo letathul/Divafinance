@@ -29,6 +29,13 @@ All under `src/commonMain/kotlin/com/divafinance/core/data/`.
 | `SettingsRepository` | `SettingsRepositoryImpl` | The single `UserSettings` row |
 | `BackupRepository` | `BackupRepositoryImpl` | `exportAll()` / `importAll(archive, replaceExisting)` across every table |
 
+Plus one non-database binding: **`ReceiptFileStore`**, a `fun interface` with a single
+`delete(path)`. It exists because `core:common`'s `FileSystem` is an `expect class` whose
+constructor differs per platform, so it can only be built inside a platform Koin module and
+cannot be constructed in `commonTest` at all. `DeleteTransactionUseCase` depends on this
+instead, which keeps `:core:domain` free of platform types and leaves receipt cleanup
+testable against `FakeReceiptFileStore`. Bound in `DataModule` over `FileSystem::deleteFile`.
+
 **`mapper/`** — `CardMapper`, `TransactionMapper`, `AccountMapper`. Objects with
 `toDomain(...)` taking the generated row's columns as parameters, so the mapper doesn't
 have to import SQLDelight types.

@@ -1,5 +1,6 @@
 package com.divafinance.app
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -11,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.savedstate.read
 import com.divafinance.core.domain.usecase.reports.ReportPeriod
+import com.divafinance.core.ui.component.LoadingIndicator
 import com.divafinance.feature.activity.ActivityScreen
 import com.divafinance.feature.activity.ActivityViewModel
 import com.divafinance.feature.activity.PersonDetailScreen
@@ -104,6 +106,26 @@ object DivaRoutes {
      */
     fun report(period: ReportPeriod, anchor: LocalDate) =
         "report/${period.name.lowercase()}/$anchor"
+
+    /**
+     * Where `divafinance://automation/{id}` lands, or null for anything unrecognised — a
+     * stale launcher shortcut from a previous install must do nothing rather than crash.
+     *
+     * The URI format is minted in `AutomationViewModel` and matched here. It is stated
+     * twice because `:feature:automation` sits below this module and cannot import
+     * [DivaRoutes]; `DivaRoutesTest` pins this side of it.
+     */
+    fun forAutomationDeepLink(uri: String): String? {
+        val id = uri.removePrefix(AUTOMATION_URI_PREFIX).takeIf { it != uri } ?: return null
+        return when (id) {
+            "quick_expense", "android_nfc", "ios_siri", "ios_shortcuts" -> ADD_EXPENSE
+            "daily_summary", "android_widget" -> FEED
+            "budget_alert" -> BUDGETS
+            else -> null
+        }
+    }
+
+    const val AUTOMATION_URI_PREFIX = "divafinance://automation/"
 }
 
 @Composable
@@ -178,13 +200,21 @@ fun DivaNavHost(
         composable(DivaRoutes.TRANSACTION_DETAIL) { backStackEntry ->
             val transactionId = backStackEntry.arguments?.read { getStringOrNull("transactionId") }
                 ?: return@composable
-            val transactions by transactionsViewModel.filteredTransactions.collectAsState()
+            // The unfiltered flow on purpose: `filteredTransactions` hides rows the list
+            // screen's category/type/search filter excludes, and the feed shares this
+            // hoisted ViewModel — so a filter set there used to blank this screen.
+            val transactions by transactionsViewModel.transactions.collectAsState()
             val transaction = transactions.firstOrNull { it.id == transactionId }
-                ?: return@composable
-            TransactionDetailScreen(
-                transaction = transaction,
-                onBack = { navController.popBackStack() },
-            )
+            if (transaction == null) {
+                // The flow starts at `emptyList()`, so a miss on first composition means
+                // "not loaded yet", not "no such transaction".
+                LoadingIndicator(Modifier.fillMaxSize())
+            } else {
+                TransactionDetailScreen(
+                    transaction = transaction,
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
 
         // ── Add ───────────────────────────────────────────────────────────────

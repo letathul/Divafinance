@@ -3,6 +3,8 @@ package com.divafinance.feature.scanner
 import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
+import com.divafinance.core.testing.fake.FakeAccountRepository
+import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
@@ -11,6 +13,7 @@ import com.divafinance.core.testing.installTestMainDispatcher
 import com.divafinance.core.testing.resetTestMainDispatcher
 import com.divafinance.feature.scanner.capture.ImageCaptureResult
 import com.divafinance.feature.scanner.capture.ImageSource
+import com.divafinance.feature.scanner.capture.TextFileResult
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -32,11 +35,15 @@ class ScannerViewModelTest {
 
     private val receiptRepo = FakeReceiptRepository()
     private val transactionRepo = FakeTransactionRepository()
+    private val accountRepo = FakeAccountRepository()
+    private val cardRepo = FakeCardRepository()
 
     private fun viewModel() = ScannerViewModel(
         ParseReceiptUseCase(receiptRepo, FakeSettingsRepository()),
         ImportStatementUseCase(transactionRepo),
         GetReceiptsUseCase(receiptRepo),
+        accountRepo,
+        cardRepo,
     )
 
     @Test
@@ -161,7 +168,77 @@ class ScannerViewModelTest {
         vm.importCsvStatement()
         advanceUntilIdle()
 
-        assertEquals("Account ID is required", vm.uiState.value.error)
+        assertEquals("Choose an account to import into", vm.uiState.value.error)
         assertNull(vm.uiState.value.importedCount)
+    }
+
+    /**
+     * The whole point of the account picker: the id is never typed, so with one account
+     * there is nothing to choose and the import just works.
+     */
+    @Test
+    fun aSingleAccountIsPreselected() = runTest {
+        accountRepo.insert(TestData.account(id = "acc-1"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals("acc-1", vm.uiState.value.accountId)
+    }
+
+    /** With a choice to make, nothing is assumed — picking is the user's. */
+    @Test
+    fun severalAccountsPreselectNothing() = runTest {
+        accountRepo.insert(TestData.account(id = "acc-1"))
+        accountRepo.insert(TestData.account(id = "acc-2"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.accountId)
+        assertEquals(2, vm.uiState.value.accounts.size)
+    }
+
+    @Test
+    fun aPickedFileFillsTheCsvBoxAndShowsItsName() = runTest {
+        val vm = viewModel()
+
+        vm.onCsvFilePicked(
+            TextFileResult.Success("june.csv", "date,description,amount\n2024-06-15,Coffee,5.50"),
+        )
+
+        assertEquals("june.csv", vm.uiState.value.csvFileName)
+        assertTrue(vm.uiState.value.csvContent.startsWith("date,description,amount"))
+        assertNull(vm.uiState.value.error)
+    }
+
+    /** Backing out of the picker leaves whatever was already there. */
+    @Test
+    fun cancellingThePickerChangesNothing() = runTest {
+        val vm = viewModel()
+        vm.updateCsvContent("already,typed,in")
+
+        vm.onCsvFilePicked(TextFileResult.Cancelled)
+
+        assertEquals("already,typed,in", vm.uiState.value.csvContent)
+        assertNull(vm.uiState.value.error)
+    }
+
+    @Test
+    fun aFailedPickSurfacesItsMessage() = runTest {
+        val vm = viewModel()
+
+        vm.onCsvFilePicked(TextFileResult.Failed("Couldn't read that file"))
+
+        assertEquals("Couldn't read that file", vm.uiState.value.error)
+    }
+
+    /** Typing over a picked file drops the name, which no longer describes the content. */
+    @Test
+    fun editingTheCsvClearsThePickedFileName() = runTest {
+        val vm = viewModel()
+        vm.onCsvFilePicked(TextFileResult.Success("june.csv", "a,b,c"))
+
+        vm.updateCsvContent("a,b,c\nd,e,f")
+
+        assertNull(vm.uiState.value.csvFileName)
     }
 }

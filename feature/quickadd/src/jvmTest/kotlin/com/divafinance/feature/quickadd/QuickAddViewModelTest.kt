@@ -19,6 +19,8 @@ import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeLedgerRepository
 import com.divafinance.core.testing.fake.FakePersonRepository
 import com.divafinance.core.testing.fake.FakeFeedRepository
+import com.divafinance.core.testing.fake.FakeReceiptFileStore
+import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.testing.fake.TestData
@@ -55,10 +57,12 @@ class QuickAddViewModelTest {
     private var premiumGate = FakePremiumGate(premium = false)
     private var locationSource = FakeLocationSource(coordinates = null)
     private val personRepo = FakePersonRepository()
+    private val receiptRepo = FakeReceiptRepository()
+    private val receiptFiles = FakeReceiptFileStore()
 
     private fun viewModel() = QuickAddViewModel(
         AddTransactionUseCase(txRepo, cardRepo),
-        DeleteTransactionUseCase(txRepo, cardRepo, ledgerRepo),
+        DeleteTransactionUseCase(txRepo, cardRepo, ledgerRepo, receiptRepo, receiptFiles),
         PredictCategoryUseCase(txRepo),
         SuggestMerchantsUseCase(txRepo),
         GetAllCardsUseCase(cardRepo),
@@ -81,13 +85,10 @@ class QuickAddViewModelTest {
     /** Stands in for the screen's permission launcher answering yes. */
     private fun QuickAddViewModel.grantLocation() = onLocationPermissionResult(granted = true)
 
-    /** The whole first-run path: tap the place line, opt in, read the rationale, allow. */
-    private fun QuickAddViewModel.tapWhereAndAllow(
-        mode: LocationCaptureMode = LocationCaptureMode.ON_TAP,
-    ) {
+    /** The whole first-run path: tap the place line, allow on the consent card. */
+    private fun QuickAddViewModel.tapWhereAndAllow() {
         onWhereTapped()
-        onLocationCaptureModeChosen(mode)
-        onLocationRationaleAccepted()
+        onLocationAllowed()
         grantLocation()
     }
 
@@ -219,10 +220,25 @@ class QuickAddViewModelTest {
     fun usesTheConfiguredBaseCurrency() = runTest {
         settingsRepo.set(UserSettings.KEY_BASE_CURRENCY, "EUR")
         val vm = viewModel()
+        vm.onOpened()
         vm.type("15")
         vm.save()
 
         assertEquals("EUR", txRepo.getAll().first().single().currency)
+    }
+
+    /** Denominating one entry abroad must not re-label every report back home. */
+    @Test
+    fun aPickedCurrencyOverridesTheBaseForThatEntryOnly() = runTest {
+        settingsRepo.set(UserSettings.KEY_BASE_CURRENCY, "EUR")
+        val vm = viewModel()
+        vm.onOpened()
+        vm.onCurrencyChange("JPY")
+        vm.type("15")
+        vm.save()
+
+        assertEquals("JPY", txRepo.getAll().first().single().currency)
+        assertEquals("EUR", settingsRepo.get(UserSettings.KEY_BASE_CURRENCY))
     }
 
     @Test
@@ -571,8 +587,7 @@ class QuickAddViewModelTest {
     fun removingThePlaceLeavesTheEntryWithoutOne() = runTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
         val vm = viewModel()
-        vm.onLocationCaptureModeChosen(LocationCaptureMode.ALWAYS)
-        vm.onLocationRationaleAccepted()
+        vm.onLocationAllowed()
         vm.onLocationPermissionResult(granted = true)
         assertNotNull(vm.uiState.value.location)
 
@@ -754,37 +769,44 @@ class QuickAddViewModelTest {
 
     /** Nothing is read until the user has both opted in and answered the OS prompt. */
     @Test
-    fun theFirstTapAsksHowOftenToCaptureRatherThanReadingAFix() = runTest {
+    fun theFirstTapAsksForConsentRatherThanReadingAFix() = runTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
 
         val vm = viewModel()
         vm.onWhereTapped()
 
-        assertEquals(LocationPrompt.CHOICE, vm.uiState.value.locationPrompt)
+        assertEquals(LocationPrompt.CONSENT, vm.uiState.value.locationPrompt)
         assertNull(vm.uiState.value.location)
         assertEquals(0, vm.uiState.value.permissionRequestNonce)
     }
 
-    /** Opting in leads straight into the rationale; the OS prompt has no room to explain. */
+    /** One card settles both questions: it *is* the rationale the OS prompt cannot give. */
     @Test
-    fun choosingAModeShowsTheRationaleBeforeTheOsPrompt() = runTest {
+    fun allowingOnTheConsentCardLaunchesTheOsPrompt() = runTest {
         val vm = viewModel()
         vm.onWhereTapped()
-        vm.onLocationCaptureModeChosen(LocationCaptureMode.ON_TAP)
 
-        assertEquals(LocationPrompt.RATIONALE, vm.uiState.value.locationPrompt)
-        assertEquals(0, vm.uiState.value.permissionRequestNonce)
-
-        vm.onLocationRationaleAccepted()
+        vm.onLocationAllowed()
 
         assertNull(vm.uiState.value.locationPrompt)
         assertEquals(1, vm.uiState.value.permissionRequestNonce)
     }
 
     @Test
-    fun theChosenModeIsRemembered() = runTest {
+    fun allowingRecordsOnTapAsTheMode() = runTest {
         val vm = viewModel()
-        vm.onLocationCaptureModeChosen(LocationCaptureMode.ALWAYS)
+        vm.onLocationAllowed()
+
+        assertEquals(
+            LocationCaptureMode.ON_TAP.name,
+            settingsRepo.get(UserSettings.KEY_LOCATION_CAPTURE_MODE),
+        )
+    }
+
+    @Test
+    fun theAutoCaptureToggleIsRemembered() = runTest {
+        val vm = viewModel()
+        vm.onAutoCaptureChanged(enabled = true)
 
         assertEquals(
             LocationCaptureMode.ALWAYS.name,
@@ -803,14 +825,14 @@ class QuickAddViewModelTest {
         assertEquals("Trafalgar Square", vm.uiState.value.locationName)
     }
 
-    /** Backing out of either dialog must leave the entry exactly as it was. */
+    /** Declining the consent card must leave the entry exactly as it was. */
     @Test
-    fun dismissingAPromptCapturesNothing() = runTest {
+    fun decliningCapturesNothing() = runTest {
         locationSource.coordinates = Coordinates(51.5, -0.12)
 
         val vm = viewModel()
         vm.onWhereTapped()
-        vm.onLocationPromptDismissed()
+        vm.onLocationDeclined()
 
         assertNull(vm.uiState.value.locationPrompt)
         assertNull(vm.uiState.value.location)

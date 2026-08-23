@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -102,6 +103,12 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0.0"
+
+        // Substituted into the `com.google.android.geo.API_KEY` meta-data in the manifest.
+        // Empty is a valid build — Maps then renders a grey tile grid, and the spending map
+        // is expected to be used through `MapFallbackScreen` instead. The key is read from
+        // an untracked file so it never reaches the repository.
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey()
     }
 
     buildTypes {
@@ -125,4 +132,23 @@ android {
         ":dynamic:server_dynamic",
         ":dynamic:demo_dynamic"
     )
+}
+
+/**
+ * `local.properties` first, then the environment, then empty.
+ *
+ * `local.properties` is already gitignored and already holds this machine's Java home, so
+ * it is where a developer key belongs; the environment variable is what CI would set. The
+ * empty fallback is deliberate — a missing key must not fail the build for everyone who
+ * isn't working on the map.
+ */
+fun mapsApiKey(): String {
+    val local = rootProject.file("local.properties")
+    if (local.exists()) {
+        val props = Properties()
+        local.inputStream().use { props.load(it) }
+        val fromFile: String? = props.getProperty("MAPS_API_KEY")
+        if (!fromFile.isNullOrBlank()) return fromFile
+    }
+    return System.getenv("MAPS_API_KEY").orEmpty()
 }

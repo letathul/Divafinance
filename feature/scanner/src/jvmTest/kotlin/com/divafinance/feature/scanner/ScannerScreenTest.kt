@@ -9,6 +9,8 @@ import com.divafinance.core.domain.usecase.scanner.GetReceiptsUseCase
 import com.divafinance.core.domain.usecase.scanner.ImportStatementUseCase
 import com.divafinance.core.domain.usecase.scanner.ParseReceiptUseCase
 import com.divafinance.core.model.enums.ReceiptStatus
+import com.divafinance.core.testing.fake.FakeAccountRepository
+import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.testing.fake.FakeSettingsRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
@@ -32,11 +34,15 @@ class ScannerScreenTest {
 
     private val receiptRepo = FakeReceiptRepository()
     private val transactionRepo = FakeTransactionRepository()
+    private val accountRepo = FakeAccountRepository()
+    private val cardRepo = FakeCardRepository()
 
     private fun viewModel() = ScannerViewModel(
         ParseReceiptUseCase(receiptRepo, FakeSettingsRepository()),
         ImportStatementUseCase(transactionRepo),
         GetReceiptsUseCase(receiptRepo),
+        accountRepo,
+        cardRepo,
     )
 
     @Test

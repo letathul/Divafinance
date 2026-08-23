@@ -59,10 +59,12 @@ Because every Compose UI test runs on the `jvm` host, which resolves to `MATERIA
 test that does not pass `platform = CUPERTINO` explicitly is not covering iOS at all.
 
 **Every screen gets its chrome from `DivaScaffold` / `DivaListScaffold`** — no feature
-module constructs a `Scaffold`, `TopAppBar` or `Switch` of its own any more. Two
+module constructs a `Scaffold`, `TopAppBar` or `Switch` of its own any more. Three
 deliberate exceptions: `OnboardingScreen`, a full-bleed wizard that runs outside the tab
-shell and carries its own step chrome, and `MapFallbackScreen`, which renders *inside*
-`SpendingMapScreen` and would otherwise draw a second nav bar.
+shell and carries its own step chrome; `MapFallbackScreen`, which renders *inside*
+`SpendingMapScreen` and would otherwise draw a second nav bar; and `AddExpenseScreen`,
+a full-bleed accent gradient with a floating card, also outside the tab shell, whose only
+chrome is a close button.
 
 ### Layers
 
@@ -90,8 +92,9 @@ Rules that matter when adding dependencies:
 - Three features break the "no feature→feature edge" rule deliberately:
   `:feature:onboarding` and `:feature:settings` both depend on `:feature:demo`.
   `:feature:settings` is also the only feature depending on `:server`.
-- Four features declare `:core:data` directly (`quickadd`, `settings`, `demo`, `scanner`)
-  because they read or write through repositories that have no use-case wrapper yet.
+- Five features declare `:core:data` directly (`quickadd`, `settings`, `demo`, `scanner`,
+  `automation`) because they read or write through repositories that have no use-case
+  wrapper yet.
 - Charts live in `:core:ui` (`component/chart/`) and take neutral `ChartSlice` /
   `ChartPoint` / `ChartBar` types rather than domain ones, so both `:feature:graphs` and
   the period report can render them without `:core:ui` gaining a dependency.

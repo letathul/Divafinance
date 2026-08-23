@@ -31,3 +31,12 @@ fun formatRelativeDate(date: LocalDate, today: LocalDate): String {
         else -> formatDate(date)
     }
 }
+
+private val MONTH_ABBREVIATIONS = listOf(
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+/** "Aug 21" — the compact form a chip or a caption can carry next to other text. */
+fun formatShortDate(date: LocalDate): String =
+    "${MONTH_ABBREVIATIONS[date.monthNumber - 1]} ${date.dayOfMonth}"

@@ -5,7 +5,8 @@ package com.divafinance.core.common
  * or a split ("120/3") instead of being worked out elsewhere first.
  *
  * Deliberately small: `+ - * /` over decimal literals, standard precedence, left
- * associative, optional leading minus. No parentheses — the keypad cannot produce them.
+ * associative, optional leading minus, and parentheses — the calculator sheet has `(`
+ * and `)` keys, so grouping has to survive the round trip from what the user typed.
  */
 object ExpressionEvaluator {
 
@@ -31,14 +32,25 @@ object ExpressionEvaluator {
         var candidate = expression.trim()
         while (candidate.isNotEmpty()) {
             evaluate(candidate)?.let { return it }
+            // A group still being typed is unfinished, not wrong: "12*(3+4" is worth
+            // previewing as 84 rather than collapsing all the way back to 12, which is
+            // what dropping characters one at a time would otherwise arrive at.
+            closed(candidate)?.let { closed -> evaluate(closed)?.let { return it } }
             candidate = candidate.dropLast(1).trimEnd()
         }
         return null
     }
 
+    /** [expression] with its unclosed groups closed, or null if none are open. */
+    private fun closed(expression: String): String? {
+        val open = expression.count { it == '(' } - expression.count { it == ')' }
+        return if (open > 0) expression + ")".repeat(open) else null
+    }
+
     private sealed interface Token {
         data class Num(val value: Double) : Token
         data class Op(val symbol: Char) : Token
+        data class Group(val open: Boolean) : Token
     }
 
     /** Returns null on any character or arrangement the grammar does not allow. */
@@ -48,6 +60,7 @@ object ExpressionEvaluator {
 
         val tokens = mutableListOf<Token>()
         var index = 0
+        var depth = 0
 
         while (index < source.length) {
             val char = source[index]
@@ -68,11 +81,12 @@ object ExpressionEvaluator {
                 }
 
                 char in OPERATORS -> {
-                    // A leading minus is a sign, not a binary operator: "-5+2".
-                    if (tokens.isEmpty()) {
+                    val previous = tokens.lastOrNull()
+                    // A leading minus is a sign, not a binary operator: "-5+2", "(-5+2)".
+                    if (previous == null || previous == Token.Group(open = true)) {
                         if (char != '-') return null
                         tokens += Token.Num(0.0)
-                    } else if (tokens.last() is Token.Op) {
+                    } else if (previous is Token.Op) {
                         // Two operators in a row has no reading here ("5+*3").
                         return null
                     }
@@ -80,13 +94,37 @@ object ExpressionEvaluator {
                     index++
                 }
 
+                char == '(' -> {
+                    // "2(3+4)" is multiplication everywhere else it is written, and the
+                    // keypad lets it be typed, so it is read that way rather than rejected.
+                    val previous = tokens.lastOrNull()
+                    if (previous is Token.Num || previous == Token.Group(open = false)) {
+                        tokens += Token.Op('*')
+                    }
+                    tokens += Token.Group(open = true)
+                    depth++
+                    index++
+                }
+
+                char == ')' -> {
+                    // Nothing to close, or nothing inside it to close over.
+                    val previous = tokens.lastOrNull()
+                    if (depth == 0) return null
+                    if (previous !is Token.Num && previous != Token.Group(open = false)) return null
+                    tokens += Token.Group(open = false)
+                    depth--
+                    index++
+                }
+
                 else -> return null
             }
         }
 
-        // A trailing operator means the expression is unfinished, not wrong — but it is
-        // still not evaluable. preview() is what tolerates this case.
-        if (tokens.lastOrNull() is Token.Op) return null
+        // A trailing operator or an unclosed group means the expression is unfinished,
+        // not wrong — but it is still not evaluable. preview() is what tolerates both.
+        if (depth != 0) return null
+        val last = tokens.lastOrNull()
+        if (last !is Token.Num && last != Token.Group(open = false)) return null
         return tokens
     }
 
@@ -102,6 +140,15 @@ object ExpressionEvaluator {
         for (token in tokens) {
             when (token) {
                 is Token.Num -> operands.addLast(token.value)
+                is Token.Group -> if (token.open) {
+                    operators.addLast('(')
+                } else {
+                    // Everything pushed since the matching '(' belongs to this group.
+                    while (operators.lastOrNull() != '(') {
+                        if (!collapse(operands, operators)) return null
+                    }
+                    operators.removeLast()
+                }
                 is Token.Op -> {
                     while (
                         operators.isNotEmpty() &&
@@ -141,8 +188,10 @@ object ExpressionEvaluator {
         return true
     }
 
+    /** `(` sits below every operator so nothing ever collapses past an open group. */
     private fun precedence(operator: Char): Int = when (operator) {
         '*', '/' -> 2
+        '(' -> 0
         else -> 1
     }
 

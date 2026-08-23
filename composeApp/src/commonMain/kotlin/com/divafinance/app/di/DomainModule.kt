@@ -51,7 +51,7 @@ val domainModule = module {
 
     // Transactions
     factory { AddTransactionUseCase(get(), get()) }
-    factory { DeleteTransactionUseCase(get(), get(), get()) }
+    factory { DeleteTransactionUseCase(get(), get(), get(), get(), get()) }
     single<PremiumGate> { SettingsPremiumGate(get()) }
     factory { SuggestNearbyPlacesUseCase(get(), get()) }
     factory { PredictCategoryUseCase(get()) }

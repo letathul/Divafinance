@@ -2,6 +2,8 @@ package com.divafinance.core.domain.usecase.transactions
 
 import com.divafinance.core.testing.fake.FakeCardRepository
 import com.divafinance.core.testing.fake.FakeLedgerRepository
+import com.divafinance.core.testing.fake.FakeReceiptFileStore
+import com.divafinance.core.testing.fake.FakeReceiptRepository
 import com.divafinance.core.testing.fake.FakeTransactionRepository
 import com.divafinance.core.testing.fake.TestData
 import com.divafinance.core.model.enums.TransactionType
@@ -10,14 +12,18 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class DeleteTransactionUseCaseTest {
 
     private val txRepo = FakeTransactionRepository()
     private val cardRepo = FakeCardRepository()
     private val ledgerRepo = FakeLedgerRepository()
+    private val receiptRepo = FakeReceiptRepository()
+    private val fileStore = FakeReceiptFileStore()
     private val addUseCase = AddTransactionUseCase(txRepo, cardRepo)
-    private val useCase = DeleteTransactionUseCase(txRepo, cardRepo, ledgerRepo)
+    private val useCase =
+        DeleteTransactionUseCase(txRepo, cardRepo, ledgerRepo, receiptRepo, fileStore)
 
     @Test
     fun deletesTransaction() = runTest {
@@ -130,5 +136,103 @@ class DeleteTransactionUseCaseTest {
 
         assertEquals(250.0, cardRepo.getById("c1")?.currentBalance)
         assertEquals(0, txRepo.count())
+    }
+
+    /**
+     * The row *and* the pixels. Leaving either behind strands a receipt pointing at a
+     * transaction that no longer exists, plus a file nothing can ever reach again.
+     */
+    @Test
+    fun removesTheLinkedReceiptAndItsImageFile() = runTest {
+        txRepo.insert(TestData.transaction(id = "tx-1", cardId = null))
+        receiptRepo.insert(
+            TestData.receipt(id = "r1", transactionId = "tx-1", imagePath = "/r/1.jpg")
+        )
+        fileStore.seed("/r/1.jpg")
+
+        useCase("tx-1")
+
+        assertNull(receiptRepo.getByTransactionId("tx-1"))
+        assertNull(receiptRepo.getById("r1"))
+        assertEquals(emptySet(), fileStore.remainingFiles())
+    }
+
+    /** Pages 2..n live in `pagePaths`, so walking only `imagePath` leaks the rest. */
+    @Test
+    fun removesEveryPageOfAMultiPageReceipt() = runTest {
+        txRepo.insert(TestData.transaction(id = "tx-1", cardId = null))
+        receiptRepo.insert(
+            TestData.receipt(
+                id = "r1",
+                transactionId = "tx-1",
+                imagePath = "/r/p1.jpg",
+                pagePaths = listOf("/r/p2.jpg", "/r/p3.jpg"),
+            )
+        )
+        fileStore.seed("/r/p1.jpg", "/r/p2.jpg", "/r/p3.jpg")
+
+        useCase("tx-1")
+
+        assertEquals(emptySet(), fileStore.remainingFiles())
+        assertEquals(
+            listOf("/r/p1.jpg", "/r/p2.jpg", "/r/p3.jpg"),
+            fileStore.deletedPaths(),
+        )
+    }
+
+    /**
+     * Cleanup runs before `transactionRepository.delete`, because `transaction_id` is the
+     * only way back to the receipt — reversing the order strands it permanently.
+     */
+    @Test
+    fun removesTheReceiptEvenWhenTheCardIsMissing() = runTest {
+        txRepo.insert(TestData.transaction(id = "tx-1", cardId = "deleted-card"))
+        receiptRepo.insert(
+            TestData.receipt(id = "r1", transactionId = "tx-1", imagePath = "/r/1.jpg")
+        )
+        fileStore.seed("/r/1.jpg")
+
+        useCase("tx-1")
+
+        assertNull(receiptRepo.getById("r1"))
+        assertEquals(emptySet(), fileStore.remainingFiles())
+    }
+
+    /** A receipt whose file was already removed must not stop the row going. */
+    @Test
+    fun deletesTheReceiptRowWhenItsFileIsAlreadyGone() = runTest {
+        txRepo.insert(TestData.transaction(id = "tx-1", cardId = null))
+        receiptRepo.insert(
+            TestData.receipt(id = "r1", transactionId = "tx-1", imagePath = "/r/gone.jpg")
+        )
+
+        useCase("tx-1")
+
+        assertNull(receiptRepo.getById("r1"))
+        assertTrue(fileStore.deletedPaths().contains("/r/gone.jpg"))
+    }
+
+    /** An unrelated receipt is not collateral. */
+    @Test
+    fun leavesReceiptsOfOtherTransactionsAlone() = runTest {
+        txRepo.insert(TestData.transaction(id = "tx-1", cardId = null))
+        receiptRepo.insert(
+            TestData.receipt(id = "r2", transactionId = "tx-2", imagePath = "/r/2.jpg")
+        )
+        fileStore.seed("/r/2.jpg")
+
+        useCase("tx-1")
+
+        assertEquals("r2", receiptRepo.getByTransactionId("tx-2")?.id)
+        assertEquals(setOf("/r/2.jpg"), fileStore.remainingFiles())
+    }
+
+    @Test
+    fun touchesNoFilesWhenTheTransactionHasNoReceipt() = runTest {
+        txRepo.insert(TestData.transaction(id = "tx-1", cardId = null))
+
+        useCase("tx-1")
+
+        assertEquals(emptyList(), fileStore.deletedPaths())
     }
 }

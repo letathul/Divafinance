@@ -115,7 +115,49 @@ class ExpressionEvaluatorTest {
     fun rejectsUnknownCharacters() {
         assertNull(eval("5%3"))
         assertNull(eval("abc"))
-        assertNull(eval("(5+3)"))
+    }
+
+    // --- grouping -----------------------------------------------------------
+
+    @Test
+    fun groupingBeatsPrecedence() {
+        assertEquals(20.0, eval("(2+3)*4"))
+        assertEquals(14.0, eval("2+3*4"))
+    }
+
+    @Test
+    fun groupsNest() {
+        assertEquals(27.0, eval("3*((1+2)*3)"))
+    }
+
+    @Test
+    fun aGroupCanOpenWithASign() {
+        assertEquals(2.0, eval("(-3+5)"))
+    }
+
+    /** "2(3+4)" is multiplication everywhere else it is written. */
+    @Test
+    fun aGroupNextToANumberMultiplies() {
+        assertEquals(14.0, eval("2(3+4)"))
+        assertEquals(24.0, eval("(2+2)(3+3)"))
+    }
+
+    @Test
+    fun rejectsUnbalancedOrEmptyGroups() {
+        assertNull(eval("(2+3"))
+        assertNull(eval("2+3)"))
+        assertNull(eval("()"))
+        assertNull(eval("(+)"))
+    }
+
+    /**
+     * A group still being typed is unfinished, not wrong: collapsing all the way back to
+     * the operand before it would make the running total useless mid-bracket.
+     */
+    @Test
+    fun previewsAnUnclosedGroup() {
+        assertEquals(84.0, ExpressionEvaluator.preview("12*(3+4"))
+        assertEquals(12.0, ExpressionEvaluator.preview("12*("))
     }
 
     @Test

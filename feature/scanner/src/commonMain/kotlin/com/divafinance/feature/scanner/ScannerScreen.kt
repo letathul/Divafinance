@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,9 +39,11 @@ import com.divafinance.core.ui.component.SegmentedControl
 import com.divafinance.core.ui.component.StatPill
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.util.formatDate
+import com.divafinance.core.ui.adaptive.DivaChip
 import com.divafinance.feature.scanner.capture.ImageSource
 import com.divafinance.feature.scanner.capture.isDocumentScanSupported
 import com.divafinance.feature.scanner.capture.rememberImageCaptureRequester
+import com.divafinance.feature.scanner.capture.rememberTextFilePicker
 import org.koin.compose.viewmodel.koinViewModel
 
 private val TABS = listOf("Scan", "History", "Import")
@@ -62,6 +65,7 @@ fun ScannerScreen(
     val receipts by viewModel.receipts.collectAsState()
     val captureRequester = rememberImageCaptureRequester()
     val canScanDocument = isDocumentScanSupported()
+    val filePicker = rememberTextFilePicker()
 
     // The ViewModel decides whether to launch; the launcher lives here because Android needs
     // an Activity result contract. Keyed on the nonce so every decision is acted on once.
@@ -112,6 +116,7 @@ fun ScannerScreen(
                 ScannerTab.IMPORT -> StatementImportContent(
                     uiState = uiState,
                     onCsvChange = viewModel::updateCsvContent,
+                    onChooseFile = { filePicker.pick(viewModel::onCsvFilePicked) },
                     onAccountIdChange = viewModel::updateAccountId,
                     onCardIdChange = viewModel::updateCardId,
                     onImport = viewModel::importCsvStatement,
@@ -291,8 +296,9 @@ private fun EmptyReceipts() {
 private fun StatementImportContent(
     uiState: ScannerUiState,
     onCsvChange: (String) -> Unit,
-    onAccountIdChange: (String) -> Unit,
-    onCardIdChange: (String) -> Unit,
+    onChooseFile: () -> Unit,
+    onAccountIdChange: (String?) -> Unit,
+    onCardIdChange: (String?) -> Unit,
     onImport: () -> Unit,
     onClear: () -> Unit,
 ) {
@@ -301,27 +307,46 @@ private fun StatementImportContent(
             Text("CSV Statement Import", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Paste CSV content with columns: date, description, amount. " +
+                "Choose a CSV with columns: date, description, amount. " +
                     "Header row is skipped automatically.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
 
-            DivaTextField(
-                value = uiState.accountId,
-                onValueChange = onAccountIdChange,
-                label = "Account ID",
+            DivaOutlinedButton(
+                text = uiState.csvFileName ?: "Choose a file…",
+                onClick = onChooseFile,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(8.dp))
-            DivaTextField(
-                value = uiState.cardId,
-                onValueChange = onCardIdChange,
-                label = "Card ID (optional)",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
+
+            // The account the rows land in. Ids used to be typed by hand here, which is
+            // not something anyone knows; one account is preselected by the ViewModel.
+            Spacer(Modifier.height(12.dp))
+            Text("Import into", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(6.dp))
+            if (uiState.accounts.isEmpty()) {
+                Meta("No accounts yet — add one before importing.")
+            } else {
+                ChipRow(
+                    options = uiState.accounts.map { it.id to it.name },
+                    selectedId = uiState.accountId,
+                    onSelect = onAccountIdChange,
+                )
+            }
+
+            if (uiState.cards.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text("Card (optional)", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(6.dp))
+                ChipRow(
+                    options = uiState.cards.map { it.id to it.name },
+                    selectedId = uiState.cardId,
+                    onSelect = onCardIdChange,
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
             DivaTextField(
                 value = uiState.csvContent,
                 onValueChange = onCsvChange,
@@ -363,5 +388,29 @@ private fun StatementImportContent(
     uiState.error?.let { error ->
         Spacer(Modifier.height(8.dp))
         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/**
+ * A single-select row of chips over `id to label` pairs. Tapping the selected one clears
+ * it, which is how the optional card is unset without a separate "None" entry.
+ */
+@Composable
+private fun ChipRow(
+    options: List<Pair<String, String>>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { (id, label) ->
+            DivaChip(
+                label = label,
+                selected = id == selectedId,
+                onClick = { onSelect(if (id == selectedId) null else id) },
+            )
+        }
     }
 }
