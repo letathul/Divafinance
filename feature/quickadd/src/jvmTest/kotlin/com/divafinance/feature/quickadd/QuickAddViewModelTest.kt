@@ -1,6 +1,7 @@
 package com.divafinance.feature.quickadd
 
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
+import com.divafinance.core.domain.usecase.cards.GetBestCardForCategoryUseCase
 import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
 import com.divafinance.core.domain.usecase.transactions.AddTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
@@ -13,11 +14,15 @@ import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.UserSettings
 import com.divafinance.core.model.enums.LocationCaptureMode
+import com.divafinance.core.model.CustomCategory
+import com.divafinance.core.model.enums.LedgerEntryKind
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.testing.fake.FakeCardRepository
+import com.divafinance.core.testing.fake.FakeCustomCategoryRepository
 import com.divafinance.core.testing.fake.FakeLedgerRepository
 import com.divafinance.core.testing.fake.FakePersonRepository
+import com.divafinance.core.testing.fake.FakeRewardRepository
 import com.divafinance.core.testing.fake.FakeFeedRepository
 import com.divafinance.core.testing.fake.FakeReceiptFileStore
 import com.divafinance.core.testing.fake.FakeReceiptRepository
@@ -34,6 +39,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
+import kotlin.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -59,6 +65,8 @@ class QuickAddViewModelTest {
     private val personRepo = FakePersonRepository()
     private val receiptRepo = FakeReceiptRepository()
     private val receiptFiles = FakeReceiptFileStore()
+    private val rewardRepo = FakeRewardRepository()
+    private val customCategoryRepo = FakeCustomCategoryRepository()
 
     private fun viewModel() = QuickAddViewModel(
         AddTransactionUseCase(txRepo, cardRepo),
@@ -71,7 +79,9 @@ class QuickAddViewModelTest {
         SaveSplitTransactionUseCase(
             AddTransactionUseCase(txRepo, cardRepo), personRepo, ledgerRepo,
         ),
+        GetBestCardForCategoryUseCase(cardRepo, rewardRepo, settingsRepo),
         personRepo,
+        customCategoryRepo,
         locationSource,
         settingsRepo,
     )
@@ -80,6 +90,16 @@ class QuickAddViewModelTest {
         expression.forEach { char ->
             if (char in "+-*/") onOperator(char) else onDigit(char)
         }
+    }
+
+    /**
+     * Saves the way the screen does: the first save on a fresh entry raises the location
+     * consent sheet, and answering it lets the save through. Tests that are not about that
+     * gate use this so they read as "save" rather than as two-step choreography.
+     */
+    private fun QuickAddViewModel.saveNow() {
+        save()
+        if (uiState.value.locationSheetOpen) onLocationSheetDeclined()
     }
 
     /** Stands in for the screen's permission launcher answering yes. */
@@ -173,7 +193,7 @@ class QuickAddViewModelTest {
     @Test
     fun savingWithoutAnAmountReportsAnErrorRatherThanFailingSilently() = runTest {
         val vm = viewModel()
-        vm.save()
+        vm.saveNow()
 
         assertNotNull(vm.uiState.value.error)
         assertEquals(0, txRepo.count())
@@ -185,7 +205,7 @@ class QuickAddViewModelTest {
     fun savesTheEvaluatedAmount() = runTest {
         val vm = viewModel()
         vm.type("12+8")
-        vm.save()
+        vm.saveNow()
 
         val stored = txRepo.getAll().first().single()
         assertEquals(20.0, stored.amount)
@@ -198,7 +218,7 @@ class QuickAddViewModelTest {
         vm.type("15")
         vm.onCategoryChange(SpendingCategory.DINING)
         vm.onMerchantChange("Blue Bottle")
-        vm.save()
+        vm.saveNow()
 
         val stored = txRepo.getAll().first().single()
         assertEquals(SpendingCategory.DINING, stored.category)
@@ -211,7 +231,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.onOpened()
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertEquals("acc-99", txRepo.getAll().first().single().accountId)
     }
@@ -222,7 +242,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.onOpened()
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertEquals("EUR", txRepo.getAll().first().single().currency)
     }
@@ -235,7 +255,7 @@ class QuickAddViewModelTest {
         vm.onOpened()
         vm.onCurrencyChange("JPY")
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertEquals("JPY", txRepo.getAll().first().single().currency)
         assertEquals("EUR", settingsRepo.get(UserSettings.KEY_BASE_CURRENCY))
@@ -252,7 +272,7 @@ class QuickAddViewModelTest {
         assertEquals("c1", vm.uiState.value.selectedCardId)
 
         vm.type("15")
-        vm.save()
+        vm.saveNow()
         assertEquals("c1", txRepo.getAll().first().single().cardId)
     }
 
@@ -261,7 +281,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.type("15")
         vm.onMerchantChange("Blue Bottle")
-        vm.save()
+        vm.saveNow()
 
         assertEquals("", vm.uiState.value.expression)
         assertEquals("", vm.uiState.value.merchantName)
@@ -284,7 +304,7 @@ class QuickAddViewModelTest {
     fun booksAgainstTodayByDefault() = runTest {
         val vm = viewModel()
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertEquals(today(), txRepo.getAll().first().single().date)
     }
@@ -293,8 +313,8 @@ class QuickAddViewModelTest {
     fun booksAgainstYesterdayWhenChosen() = runTest {
         val vm = viewModel()
         vm.type("15")
-        vm.onDayChange(QuickAddDay.YESTERDAY)
-        vm.save()
+        vm.onDateChange(LocalDate.fromEpochDays(today().toEpochDays() - 1))
+        vm.saveNow()
 
         val stored = txRepo.getAll().first().single()
         assertEquals(1, today().toEpochDays() - stored.date.toEpochDays())
@@ -307,7 +327,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.type("15")
         vm.onCategoryChange(SpendingCategory.DINING)
-        vm.save()
+        vm.saveNow()
 
         val saved = assertNotNull(vm.saved.value)
         assertEquals(15.0, saved.amount)
@@ -318,7 +338,7 @@ class QuickAddViewModelTest {
     fun undoRemovesTheTransaction() = runTest {
         val vm = viewModel()
         vm.type("15")
-        vm.save()
+        vm.saveNow()
         vm.undo()
 
         assertEquals(0, txRepo.count())
@@ -337,7 +357,7 @@ class QuickAddViewModelTest {
         vm.onOpened()
 
         vm.type("25")
-        vm.save()
+        vm.saveNow()
         assertEquals(125.0, cardRepo.getById("c1")?.currentBalance)
 
         vm.undo()
@@ -548,7 +568,7 @@ class QuickAddViewModelTest {
         vm.type("120")
         vm.onAddSplitPerson("Sam")
         vm.onAddSplitPerson("Alex")
-        vm.save()
+        vm.saveNow()
 
         val stored = txRepo.getAll().first().single()
         assertEquals(120.0, stored.amount)
@@ -563,7 +583,7 @@ class QuickAddViewModelTest {
         vm.type("120")
         vm.onAddSplitPerson("Sam")
         vm.onAddSplitPerson("Alex")
-        vm.save()
+        vm.saveNow()
 
         val entries = ledgerRepo.getAll().first()
         assertEquals(2, entries.size)
@@ -577,7 +597,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.onSplitToggled(true)
         vm.type("40")
-        vm.save()
+        vm.saveNow()
 
         assertEquals(0, ledgerRepo.count())
         assertEquals(0.0, txRepo.getAll().first().single().othersShare)
@@ -617,7 +637,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.onSplitCountChange(2)
         vm.type("120")
-        vm.save()
+        vm.saveNow()
 
         val stored = txRepo.getAll().first().single()
         assertEquals(120.0, stored.amount)
@@ -667,7 +687,7 @@ class QuickAddViewModelTest {
         vm.type("100")
         vm.onAddSplitPerson("Sam")
         vm.onAddSplitPerson("Alex")
-        vm.save()
+        vm.saveNow()
 
         val stored = txRepo.getAll().first().single()
         val owed = ledgerRepo.getAll().first().sumOf { it.amount }
@@ -686,7 +706,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.onOpened()
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertNull(txRepo.getAll().first().single().location)
     }
@@ -702,7 +722,7 @@ class QuickAddViewModelTest {
         assertEquals("Trafalgar Square", vm.uiState.value.locationName)
 
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         val stored = assertNotNull(txRepo.getAll().first().single().location)
         assertEquals(51.5, stored.latitude)
@@ -741,7 +761,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.grantLocation()
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         val stored = assertNotNull(txRepo.getAll().first().single().location)
         assertEquals(51.5, stored.latitude)
@@ -757,7 +777,7 @@ class QuickAddViewModelTest {
         vm.grantLocation()
         vm.onLocationNameChange("Blue Bottle Coffee")
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertEquals(
             "Blue Bottle Coffee",
@@ -946,7 +966,7 @@ class QuickAddViewModelTest {
         val vm = viewModel()
         vm.onLocationNameChange("Somewhere")
         vm.type("15")
-        vm.save()
+        vm.saveNow()
 
         assertNull(txRepo.getAll().first().single().location)
     }
@@ -1028,6 +1048,343 @@ class QuickAddViewModelTest {
 
         val suggestions = vm.uiState.value.suggestedCategories
         assertEquals(suggestions.distinct(), suggestions)
+    }
+
+    // --- tags ----------------------------------------------------------------
+
+    @Test
+    fun savesTagsAlongsideTheCategory() = runTest {
+        val vm = viewModel()
+        vm.type("12")
+        vm.onAddTag("Work")
+        vm.onAddTag("reimbursable")
+        vm.saveNow()
+
+        assertEquals(listOf("Work", "reimbursable"), txRepo.getAll().first().single().tags)
+    }
+
+    /** "Work" and "work" are one label, not two rows in every report that groups by tag. */
+    @Test
+    fun deduplicatesTagsIgnoringCase() = runTest {
+        val vm = viewModel()
+        vm.onAddTag("Work")
+        vm.onAddTag("work")
+
+        assertEquals(listOf("Work"), vm.uiState.value.tags)
+    }
+
+    @Test
+    fun dropsBlankTags() = runTest {
+        val vm = viewModel()
+        vm.onAddTag("   ")
+
+        assertTrue(vm.uiState.value.tags.isEmpty())
+    }
+
+    // --- custom categories ---------------------------------------------------
+
+    /**
+     * The point of the parent: a category the user invented still has to land in a bucket
+     * every engine already understands.
+     */
+    @Test
+    fun aCustomCategoryIsSavedAsItsParentPlusItsOwnId() = runTest {
+        val ramen = CustomCategory(
+            id = "c1", name = "Ramen", iconKey = "restaurant", colorHex = "#0F9D6E",
+            parent = SpendingCategory.DINING, createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+        )
+        customCategoryRepo.setCategories(listOf(ramen))
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("12")
+        vm.onCustomCategoryChange(ramen)
+        vm.saveNow()
+
+        val stored = txRepo.getAll().first().single()
+        assertEquals(SpendingCategory.DINING, stored.category)
+        assertEquals("c1", stored.customCategoryId)
+    }
+
+    @Test
+    fun creatingACategorySelectsItStraightAway() = runTest {
+        val vm = viewModel()
+        vm.onCreateCustomCategory("Ramen", "restaurant", "#0F9D6E", SpendingCategory.DINING)
+
+        assertEquals("Ramen", vm.uiState.value.customCategories.single().name)
+        assertEquals(SpendingCategory.DINING, vm.uiState.value.category)
+        assertNotNull(vm.uiState.value.customCategoryId)
+    }
+
+    /** Going back to a built-in has to drop the custom label, or the entry shows both. */
+    @Test
+    fun pickingABuiltInClearsTheCustomLabel() = runTest {
+        val vm = viewModel()
+        vm.onCreateCustomCategory("Ramen", "restaurant", "#0F9D6E", SpendingCategory.DINING)
+        vm.onCategoryChange(SpendingCategory.TRAVEL)
+
+        assertNull(vm.uiState.value.customCategoryId)
+        assertEquals(SpendingCategory.TRAVEL, vm.uiState.value.category)
+    }
+
+    // --- the location gate ---------------------------------------------------
+
+    /** Never on launch: the first save is the first moment the request has any context. */
+    @Test
+    fun theFirstSaveAsksAboutLocationInsteadOfSaving() = runTest {
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("12")
+        vm.save()
+
+        assertTrue(vm.uiState.value.locationSheetOpen)
+        assertTrue(txRepo.getAll().first().isEmpty())
+    }
+
+    @Test
+    fun decliningLetsTheSaveThrough() = runTest {
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("12")
+        vm.save()
+        vm.onLocationSheetDeclined()
+
+        assertEquals(1, txRepo.getAll().first().size)
+        assertEquals(false, vm.uiState.value.locationSheetOpen)
+    }
+
+    /**
+     * An unsolicited question that comes back on the next entry is nagging, so "Not now"
+     * is recorded rather than forgotten. Settings can still turn it back on.
+     */
+    @Test
+    fun neverAsksAboutLocationTwice() = runTest {
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("12")
+        vm.save()
+        vm.onLocationSheetDeclined()
+
+        vm.type("20")
+        vm.save()
+
+        assertEquals(false, vm.uiState.value.locationSheetOpen)
+        assertEquals(2, txRepo.getAll().first().size)
+        assertEquals(
+            LocationCaptureMode.NEVER.name,
+            settingsRepo.get(UserSettings.KEY_LOCATION_CAPTURE_MODE),
+        )
+    }
+
+    /** A platform that cannot do this is an answer already; nothing is interrupted. */
+    @Test
+    fun doesNotAskWhenThePlatformHasNoLocation() = runTest {
+        locationSource = FakeLocationSource(coordinates = null, available = false)
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("12")
+        vm.save()
+
+        assertEquals(false, vm.uiState.value.locationSheetOpen)
+        assertEquals(1, txRepo.getAll().first().size)
+    }
+
+    // --- who paid ------------------------------------------------------------
+
+    /** The user owes the payer their share, and owes it once. */
+    @Test
+    fun aBillSomeoneElsePaidCreatesOneBorrowedDebt() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Priya")
+        vm.type("60")
+        vm.onSplitPayerChange(SplitPerson(null, "Sam"))
+        vm.saveNow()
+
+        val entries = ledgerRepo.getAll().first()
+        assertEquals(1, entries.size)
+        assertEquals(LedgerEntryKind.BORROWED, entries.single().kind)
+        assertEquals(20.0, entries.single().amount)
+    }
+
+    /**
+     * The charge never touched the user's card, so the balance must not move — the whole
+     * reason `cardId` is dropped rather than merely ignored.
+     */
+    @Test
+    fun aBillSomeoneElsePaidLeavesTheCardBalanceAlone() = runTest {
+        cardRepo.insert(TestData.card(id = "c1", currentBalance = 0.0))
+        val vm = viewModel()
+        vm.onCardChange("c1")
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("60")
+        vm.onSplitPayerChange(SplitPerson(null, "Sam"))
+        vm.saveNow()
+
+        assertEquals(0.0, cardRepo.getById("c1")?.currentBalance)
+        assertNull(txRepo.getAll().first().single().cardId)
+    }
+
+    /** Whoever paid, the user's own consumption is what reaches spending reports. */
+    @Test
+    fun theUsersShareIsTheSameWhoeverPaid() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("60")
+        vm.onSplitPayerChange(SplitPerson(null, "Sam"))
+        vm.saveNow()
+
+        val stored = txRepo.getAll().first().single()
+        assertEquals(60.0, stored.amount)
+        assertEquals(30.0, stored.othersShare)
+    }
+
+    // --- split modes ---------------------------------------------------------
+
+    /**
+     * An even split is trivially balanced, but the sheet still shows the running check, so
+     * it has to report one rather than going null the way the manual modes can.
+     */
+    @Test
+    fun anEvenSplitReportsAllocationTheSameWayTheManualModesDo() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Priya")
+        vm.type("57.80")
+
+        val allocation = vm.uiState.value.allocation
+        assertEquals(true, allocation?.isBalanced)
+        assertEquals(3, allocation?.people)
+        assertEquals(57.80, allocation?.target)
+    }
+
+    @Test
+    fun anExactAmountSplitSavesTheSharesThatWereTyped() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("60")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(0, 45.0)
+        vm.onSplitShareChange(1, 15.0)
+        vm.saveNow()
+
+        assertEquals(15.0, txRepo.getAll().first().single().othersShare)
+        assertEquals(15.0, ledgerRepo.getAll().first().single().amount)
+    }
+
+    /** Shares that do not add up have no correct answer, so the entry cannot be saved. */
+    @Test
+    fun anAmountSplitThatDoesNotAddUpCannotBeSaved() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("60")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(0, 10.0)
+        vm.onSplitShareChange(1, 15.0)
+
+        assertNull(vm.uiState.value.split)
+        assertEquals(false, vm.uiState.value.canSave)
+        assertEquals(false, vm.uiState.value.allocation?.isBalanced)
+    }
+
+    /** Percentages allocate through the engine, so the shares still add back to the total. */
+    @Test
+    fun aPercentSplitAllocatesWithoutLosingAPenny() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Priya")
+        vm.type("100")
+        vm.onSplitModeChange(SplitMode.BY_PERCENT)
+
+        val split = assertNotNull(vm.uiState.value.split)
+        assertEquals(100_00L, split.shares.sumOf { it.amountMinor })
+        assertTrue(vm.uiState.value.allocation?.isBalanced == true)
+    }
+
+    /** Adding someone changes the length of a positional list, so it cannot be kept. */
+    @Test
+    fun addingAPersonResetsAManualAllocation() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("60")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onAddSplitPerson("Priya")
+
+        assertEquals(SplitMode.EQUALLY, vm.uiState.value.splitMode)
+        assertTrue(vm.uiState.value.splitCustomAmounts.isEmpty())
+    }
+
+    /** Removing whoever was paying hands the bill back rather than leaving a ghost payer. */
+    @Test
+    fun removingThePayerHandsTheBillBackToYou() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onSplitPayerChange(SplitPerson(null, "Sam"))
+        vm.onRemoveSplitPerson("Sam")
+
+        assertNull(vm.uiState.value.splitPaidBy)
+        assertEquals(0, vm.uiState.value.payerIndex)
+    }
+
+    // --- the date ------------------------------------------------------------
+
+    @Test
+    fun refusesToBookAnEntryIntoTheFuture() = runTest {
+        val vm = viewModel()
+        val tomorrow = LocalDate.fromEpochDays(today().toEpochDays() + 1)
+        vm.onDateChange(tomorrow)
+
+        assertEquals(today(), vm.uiState.value.date)
+    }
+
+    // --- the best card -------------------------------------------------------
+
+    /** Computed from the user's own cards and rules — no network, no bank connection. */
+    @Test
+    fun rankingTheBestCardUsesOnlyLocalCardsAndRules() = runTest {
+        cardRepo.insert(
+            TestData.card(id = "c1", name = "Sapphire", creditLimit = 1000.0, currentBalance = 0.0),
+        )
+        rewardRepo.setRules(
+            listOf(
+                TestData.rule(
+                    id = "r1",
+                    cardId = "c1",
+                    category = SpendingCategory.DINING,
+                    multiplier = 3.0,
+                ),
+            ),
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.type("40")
+        vm.onCategoryChange(SpendingCategory.DINING)
+
+        assertEquals("Sapphire", vm.uiState.value.bestCard?.card?.name)
+    }
+
+    /** Income is not paid *with* anything, so there is no card to recommend. */
+    @Test
+    fun offersNoCardForIncome() = runTest {
+        cardRepo.insert(
+            TestData.card(id = "c1", name = "Sapphire", creditLimit = 1000.0, currentBalance = 0.0),
+        )
+
+        val vm = viewModel()
+        vm.onOpened()
+        vm.onTypeChange(TransactionType.CREDIT)
+
+        assertNull(vm.uiState.value.bestCard)
     }
 }
 

@@ -5,20 +5,22 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Person
+import com.divafinance.core.model.CustomCategory
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.theme.DivaTheme
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.number
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Clock
@@ -210,13 +212,20 @@ class AddExpenseScreenTest {
 
     /** An unfinished expression has no result to show, and must not show a wrong one. */
     @Test
-    fun theSheetShowsNoResultForAnUnfinishedExpression() = runComposeUiTest {
+    fun theSheetPreviewsAnUnfinishedExpressionWithoutCommittingIt() = runComposeUiTest {
         setContent {
             DivaTheme {
                 AddExpenseContent(QuickAddUiState(expression = "12+", calculatorOpen = true))
             }
         }
-        onNodeWithText("—").assertIsDisplayed()
+        // The running total tolerates the dangling operator, matching what the form behind
+        // the sheet already shows; the expression line above it is what says it is
+        // unfinished. `canSave` is still false, so nothing can be committed from here.
+        // Two nodes, and that is the assertion: the sheet's figure and the form's figure
+        // behind it are the same number rather than disagreeing while the pad is up.
+        onAllNodesWithText("$12.00").assertCountEquals(2)
+        // The pad carries the expression too, so closing it never loses the sum.
+        onAllNodesWithText("12+").assertCountEquals(2)
     }
 
     // --- currency -----------------------------------------------------------
@@ -229,7 +238,9 @@ class AddExpenseScreenTest {
             }
         }
         onNodeWithText("€40.00").assertIsDisplayed()
-        onNodeWithText("€  EUR · Euro").assertIsDisplayed()
+        // The badge under the figure is the code alone now — the symbol is already on
+        // the amount, and repeating the currency's full name beside it said it three times.
+        onNodeWithText("EUR").assertIsDisplayed()
     }
 
     @Test
@@ -264,24 +275,48 @@ class AddExpenseScreenTest {
         }
         onNodeWithText("Gas").assertIsDisplayed()
         onNodeWithText("Dining").assertIsDisplayed()
-        onNodeWithText("+ New").assertIsDisplayed()
+        onNodeWithText("More").assertIsDisplayed()
     }
 
+    /** The rest of the list is a screen now, not an expanding panel. */
     @Test
-    fun theRestOfTheCategoriesAreOneTapAway() = runComposeUiTest {
+    fun theMoreChipOpensTheFullPicker() = runComposeUiTest {
+        var opened = 0
         setContent {
             DivaTheme {
                 AddExpenseContent(
                     QuickAddUiState(
                         suggestedCategories = listOf(SpendingCategory.GAS),
                         category = SpendingCategory.GAS,
-                        showAllCategories = true,
+                    ),
+                    onOpenCategoryPicker = { opened++ },
+                )
+            }
+        }
+        onNodeWithText("More").performClick()
+
+        assertEquals(1, opened)
+    }
+
+    /** A category the user invented is shown as itself, not as the parent it behaves as. */
+    @Test
+    fun aCustomCategoryIsShownByItsOwnName() = runComposeUiTest {
+        val ramen = CustomCategory(
+            id = "c1", name = "Ramen", iconKey = "restaurant", colorHex = "#0F9D6E",
+            parent = SpendingCategory.DINING, createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+        )
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(
+                        category = SpendingCategory.DINING,
+                        customCategoryId = "c1",
+                        customCategories = listOf(ramen),
                     ),
                 )
             }
         }
-        onNodeWithText("MORE CATEGORIES").assertIsDisplayed()
-        onNodeWithText("Healthcare").assertIsDisplayed()
+        onNodeWithText("Ramen").assertIsDisplayed()
     }
 
     // --- the detail chips ---------------------------------------------------
@@ -295,7 +330,7 @@ class AddExpenseScreenTest {
             }
         }
         onNodeWithText("Merchant").assertDoesNotExist()
-        onNodeWithText("Note & tags").performClick()
+        onNodeWithText("Add note or tags").performClick()
 
         assertEquals(1, toggled)
     }
@@ -317,7 +352,7 @@ class AddExpenseScreenTest {
                 AddExpenseContent(QuickAddUiState(), onOpenScanner = { opened++ })
             }
         }
-        onNodeWithText("Receipt").performClick()
+        onNodeWithText("Scan Receipt").performClick()
 
         assertEquals(1, opened)
     }
@@ -332,7 +367,7 @@ class AddExpenseScreenTest {
                 )
             }
         }
-        onNodeWithText("Just me").assertDoesNotExist()
+        onNodeWithText("Split Transaction").assertDoesNotExist()
     }
 
     // --- location -----------------------------------------------------------
@@ -347,7 +382,7 @@ class AddExpenseScreenTest {
             }
         }
         onNodeWithText("Use your location on this entry?").assertDoesNotExist()
-        onNodeWithText("Location").performClick()
+        onNodeWithText("Add Location").performClick()
 
         assertEquals(1, toggled)
     }
@@ -467,7 +502,9 @@ class AddExpenseScreenTest {
                 )
             }
         }
-        onNodeWithText("Find me again").performClick()
+        // The form scrolls now that it is not a card with its own inner scroll, so the
+        // location block can start below the fold.
+        onNodeWithText("Find me again").performScrollTo().performClick()
 
         assertEquals(1, tapped)
     }
@@ -528,144 +565,169 @@ class AddExpenseScreenTest {
         onNodeWithText("Capture location next time").assertIsDisplayed()
     }
 
-    // --- the split block ----------------------------------------------------
+    // --- the split sheet ----------------------------------------------------
 
-    /** The count selector is inside the block, which the Split chip opens. */
+    /** The split controls live in a sheet now; nothing about them shows on the form. */
     @Test
-    fun splittingIsHiddenUntilItsChipIsTapped() = runComposeUiTest {
-        var enabled: Boolean? = null
+    fun splittingIsHiddenUntilItsTileIsTapped() = runComposeUiTest {
+        var opened = 0
         setContent {
             DivaTheme {
-                AddExpenseContent(QuickAddUiState(), onSplitToggled = { enabled = it })
+                AddExpenseContent(QuickAddUiState(), onSplitSheetOpened = { opened++ })
             }
         }
-        onNodeWithText("Just me").assertDoesNotExist()
+        onNodeWithText("Split Transaction").assertDoesNotExist()
         onNodeWithText("Split").performClick()
 
-        assertEquals(true, enabled)
+        assertEquals(1, opened)
     }
 
+    /** The form keeps a one-line summary so an open split is never invisible behind a sheet. */
     @Test
-    fun theBillIsYoursAloneUntilACountIsPicked() = runComposeUiTest {
-        setContent {
-            DivaTheme { AddExpenseContent(QuickAddUiState(splitEnabled = true)) }
-        }
-        onNodeWithText("Just me").assertIsDisplayed()
-        onNodeWithText("Split with 2").assertIsDisplayed()
-    }
-
-    @Test
-    fun tappingASegmentPicksThatManyPeople() = runComposeUiTest {
-        var picked: Int? = null
+    fun theFormSummarisesAnOpenSplit() = runComposeUiTest {
         setContent {
             DivaTheme {
                 AddExpenseContent(
-                    QuickAddUiState(splitEnabled = true),
-                    onSplitCountChange = { picked = it },
+                    QuickAddUiState(expression = "60", splitEnabled = true, splitWithCount = 2),
                 )
             }
         }
-        onNodeWithText("Split with 2").performClick()
-
-        assertEquals(2, picked)
+        onNodeWithText("Split 3 ways", substring = true).assertIsDisplayed()
+        onNodeWithText("Your share", substring = true).assertIsDisplayed()
     }
 
-    /** The visible segments stop at three; anything larger is one hold away. */
+    /** The three modes are the sheet's whole proposition, so they are always offered. */
     @Test
-    fun holdingTheSelectorOffersTheRestOfTheNumbers() = runComposeUiTest {
-        var picked: Int? = null
+    fun theSheetOffersAllThreeSplitModes() = runComposeUiTest {
+        var mode: SplitMode? = null
         setContent {
             DivaTheme {
                 AddExpenseContent(
-                    QuickAddUiState(splitEnabled = true),
-                    onSplitCountChange = { picked = it },
+                    QuickAddUiState(expression = "60", splitEnabled = true, splitSheetOpen = true),
+                    onSplitModeChange = { mode = it },
                 )
             }
         }
-        onNodeWithText("Just me").performTouchInput { longClick() }
-        onNodeWithText("Split with how many?").assertIsDisplayed()
-        onNodeWithText("12").performClick()
+        onNodeWithText("Equally").assertIsDisplayed()
+        onNodeWithText("By percent").assertIsDisplayed()
+        onNodeWithText("By amount").performClick()
 
-        assertEquals(12, picked)
+        assertEquals(SplitMode.BY_AMOUNT, mode)
     }
 
-    /** A count chosen from the dialog has to survive as a segment, or it looks discarded. */
+    /** A manual allocation has to say whether it adds up, or it cannot be corrected. */
     @Test
-    fun aHeldChoiceBecomesTheSelectedSegment() = runComposeUiTest {
-        setContent {
-            DivaTheme {
-                AddExpenseContent(QuickAddUiState(splitEnabled = true, splitWithCount = 7))
-            }
-        }
-        onNodeWithText("Split with 7").assertIsDisplayed()
-    }
-
-    /** Tapping someone already on the bill is what takes them off again. */
-    @Test
-    fun tappingAnAvatarTakesThatPersonOffTheBill() = runComposeUiTest {
-        var removed: String? = null
+    fun theSheetSaysWhenAManualSplitDoesNotAddUp() = runComposeUiTest {
         setContent {
             DivaTheme {
                 AddExpenseContent(
                     QuickAddUiState(
+                        expression = "60",
                         splitEnabled = true,
-                        splitWith = listOf(SplitPerson(null, "Liz Ryan")),
+                        splitSheetOpen = true,
+                        splitWithCount = 1,
+                        splitMode = SplitMode.BY_AMOUNT,
+                        splitCustomAmounts = listOf(10.0, 20.0),
                     ),
-                    onRemoveSplitPerson = { removed = it },
                 )
             }
         }
-        onNodeWithContentDescription("Take Liz Ryan off this bill").performClick()
-
-        assertEquals("Liz Ryan", removed)
+        onNodeWithText("of", substring = true).assertIsDisplayed()
+        onNodeWithText("allocated", substring = true).assertIsDisplayed()
     }
 
+    /** Choosing a payer is what inverts the debt, so it has to be reachable. */
     @Test
-    fun theAddButtonOffersPeopleAlreadyKnown() = runComposeUiTest {
-        var added: String? = null
+    fun tappingAnAvatarChoosesWhoPaid() = runComposeUiTest {
+        var payer: SplitPerson? = null
+        var called = false
         setContent {
             DivaTheme {
                 AddExpenseContent(
                     QuickAddUiState(
+                        expression = "60",
                         splitEnabled = true,
-                        peopleSuggestions = listOf(person("Maya Kaur")),
+                        splitSheetOpen = true,
+                        splitWith = listOf(SplitPerson(null, "Sam")),
                     ),
-                    onAddSplitPerson = { added = it },
+                    onSplitPayerChange = { payer = it; called = true },
                 )
             }
         }
-        onNodeWithText("Maya Kaur").assertDoesNotExist()
-        onNodeWithContentDescription("Add someone to this bill").performClick()
-        onNodeWithText("Maya Kaur").performClick()
+        onNodeWithContentDescription("Sam paid").performClick()
 
-        assertEquals("Maya Kaur", added)
+        assertEquals(true, called)
+        assertEquals("Sam", payer?.name)
     }
 
+    /**
+     * The running check is shown in every mode, so an even split confirms itself rather
+     * than leaving the one reassuring line blank exactly where nothing can go wrong.
+     */
     @Test
-    fun theSplitBreakdownShowsWhatEachPersonOwes() = runComposeUiTest {
+    fun anEvenSplitStillShowsWhatItAllocated() = runComposeUiTest {
         setContent {
             DivaTheme {
                 AddExpenseContent(
                     QuickAddUiState(
-                        expression = "30",
+                        expression = "57.80",
                         splitEnabled = true,
-                        splitWith = listOf(SplitPerson(null, "Liz")),
+                        splitSheetOpen = true,
+                        splitWith = listOf(SplitPerson(null, "Sam"), SplitPerson(null, "Priya")),
+                        splitMode = SplitMode.EQUALLY,
                     ),
                 )
             }
         }
-        onNodeWithText("Your share").performScrollTo().assertIsDisplayed()
-        onNodeWithText("Total charged").assertIsDisplayed()
+        onNodeWithText("3 people", substring = true).assertIsDisplayed()
+        onNodeWithText("allocated", substring = true).assertIsDisplayed()
+    }
+
+    /** The sheet commits the split rather than merely closing, and says so. */
+    @Test
+    fun theSheetCommitsWithAddSplit() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(expression = "60", splitEnabled = true, splitSheetOpen = true),
+                )
+            }
+        }
+        onNodeWithText("Add Split").assertIsDisplayed()
+    }
+
+    /** Opened before an amount exists, the sheet asks for one instead of dividing zero. */
+    @Test
+    fun theSheetAsksForAnAmountBeforeItCanDivideAnything() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                AddExpenseContent(QuickAddUiState(splitEnabled = true, splitSheetOpen = true))
+            }
+        }
+        onNodeWithText("Enter an amount to split.").assertIsDisplayed()
     }
 
     // --- chrome -------------------------------------------------------------
 
     @Test
-    fun theDayChipNamesTheDay() = runComposeUiTest {
+    fun theDatePillNamesTheDay() = runComposeUiTest {
+        val yesterday = LocalDate.fromEpochDays(todayDate().toEpochDays() - 1)
         setContent {
-            DivaTheme { AddExpenseContent(QuickAddUiState(day = QuickAddDay.YESTERDAY)) }
+            DivaTheme { AddExpenseContent(QuickAddUiState(date = yesterday)) }
         }
         onNodeWithText("Yesterday", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun theDatePillNamesAnOlderDateOutright() = runComposeUiTest {
+        val older = LocalDate.fromEpochDays(todayDate().toEpochDays() - 9)
+        setContent {
+            DivaTheme { AddExpenseContent(QuickAddUiState(date = older)) }
+        }
+        // Not "9 days ago": a backdated entry is easier to check against a receipt when
+        // the pill names the date it will actually be filed under.
+        onNodeWithText("${older.day} ${MonthAbbreviations[older.month.number - 1]}")
+            .assertIsDisplayed()
     }
 
     @Test

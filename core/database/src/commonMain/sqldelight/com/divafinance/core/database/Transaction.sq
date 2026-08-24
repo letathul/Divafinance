@@ -37,11 +37,11 @@ WHERE type = 'DEBIT' AND date >= ? AND date <= ?
 GROUP BY category ORDER BY total DESC;
 
 insert:
-INSERT INTO DivaTransaction(id, account_id, card_id, amount, currency, category, subcategory, merchant_name, note, date, type, latitude, longitude, location_name, receipt_id, is_recurring, created_at, others_share)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO DivaTransaction(id, account_id, card_id, amount, currency, category, subcategory, merchant_name, note, date, type, latitude, longitude, location_name, receipt_id, is_recurring, created_at, others_share, tags, custom_category_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
-UPDATE DivaTransaction SET account_id = ?, card_id = ?, amount = ?, currency = ?, category = ?, subcategory = ?, merchant_name = ?, note = ?, date = ?, type = ?, latitude = ?, longitude = ?, location_name = ?, receipt_id = ?, is_recurring = ?, others_share = ?
+UPDATE DivaTransaction SET account_id = ?, card_id = ?, amount = ?, currency = ?, category = ?, subcategory = ?, merchant_name = ?, note = ?, date = ?, type = ?, latitude = ?, longitude = ?, location_name = ?, receipt_id = ?, is_recurring = ?, others_share = ?, tags = ?, custom_category_id = ?
 WHERE id = ?;
 
 delete:

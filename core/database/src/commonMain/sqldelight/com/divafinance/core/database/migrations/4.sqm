@@ -1,0 +1,26 @@
+-- v4 -> v5
+--
+-- Two things the add-transaction redesign needs: categories the user invents, and tags.
+--
+-- Every statement here is mirrored in DivaFinance.sq, which is what fresh installs run via
+-- Schema.create(); this file is what existing installs run via Schema.migrate().
+-- verifyMigrations fails the build if the two disagree.
+--
+-- CustomCategory is a display identity, not a new dimension: `parent` is the built-in
+-- SpendingCategory the row behaves as everywhere off screen, so reward rules and
+-- thresholds keep operating on the twelve-value enum and DivaTransaction.category is
+-- still always one of the twelve.
+CREATE TABLE CustomCategory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    icon_key TEXT NOT NULL,
+    color_hex TEXT NOT NULL,
+    parent TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+-- Both nullable: an existing row was written by a version that had neither, and "not
+-- recorded" is the honest value. They land at the end of the table, so DivaFinance.sq
+-- declares them last too.
+ALTER TABLE DivaTransaction ADD COLUMN tags TEXT;
+ALTER TABLE DivaTransaction ADD COLUMN custom_category_id TEXT;

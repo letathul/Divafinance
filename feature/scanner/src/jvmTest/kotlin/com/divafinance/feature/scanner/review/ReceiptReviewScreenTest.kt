@@ -1,9 +1,11 @@
 package com.divafinance.feature.scanner.review
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -62,7 +64,9 @@ class ReceiptReviewScreenTest {
         )
         setContent { DivaTheme { ReceiptReviewScreen(viewModel = viewModel()) } }
 
-        onNodeWithText("Blue Bottle").assertIsDisplayed()
+        // Twice, deliberately: the header names what was scanned and the field below it
+        // is where that reading gets corrected.
+        onAllNodesWithText("Blue Bottle").assertCountEquals(2)
         onNodeWithText("6.25").assertIsDisplayed()
     }
 

@@ -120,7 +120,9 @@ enum class AccentTheme(
     val tint: Color,
     val tintDark: Color,
 ) {
-    /** The default: the platform's own accent on iOS, a calm blue on Android. */
+    /** The default: the teal the add-transaction flow was designed around. */
+    EMERALD("Emerald", Color(0xFF0F9D6E), Color(0xFF3DD9A0)),
+    /** The platform's own accent on iOS, a calm blue on Android. */
     BLUE("Blue", SystemBlue, SystemBlueDark),
     BRAND("Diva", DivaBrandLight, DivaBrandDark),
     SUNSET("Sunset", Color(0xFFCC5F83), Color(0xFFD97561)),
@@ -134,6 +136,6 @@ enum class AccentTheme(
 
     companion object {
         fun fromName(name: String?): AccentTheme =
-            entries.firstOrNull { it.name == name } ?: BLUE
+            entries.firstOrNull { it.name == name } ?: EMERALD
     }
 }

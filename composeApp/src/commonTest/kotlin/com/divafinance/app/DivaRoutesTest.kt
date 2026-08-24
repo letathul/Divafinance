@@ -15,6 +15,7 @@ class DivaRoutesTest {
         assertEquals("feed", DivaRoutes.FEED)
         assertEquals("you", DivaRoutes.YOU)
         assertEquals("add", DivaRoutes.ADD_EXPENSE)
+        assertEquals("add/category", DivaRoutes.ADD_CATEGORY)
     }
 
     @Test

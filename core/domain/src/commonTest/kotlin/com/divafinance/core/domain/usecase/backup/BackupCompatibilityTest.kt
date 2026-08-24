@@ -1,8 +1,11 @@
 package com.divafinance.core.domain.usecase.backup
 
 import com.divafinance.core.model.BackupArchive
+import com.divafinance.core.model.CustomCategory
+import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.testing.fake.FakeBackupRepository
 import com.divafinance.core.testing.fake.TestData
+import kotlin.time.Instant
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -98,5 +101,64 @@ class BackupCompatibilityTest {
         val restored = json.decodeFromString<BackupArchive>(json.encodeToString(archive))
 
         assertEquals(80.0, restored.transactions.single().othersShare)
+    }
+
+    /**
+     * A v2 file predates custom categories, and a transaction in it has neither tags nor a
+     * custom category id. Without defaults on all three this throws and every archive a
+     * user already has becomes unrestorable.
+     */
+    @Test
+    fun decodesAV2ArchiveThatPredatesCustomCategories() {
+        val v2 = """
+            {
+              "version": 2,
+              "createdAt": "2026-01-01T00:00:00Z",
+              "accounts": [], "creditCards": [], "rewardRules": [],
+              "transactions": [
+                {
+                  "id": "t1", "accountId": "a1", "amount": 12.0,
+                  "category": "DINING", "date": "2026-01-01", "type": "DEBIT",
+                  "createdAt": "2026-01-01T00:00:00Z"
+                }
+              ],
+              "receipts": [], "feedPosts": [],
+              "settings": [], "thresholds": [], "people": [], "ledgerEntries": []
+            }
+        """.trimIndent()
+
+        val archive = json.decodeFromString<BackupArchive>(v2)
+
+        assertTrue(archive.customCategories.isEmpty())
+        assertTrue(archive.transactions.single().tags.isEmpty())
+        assertEquals(null, archive.transactions.single().customCategoryId)
+    }
+
+    @Test
+    fun roundTripsCustomCategoriesAndTheTransactionsFiledUnderThem() {
+        val ramen = CustomCategory(
+            id = "c1",
+            name = "Ramen",
+            iconKey = "restaurant",
+            colorHex = "#0F9D6E",
+            parent = SpendingCategory.DINING,
+            createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+        )
+        val archive = repo.exportArchive.copy(
+            customCategories = listOf(ramen),
+            transactions = listOf(
+                TestData.transaction(id = "t1", amount = 12.0)
+                    .copy(customCategoryId = "c1", tags = listOf("work", "reimbursable")),
+            ),
+        )
+
+        val restored = json.decodeFromString<BackupArchive>(json.encodeToString(archive))
+
+        assertEquals("Ramen", restored.customCategories.single().name)
+        // The parent is what every engine reads, so losing it would leave the category
+        // earning no rewards and predicting from no history.
+        assertEquals(SpendingCategory.DINING, restored.customCategories.single().parent)
+        assertEquals("c1", restored.transactions.single().customCategoryId)
+        assertEquals(listOf("work", "reimbursable"), restored.transactions.single().tags)
     }
 }

@@ -198,6 +198,71 @@ class SaveSplitTransactionUseCaseTest {
     }
 
     /** A card is charged the whole bill, not just the payer's portion. */
+    // --- when someone else paid ----------------------------------------------
+
+    private fun payer(name: String = "Sam", amount: Double = 40.0) =
+        SplitShareInput(personId = null, name = name, amount = amount)
+
+    /**
+     * The debt runs the other way, and only once: what the rest of the table owes the payer
+     * is between them and the payer, not something the user's ledger has any business
+     * recording.
+     */
+    @Test
+    fun recordsASingleBorrowedEntryAgainstThePayer() = runTest {
+        useCase(dinner(), shares("Sam", "Alex"), payer = payer())
+
+        val entries = ledgerRepo.getAll().first()
+        assertEquals(1, entries.size)
+        val entry = entries.single()
+        assertEquals(LedgerEntryKind.BORROWED, entry.kind)
+        // The whole bill less the part that was never the user's: their own share.
+        assertEquals(40.0, entry.amount)
+        assertEquals("dinner", entry.transactionId)
+    }
+
+    @Test
+    fun theBorrowedEntryGoesToThePayersRecord() = runTest {
+        useCase(dinner(), emptyList(), payer = payer("Priya"))
+
+        val priya = personRepo.findByName("Priya")
+        assertEquals(priya?.id, ledgerRepo.getAll().first().single().personId)
+    }
+
+    /** Spending reports still see only the user's own share, whoever paid. */
+    @Test
+    fun theTransactionKeepsTheFullAmountAndOthersShare() = runTest {
+        useCase(dinner(), emptyList(), payer = payer())
+
+        val stored = txRepo.getAll().first().single()
+        assertEquals(120.0, stored.amount)
+        assertEquals(80.0, stored.othersShare)
+    }
+
+    /**
+     * A bill someone else paid never touched the user's card, and `AddTransactionUseCase`
+     * would raise its balance for money that never left it.
+     */
+    @Test
+    fun refusesToChargeACardForABillSomeoneElsePaid() = runTest {
+        assertFailsWith<IllegalArgumentException> {
+            useCase(
+                TestData.transaction(id = "t", amount = 120.0, othersShare = 80.0, cardId = "c1"),
+                emptyList(),
+                payer = payer(),
+            )
+        }
+    }
+
+    /** Nothing consumed is nothing owed — a zero debt is not worth a ledger row. */
+    @Test
+    fun writesNoDebtWhenTheUserConsumedNothing() = runTest {
+        useCase(dinner(amount = 120.0, othersShare = 120.0), emptyList(), payer = payer())
+
+        assertTrue(ledgerRepo.getAll().first().isEmpty())
+        assertEquals(1, txRepo.getAll().first().size)
+    }
+
     @Test
     fun theCardIsChargedTheFullBill() = runTest {
         cardRepo.insert(TestData.card(id = "c1", currentBalance = 0.0))

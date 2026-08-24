@@ -1,0 +1,16 @@
+selectAll:
+SELECT * FROM CustomCategory ORDER BY created_at ASC;
+
+selectById:
+SELECT * FROM CustomCategory WHERE id = ?;
+
+insert:
+INSERT INTO CustomCategory(id, name, icon_key, color_hex, parent, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE CustomCategory SET name = ?, icon_key = ?, color_hex = ?, parent = ?
+WHERE id = ?;
+
+delete:
+DELETE FROM CustomCategory WHERE id = ?;

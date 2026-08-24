@@ -15,7 +15,7 @@ that write through repositories directly (`:feature:quickadd`, `:feature:setting
 
 All under `src/commonMain/kotlin/com/divafinance/core/data/`.
 
-**`repository/`** — 9 interface + implementation pairs:
+**`repository/`** — 10 interface + implementation pairs:
 
 | Interface | Impl | Owns |
 |-----------|------|------|
@@ -27,6 +27,7 @@ All under `src/commonMain/kotlin/com/divafinance/core/data/`.
 | `FeedRepository` | `FeedRepositoryImpl` | Feed posts |
 | `ThresholdRepository` | `ThresholdRepositoryImpl` | Per-category spending thresholds |
 | `SettingsRepository` | `SettingsRepositoryImpl` | The single `UserSettings` row |
+| `CustomCategoryRepository` | `CustomCategoryRepositoryImpl` | The user's own categories. A hard delete leaves transactions pointing at a missing row, which is deliberately survivable: they still carry the parent `SpendingCategory`, so they go on reporting as that built-in |
 | `BackupRepository` | `BackupRepositoryImpl` | `exportAll()` / `importAll(archive, replaceExisting)` across every table |
 
 Plus one non-database binding: **`ReceiptFileStore`**, a `fun interface` with a single
@@ -51,6 +52,9 @@ have to import SQLDelight types.
 - Enum columns are stored as `.name` strings. Impls encode with `.name` and mappers decode
   with `valueOf(...)`, so an unknown value throws rather than falling back.
 - Timestamps are `kotlin.time.Instant` in the model and ISO strings in the database.
+- **`TransactionMapper` owns the tag encoding.** Tags are newline-delimited in one column,
+  the same convention `Receipt.page_paths` uses, and null rather than `""` for the empty
+  list. `tagsOf` / `encodeTags` are the only two places that know it.
 - **Do not leak SQLDelight types out of this module.** Anything returned to `core:domain`
   must already be a `core:model` type.
 

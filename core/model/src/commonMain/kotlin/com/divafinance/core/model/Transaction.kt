@@ -35,4 +35,20 @@ data class Transaction(
      * it that way would silently rewrite historical reports.
      */
     val othersShare: Double = 0.0,
+    /**
+     * Free-text labels, orthogonal to [category]. A transaction has exactly one category
+     * because reports have to bucket it exactly once; tags are the place for the
+     * cross-cutting facts a single bucket cannot carry ("holiday", "reimbursable").
+     *
+     * Stored newline-delimited in one column, so a tag may not contain a newline.
+     */
+    val tags: List<String> = emptyList(),
+    /**
+     * The [CustomCategory] this was filed under, when the user picked one of their own.
+     *
+     * Null means [category] is shown as itself. When set, [category] still holds that
+     * custom category's parent — so every engine keeps reading one enum and only the UI
+     * resolves the custom name, icon and colour.
+     */
+    val customCategoryId: String? = null,
 )

@@ -62,8 +62,10 @@ fun SectionHeader(
 )
 
 /**
- * Selected state inverts fore- and background together rather than tinting, so contrast
- * never drops below the resting state.
+ * The selected segment is filled with the accent and its label flipped to the background
+ * colour, the same way [Avatar] sets type on a flat brand fill. A segmented control is one
+ * of the few places the accent stays branded on both platforms, because the selection is
+ * the whole point of the control and a neutral fill reads as disabled next to it.
  *
  * [onLongPress] is optional and receives the index that was held. It is a way to offer a
  * fuller choice than the visible segments without spending a row on a second control.
@@ -90,9 +92,7 @@ fun SegmentedControl(
             Box(
                 Modifier
                     .clip(Pill)
-                    .background(
-                        if (on) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent
-                    )
+                    .background(if (on) diva.accent else Color.Transparent)
                     .then(
                         // `clickable` when there is nothing to hold for, so the plain case
                         // keeps its shorter press-to-fire timing.
@@ -111,7 +111,7 @@ fun SegmentedControl(
                     label,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (on) MaterialTheme.colorScheme.onSurface else diva.muted,
+                    color = if (on) MaterialTheme.colorScheme.background else diva.muted,
                 )
             }
         }

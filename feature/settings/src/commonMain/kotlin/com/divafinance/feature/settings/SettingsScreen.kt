@@ -65,7 +65,7 @@ fun SettingsScreen(
     isRemovingDemo: Boolean = false,
     onRemoveDemo: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    accent: AccentTheme = AccentTheme.BLUE,
+    accent: AccentTheme = AccentTheme.EMERALD,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onAccentChange: (AccentTheme) -> Unit = {},
     /** Null until the user has been asked, which leaves both options unselected. */
@@ -306,6 +306,7 @@ private val LocationCaptureMode.label: String
     get() = when (this) {
         LocationCaptureMode.ALWAYS -> "Every expense"
         LocationCaptureMode.ON_TAP -> "Only when I tap"
+        LocationCaptureMode.NEVER -> "Never"
     }
 
 @Composable

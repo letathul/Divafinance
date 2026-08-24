@@ -232,7 +232,7 @@ private fun schemeFor(platform: DivaPlatform, dark: Boolean, accent: Color): Col
 @Composable
 fun DivaTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
-    accent: AccentTheme = AccentTheme.BLUE,
+    accent: AccentTheme = AccentTheme.EMERALD,
     platform: DivaPlatform = LocalDivaPlatform.current,
     content: @Composable () -> Unit,
 ) {

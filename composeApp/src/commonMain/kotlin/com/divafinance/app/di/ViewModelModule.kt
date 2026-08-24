@@ -31,7 +31,12 @@ val viewModelModule = module {
     viewModel { ActivityViewModel(get(), get()) }
     // personId comes from the nav argument, so it is passed in rather than resolved.
     viewModel { params -> PersonDetailViewModel(params.get(), get(), get()) }
-    viewModel { QuickAddViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel {
+        QuickAddViewModel(
+            get(), get(), get(), get(), get(), get(), get(), get(),
+            get(), get(), get(), get(), get(),
+        )
+    }
     viewModel { GraphsViewModel(get(), get(), get()) }
     viewModel { BackupViewModel(get(), get(), get()) }
     viewModel { FeedViewModel(get(), get()) }

@@ -25,12 +25,13 @@ data class BackupArchive(
     val thresholds: List<GraphThreshold>,
     val people: List<Person> = emptyList(),
     val ledgerEntries: List<LedgerEntry> = emptyList(),
+    val customCategories: List<CustomCategory> = emptyList(),
 ) {
     companion object {
         /**
          * Bumped when the payload gains entities. Import refuses anything newer, since a
          * future archive may carry data this build would silently drop on the next export.
          */
-        const val CURRENT_VERSION = 2
+        const val CURRENT_VERSION = 3
     }
 }

@@ -23,7 +23,7 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | `Platform.kt` | `DivaPlatform` (MATERIAL/CUPERTINO), `expect fun currentPlatform()`, `LocalDivaPlatform`, and the `isCupertino` accessor. Actuals in `jvmSharedMain` (Android + the JVM test host → MATERIAL) and `iosMain` (→ CUPERTINO). |
 | `DivaTheme.kt` | `DivaTheme(mode, accent, platform) { }`. `ThemeMode` (LIGHT/DARK/SYSTEM). Two schemes, both filling **every** M3 slot. Every screen and every UI test must be wrapped in this — the token `CompositionLocal` throws otherwise. |
 | `Tokens.kt` | `DivaTokens` + the `diva` accessor: `accent`, `brand`, `muted`, `fgHair`, `separator`, `canvas`, `card`, `barFill`, `keyFill`, `hairline`, `cardRadius`, `rowMinHeight`, `negative`, `positive`, `categoryColor()`. Also `Pill` and the `Space` scale. |
-| `Color.kt` | The two diva ramps, the Cupertino system palette, the 12-hue category ramp, the `DivaBrand*` placeholders, and `AccentTheme` (six single-colour accents; **the stored preference is the entry name**, so renaming one re-themes existing installs) |
+| `Color.kt` | The two diva ramps, the Cupertino system palette, the 12-hue category ramp, the `DivaBrand*` placeholders, and `AccentTheme` (seven single-colour accents, defaulting to `EMERALD` — the teal the add-transaction design was drawn in; **the stored preference is the entry name**, so renaming one re-themes existing installs, though adding one is safe) |
 | `Typography.kt` · `Shape.kt` | Per-platform `divaTypography(platform)` / `divaShapes(platform)`, plus `NumericStyle` — tabular figures, used for every figure in the app |
 
 **`adaptive/`** — the components that branch on `DivaPlatform`.
@@ -34,6 +34,7 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | `DivaTabBar.kt` | `DivaTab`, `DivaTabBar`, `DivaBottomBar` (the named geometry), and **`divaContentPadding()`** — the bottom inset every screen behind the bar leaves |
 | `DivaSwitch.kt` | M3 `Switch` on Material; a hand-drawn 51×31 HIG control on Cupertino, with real `Role.Switch` semantics |
 | `DivaChip.kt` | `DivaChip` / `DivaChipStyle`. Carries `onLongClick` — the add-expense screen needs it |
+| `DivaBottomSheet.kt` | `DivaBottomSheet` + `DivaSheetHandle`. Both platforms use M3's `ModalBottomSheet` for the scrim, drag and predictive-back behaviour and diverge only on corner and grabber. It deliberately does **not** expose a `SheetState` parameter — that type is experimental, and taking it would push the opt-in onto every screen that opens a sheet |
 
 **`component/`**
 | File | What it does |
@@ -42,7 +43,9 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | `DivaCard.kt` | The standard surface: card fill, platform corner, **no elevation**. Material adds a 12% hairline border; Cupertino does not need one on the grouped canvas |
 | `GlassSurface.kt` | Translucent capsule with a specular top edge — the feed's icon buttons and `MomentCard`'s badges |
 | `Foundations.kt` | `Meta`, `SectionHeader` (delegates to `DivaGroupHeader`), `SegmentedControl` (optional `onLongPress` per segment, for offering more than the visible options), `BudgetTrack`, `StatPill`, `Numeric`, `Hairline` |
-| `CategoryVisuals.kt` | `SpendingCategory.color` / `.icon`, `CategoryTile`, `CategoryDot`, `CategoryPickerItem` |
+| `CategoryVisuals.kt` | `SpendingCategory.color` / `.icon`, `CategoryTile`, `CategoryDot`, `CategoryPickerItem`. The tile and the picker item each take **either** a `SpendingCategory` or a resolved `CategoryIdentity`, so a user's own category renders through the same code path as the built-in twelve |
+| `CategoryIdentity.kt` | `CategoryIdentity` (label + icon + colour), `categoryIdentity(category, custom)`, the `CategoryIconKeys` registry and `categoryIconForKey`, `parseHexColor`, and `List<CustomCategory>.byId`. A custom category falls back to its parent **per field**, so an unrecognised icon key still keeps its own name and colour |
+| `DivaCalendar.kt` | A month grid and nothing else — no sheet, no confirm button, no state beyond which month is shown. Selection fires on tap, which is what lets the date sheet close in one gesture. `maxDate` greys out later days rather than hiding them, so the shape of the month stays readable |
 | `LedgerRow.kt` | `DayHeader` + `TransactionRow` — the ledger's two building blocks |
 | `MomentCard.kt` | The feed's full-width "post" for a split or notable spend |
 | `Avatar.kt` | `Avatar`, `AvatarRing` (accent-ringed), `initialsOf()` |
@@ -70,7 +73,9 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
   screen), the user's accent on Cupertino (because HIG tints every button and link).
   Route anything tinted through `colorScheme.primary` and it comes out right on both
   without branching. Reserve `diva.accent` for the few things that stay branded on *both*
-  — the story rings, the avatar ring, the raised compose button.
+  — the story rings, the avatar ring, the raised compose button, and the selected
+  segment of `SegmentedControl`, where the selection *is* the control and a neutral
+  fill reads as disabled beside the unselected segments.
 - **The sweep gradient is gone**, along with `AccentTheme.colors`, the `DivaShapes` /
   `DivaTypography` aliases and the unused `chart/ChartCanvas.kt`. `AccentTheme` is one
   colour per scheme now. Use `diva.accent`, or `colorScheme.primary` for anything that

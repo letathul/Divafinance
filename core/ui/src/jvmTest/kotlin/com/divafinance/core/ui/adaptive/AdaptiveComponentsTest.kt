@@ -14,7 +14,9 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.divafinance.core.ui.theme.DivaPlatform
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.core.ui.theme.ThemeMode
+import com.divafinance.core.ui.component.DivaCalendar
 import com.divafinance.core.ui.theme.currentPlatform
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -162,6 +164,104 @@ class AdaptiveComponentsTest {
             onNodeWithText("Graphs").assertIsDisplayed()
             onNodeWithText("3").assertIsDisplayed()
             onNodeWithText("Local to this device").assertIsDisplayed()
+        }
+    }
+
+    // --- the bottom sheet ----------------------------------------------------
+
+    @Test
+    fun bottomSheetShowsItsContentOnBothPlatforms() = platforms.forEach { platform ->
+        runComposeUiTest {
+            setContent {
+                DivaTheme(mode = ThemeMode.LIGHT, platform = platform) {
+                    DivaBottomSheet(onDismissRequest = {}) { Text("Select Date") }
+                }
+            }
+            onNodeWithText("Select Date").assertIsDisplayed()
+        }
+    }
+
+    // --- the calendar --------------------------------------------------------
+
+    @Test
+    fun calendarShowsTheMonthItIsAskedFor() = platforms.forEach { platform ->
+        runComposeUiTest {
+            setContent {
+                DivaTheme(mode = ThemeMode.LIGHT, platform = platform) {
+                    DivaCalendar(
+                        selected = LocalDate(2026, 8, 24),
+                        displayedMonth = LocalDate(2026, 8, 24),
+                        onMonthChange = {},
+                        onSelect = {},
+                    )
+                }
+            }
+            onNodeWithText("August 2026").assertIsDisplayed()
+            onNodeWithText("31").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun calendarSelectsTheDayThatWasTapped() = platforms.forEach { platform ->
+        runComposeUiTest {
+            var picked: LocalDate? = null
+            setContent {
+                DivaTheme(mode = ThemeMode.LIGHT, platform = platform) {
+                    DivaCalendar(
+                        selected = LocalDate(2026, 8, 24),
+                        displayedMonth = LocalDate(2026, 8, 24),
+                        onMonthChange = {},
+                        onSelect = { picked = it },
+                    )
+                }
+            }
+            onNodeWithContentDescription("2026-08-12").performClick()
+            assertEquals(LocalDate(2026, 8, 12), picked, "wrong day on $platform")
+        }
+    }
+
+    /** A transaction that has not happened yet is not a record, so the future is inert. */
+    @Test
+    fun calendarRefusesDatesAfterItsMaximum() = platforms.forEach { platform ->
+        runComposeUiTest {
+            var picked: LocalDate? = null
+            setContent {
+                DivaTheme(mode = ThemeMode.LIGHT, platform = platform) {
+                    DivaCalendar(
+                        selected = LocalDate(2026, 8, 24),
+                        displayedMonth = LocalDate(2026, 8, 24),
+                        onMonthChange = {},
+                        onSelect = { picked = it },
+                        maxDate = LocalDate(2026, 8, 24),
+                    )
+                }
+            }
+            // Still drawn, so the shape of the month stays readable — just not tappable.
+            onNodeWithContentDescription("2026-08-30").assertIsDisplayed().performClick()
+            assertEquals(null, picked, "a future date was selectable on $platform")
+        }
+    }
+
+    @Test
+    fun calendarPagesToTheAdjacentMonth() = platforms.forEach { platform ->
+        runComposeUiTest {
+            var month: LocalDate? = null
+            setContent {
+                DivaTheme(mode = ThemeMode.LIGHT, platform = platform) {
+                    DivaCalendar(
+                        selected = LocalDate(2026, 1, 31),
+                        displayedMonth = LocalDate(2026, 1, 31),
+                        onMonthChange = { month = it },
+                        onSelect = {},
+                    )
+                }
+            }
+            // The 31st of January stepping back a month has to land on a day February has.
+            onNodeWithContentDescription("Previous month").performClick()
+            assertEquals(LocalDate(2025, 12, 31), month, "wrong month on $platform")
+
+            onNodeWithContentDescription("Next month").performClick()
+            assertEquals(LocalDate(2026, 2, 28), month, "day was not clamped on $platform")
         }
     }
 }

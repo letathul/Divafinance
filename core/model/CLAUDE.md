@@ -21,7 +21,8 @@ All under `src/commonMain/kotlin/com/divafinance/core/model/`.
 | `CreditCard.kt` | Card identity, network, limits, statement dates |
 | `CardRewardRule.kt` | One reward rule on a card: category, rate, type, cap |
 | `RewardCategory.kt` | Category ↔ reward-rate pairing used by the recommendation engine |
-| `Transaction.kt` | A spend/refund record: amount, merchant, category, card, date |
+| `Transaction.kt` | A spend/refund record: amount, merchant, category, card, date, `tags`, `customCategoryId` |
+| `CustomCategory.kt` | A category the user invented. **A display identity, not a new dimension** — its `parent` is the built-in `SpendingCategory` it behaves as everywhere off screen, so reward rules, thresholds and prediction keep working on the twelve-value enum |
 | `Receipt.kt` | Scanned-receipt record with OCR text and parse status |
 | `FeedPost.kt` | An entry in the activity feed (transaction post or bot insight) |
 | `LocationTag.kt` | Lat/long + label attached to a transaction |
@@ -29,7 +30,7 @@ All under `src/commonMain/kotlin/com/divafinance/core/model/`.
 | `UserSettings.kt` | Currency, PIN hash + salt, onboarding-complete flag, toggles |
 | `BackupArchive.kt` | Serializable envelope for the full export/import payload |
 | `Currency.kt` | `Currency(code, name, symbol)` + 7 supported currencies in `Currency.supported`, plus `fromCode()` which falls back to an unknown-code currency rather than throwing |
-| `enums/` | `SpendingCategory` (12 values, each with a `displayName`), `CardNetwork`, `RewardType`, `CapPeriod`, `TransactionType`, `AccountType`, `FeedPostType`, `ReceiptStatus` |
+| `enums/` | `SpendingCategory` (12 values, each with a `displayName`), `CardNetwork`, `RewardType`, `CapPeriod`, `TransactionType`, `AccountType`, `FeedPostType`, `ReceiptStatus`, `LedgerEntryKind`, `LocationCaptureMode` (`ALWAYS` / `ON_TAP` / `NEVER`, and **absent is a fourth state** meaning never asked) |
 
 ## Conventions / gotchas
 

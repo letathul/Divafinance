@@ -172,9 +172,9 @@ class BillSplitEngineTest {
     fun reportsThePayerShareAndTheRest() {
         val result = assertNotNull(engine.split(120_00L, people(3)))
 
-        assertEquals(40_00L, result.payerShareMinor)
+        assertEquals(40_00L, result.ownShareMinor)
         assertEquals(80_00L, result.othersShareMinor)
-        assertEquals(result.totalMinor, result.payerShareMinor + result.othersShareMinor)
+        assertEquals(result.totalMinor, result.ownShareMinor + result.othersShareMinor)
     }
 
     /** Splitting with nobody else owes nothing — the whole bill is your own spending. */
@@ -182,7 +182,7 @@ class BillSplitEngineTest {
     fun aSoloSplitOwesNothing() {
         val result = assertNotNull(engine.split(100_00L, people(1)))
 
-        assertEquals(100_00L, result.payerShareMinor)
+        assertEquals(100_00L, result.ownShareMinor)
         assertEquals(0L, result.othersShareMinor)
     }
 
@@ -304,6 +304,58 @@ class BillSplitEngineTest {
 
         assertEquals(0L, result.totalMinor)
         assertTrue(result.shares.all { it.amountMinor == 0L })
+    }
+
+    // --- who paid ------------------------------------------------------------
+
+    /**
+     * The odd unit goes to whoever put the money down. Rounding against the person holding
+     * the receipt is the one direction nobody has to be asked about.
+     */
+    @Test
+    fun thePayerAbsorbsTheOddMinorUnit() {
+        val result = assertNotNull(engine.split(10_00L, people(3), payerIndex = 2))
+
+        assertEquals(listOf(333L, 333L, 334L), result.shares.map { it.amountMinor })
+        assertEquals(10_00L, result.shares.sumOf { it.amountMinor })
+    }
+
+    /** With no payer named, index 0 — the user — absorbs it, as it always did. */
+    @Test
+    fun theUserAbsorbsTheOddMinorUnitByDefault() {
+        val result = assertNotNull(engine.split(10_00L, people(3)))
+
+        assertEquals(listOf(334L, 333L, 333L), result.shares.map { it.amountMinor })
+    }
+
+    /**
+     * Consumption is not a function of who paid: the user ate a third of the bill whether
+     * they reached for it or not, and that third is what reaches spending reports.
+     */
+    @Test
+    fun theOwnShareIsIndependentOfWhoPaid() {
+        val mine = assertNotNull(engine.split(90_00L, people(3), payerIndex = 0))
+        val theirs = assertNotNull(engine.split(90_00L, people(3), payerIndex = 1))
+
+        assertEquals(30_00L, mine.ownShareMinor)
+        assertEquals(30_00L, theirs.ownShareMinor)
+        assertEquals(60_00L, theirs.othersShareMinor)
+    }
+
+    @Test
+    fun namesThePayerOnlyWhenItIsNotTheUser() {
+        assertNull(assertNotNull(engine.split(90_00L, people(3))).payer)
+        assertEquals(
+            "Person 1",
+            assertNotNull(engine.split(90_00L, people(3), payerIndex = 1)).payer?.name,
+        )
+    }
+
+    /** A payer who is not on the bill has no correct answer, so nothing is returned. */
+    @Test
+    fun refusesAPayerOutsideTheParticipants() {
+        assertNull(engine.split(90_00L, people(3), payerIndex = 3))
+        assertNull(engine.split(90_00L, people(3), payerIndex = -1))
     }
 
     /** A zero-weight participant pays nothing but still appears on the bill. */

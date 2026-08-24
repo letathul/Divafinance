@@ -71,8 +71,20 @@ fun CategoryTile(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     selected: Boolean = false,
+) = CategoryTile(categoryIdentity(category), modifier, size, selected)
+
+/**
+ * The same tile over an already-resolved [CategoryIdentity], so a user's own category
+ * renders through exactly one code path with the built-in twelve.
+ */
+@Composable
+fun CategoryTile(
+    identity: CategoryIdentity,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    selected: Boolean = false,
 ) {
-    val c = category.color
+    val c = identity.color
     val shape = RoundedCornerShape(if (size >= 44.dp) 14.dp else 12.dp)
     Box(
         modifier
@@ -86,8 +98,8 @@ fun CategoryTile(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            category.icon,
-            contentDescription = category.displayName,
+            identity.icon,
+            contentDescription = identity.label,
             tint = if (selected) MaterialTheme.colorScheme.background else c,
             modifier = Modifier.size(size * 0.47f),
         )
@@ -107,6 +119,15 @@ fun CategoryPickerItem(
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+) = CategoryPickerItem(categoryIdentity(category), selected, modifier, onClick)
+
+/** As above, over an already-resolved identity. */
+@Composable
+fun CategoryPickerItem(
+    identity: CategoryIdentity,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
     Column(
         modifier
@@ -117,9 +138,9 @@ fun CategoryPickerItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        CategoryTile(category, size = 52.dp, selected = selected)
+        CategoryTile(identity, size = 52.dp, selected = selected)
         Text(
-            category.displayName,
+            identity.label,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             color = if (selected) MaterialTheme.colorScheme.onSurface else diva.muted,

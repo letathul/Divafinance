@@ -1,5 +1,6 @@
 package com.divafinance.core.data.repository
 
+import com.divafinance.core.data.mapper.TransactionMapper
 import com.divafinance.core.database.DivaFinanceDb
 import com.divafinance.core.model.BackupArchive
 import com.divafinance.core.model.UserSettings
@@ -91,6 +92,16 @@ class BackupRepositoryImpl(
                 // Named arguments plus a defaulted field means omitting this compiles
                 // cleanly and writes 0.0 into every backup — silent data loss on export.
                 othersShare = row.others_share,
+                tags = TransactionMapper.tagsOf(row.tags),
+                customCategoryId = row.custom_category_id,
+            )
+        }
+
+        val customCategories = db.customCategoryQueries.selectAll().executeAsList().map { row ->
+            CustomCategory(
+                id = row.id, name = row.name, iconKey = row.icon_key, colorHex = row.color_hex,
+                parent = TransactionMapper.categoryOf(row.parent),
+                createdAt = Instant.parse(row.created_at),
             )
         }
 
@@ -150,6 +161,7 @@ class BackupRepositoryImpl(
             thresholds = thresholds,
             people = people,
             ledgerEntries = ledgerEntries,
+            customCategories = customCategories,
         )
     }
 
@@ -170,6 +182,8 @@ class BackupRepositoryImpl(
                 db.creditCardQueries.selectAll().executeAsList().forEach { db.creditCardQueries.delete(it.id) }
                 db.accountQueries.selectAll().executeAsList().forEach { db.accountQueries.delete(it.id) }
                 db.graphThresholdQueries.selectAll().executeAsList().forEach { db.graphThresholdQueries.delete(it.id) }
+                // After transactions: their custom_category_id points here.
+                db.customCategoryQueries.selectAll().executeAsList().forEach { db.customCategoryQueries.delete(it.id) }
                 db.settingsQueries.deleteAll()
             }
 
@@ -202,6 +216,14 @@ class BackupRepositoryImpl(
                 )
             }
 
+            archive.customCategories.forEach { category ->
+                db.customCategoryQueries.insert(
+                    id = category.id, name = category.name, icon_key = category.iconKey,
+                    color_hex = category.colorHex, parent = category.parent.name,
+                    created_at = category.createdAt.toString(),
+                )
+            }
+
             archive.transactions.forEach { tx ->
                 db.transactionQueries.insert(
                     id = tx.id, account_id = tx.accountId, card_id = tx.cardId, amount = tx.amount,
@@ -211,6 +233,8 @@ class BackupRepositoryImpl(
                     longitude = tx.location?.longitude, location_name = tx.location?.name,
                     receipt_id = tx.receiptId, is_recurring = if (tx.isRecurring) 1L else 0L,
                     created_at = tx.createdAt.toString(), others_share = tx.othersShare,
+                    tags = TransactionMapper.encodeTags(tx.tags),
+                    custom_category_id = tx.customCategoryId,
                 )
             }
 

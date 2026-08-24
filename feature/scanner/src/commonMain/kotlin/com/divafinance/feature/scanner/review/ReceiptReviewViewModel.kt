@@ -31,13 +31,33 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-/** One editable row in the item list. Held as text so a half-typed price isn't discarded. */
+/**
+ * One editable row in the item list. Held as text so a half-typed price isn't discarded.
+ *
+ * Quantity and unit price are carried separately rather than collapsed into a line total:
+ * `ReceiptLineItem` has always stored all three, and folding them into one figure on the
+ * way in meant every re-save wrote back a receipt with its quantities erased.
+ */
 data class LineItemDraft(
     val id: String,
     val description: String,
-    val priceText: String,
+    val unitPriceText: String,
+    /** Blank means one, which is what a receipt line with no printed quantity means. */
+    val quantityText: String = "",
 ) {
-    val price: Double? get() = priceText.replace(",", ".").trim().toDoubleOrNull()
+    val quantity: Double?
+        get() = if (quantityText.isBlank()) 1.0
+        else quantityText.replace(",", ".").trim().toDoubleOrNull()
+
+    val unitPrice: Double? get() = unitPriceText.replace(",", ".").trim().toDoubleOrNull()
+
+    /** What the line comes to. Null when it cannot be worked out, never zero. */
+    val price: Double?
+        get() {
+            val each = unitPrice ?: return null
+            val count = quantity ?: return null
+            return each * count
+        }
 }
 
 data class ReceiptReviewUiState(
@@ -228,8 +248,13 @@ class ReceiptReviewViewModel(
         updateItem(id) { it.copy(description = value) }
     }
 
+    /** The **unit** price. The line total follows from it and the quantity. */
     fun onItemPriceChanged(id: String, value: String) {
-        updateItem(id) { it.copy(priceText = value) }
+        updateItem(id) { it.copy(unitPriceText = value) }
+    }
+
+    fun onItemQuantityChanged(id: String, value: String) {
+        updateItem(id) { it.copy(quantityText = value) }
     }
 
     fun onItemRemoved(id: String) {
@@ -243,7 +268,7 @@ class ReceiptReviewViewModel(
             items = _uiState.value.items + LineItemDraft(
                 id = UuidGenerator.generate(),
                 description = "",
-                priceText = "",
+                unitPriceText = "",
             ),
         )
     }
@@ -345,7 +370,10 @@ class ReceiptReviewViewModel(
 private fun ReceiptLineItem.toDraft() = LineItemDraft(
     id = id,
     description = description,
-    priceText = totalPrice?.toString().orEmpty(),
+    // Falls back to the line total when the parser could not read a unit price, which is
+    // what an unpriced single-quantity line means anyway.
+    unitPriceText = (unitPrice ?: totalPrice)?.toString().orEmpty(),
+    quantityText = quantity?.takeIf { it != 1.0 }?.toString().orEmpty(),
 )
 
 /** Blank rows are dropped rather than saved: an empty item is a row the user gave up on. */
@@ -357,6 +385,8 @@ private fun List<LineItemDraft>.toLineItems(receiptId: String): List<ReceiptLine
                 receiptId = receiptId,
                 position = index,
                 description = draft.description,
+                quantity = draft.quantity,
+                unitPrice = draft.unitPrice,
                 totalPrice = draft.price,
             )
         }

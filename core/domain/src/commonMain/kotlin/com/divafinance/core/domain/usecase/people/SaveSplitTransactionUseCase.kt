@@ -26,11 +26,18 @@ data class SplitShareInput(
 )
 
 /**
- * Records a bill the user paid for other people.
+ * Records a split bill, whoever paid for it.
  *
- * Writes one transaction at the full charged amount — so the card balance stays true —
- * plus one `LENT` ledger entry per other participant, all pointing at that transaction.
- * The transaction's `othersShare` is what keeps the spend out of the user's own totals.
+ * **The user paid** (`payer == null`): one transaction at the full charged amount — so the
+ * card balance stays true — plus one `LENT` entry per other participant. The
+ * transaction's `othersShare` keeps the part they owe back out of the user's own totals.
+ *
+ * **Someone else paid**: the user consumed their share but was never charged, so the
+ * transaction carries no card and the ledger runs the other way — a single `BORROWED`
+ * entry against the payer for the user's own share. The other participants' portions are
+ * between them and the payer; recording them here would invent debts the user is not party
+ * to. `othersShare` means the same thing in both cases: the part of the bill that is not
+ * the user's consumption.
  */
 class SaveSplitTransactionUseCase(
     private val addTransactionUseCase: AddTransactionUseCase,
@@ -40,12 +47,19 @@ class SaveSplitTransactionUseCase(
     /**
      * [transaction] must already carry the full amount and the matching `othersShare`.
      *
+     * [payer] is null when the user paid — the ordinary case. When it is set, [shares] is
+     * ignored: what the other participants owe is not the user's ledger to record.
+     *
      * Rejects input where the shares do not reconcile. SQLite cannot add a CHECK
      * constraint to an existing table, so this is the only place the
      * `0 <= othersShare <= amount` invariant can be enforced — if it is not enforced here,
      * it is not enforced anywhere.
      */
-    suspend operator fun invoke(transaction: Transaction, shares: List<SplitShareInput>) {
+    suspend operator fun invoke(
+        transaction: Transaction,
+        shares: List<SplitShareInput>,
+        payer: SplitShareInput? = null,
+    ) {
         require(transaction.othersShare >= 0.0) {
             "othersShare cannot be negative, was ${transaction.othersShare}"
         }
@@ -53,6 +67,16 @@ class SaveSplitTransactionUseCase(
             "othersShare ${transaction.othersShare} exceeds amount ${transaction.amount}"
         }
         require(shares.none { it.amount < 0.0 }) { "a share cannot be negative" }
+
+        if (payer != null) {
+            // A bill the user did not pay is not a charge on any of their cards, and
+            // AddTransactionUseCase would raise a card balance for money that never left it.
+            require(transaction.cardId == null) {
+                "a transaction someone else paid for cannot be charged to a card"
+            }
+            savePaidByOther(transaction, payer)
+            return
+        }
 
         val shareTotal = shares.sumOf { it.amount }.roundToCents()
         require(abs(shareTotal - transaction.othersShare.roundToCents()) < TOLERANCE) {
@@ -82,6 +106,36 @@ class SaveSplitTransactionUseCase(
                 ),
             )
         }
+    }
+
+    /**
+     * The someone-else-paid branch: the user owes the payer exactly what the user consumed,
+     * which is the whole bill less the part that was never theirs.
+     */
+    private suspend fun savePaidByOther(transaction: Transaction, payer: SplitShareInput) {
+        addTransactionUseCase(transaction)
+
+        val ownShare = (transaction.amount - transaction.othersShare).roundToCents()
+        // A bill someone else paid where the user consumed nothing is not the user's
+        // transaction at all, but it is recorded rather than refused — a zero-value debt
+        // is simply not worth writing.
+        if (ownShare <= 0.0) return
+
+        val now = Clock.System.now()
+        val person = resolvePerson(payer, now)
+        ledgerRepository.insert(
+            LedgerEntry(
+                id = UuidGenerator.generate(),
+                personId = person.id,
+                amount = ownShare,
+                currency = transaction.currency,
+                kind = LedgerEntryKind.BORROWED,
+                note = transaction.merchantName,
+                date = transaction.date,
+                transactionId = transaction.id,
+                createdAt = now,
+            ),
+        )
     }
 
     /** Existing person by id, else by name, else a new record. */

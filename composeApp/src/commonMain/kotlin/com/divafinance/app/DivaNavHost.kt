@@ -35,6 +35,7 @@ import com.divafinance.feature.map.MapViewModel
 import com.divafinance.feature.map.SpendingMapScreen
 import com.divafinance.feature.onboarding.OnboardingScreen
 import com.divafinance.feature.quickadd.AddExpenseScreen
+import com.divafinance.feature.quickadd.CategoryPickerScreen
 import com.divafinance.feature.quickadd.QuickAddViewModel
 import com.divafinance.feature.scanner.ScannerScreen
 import com.divafinance.feature.scanner.ScannerViewModel
@@ -67,6 +68,7 @@ object DivaRoutes {
     const val FEED = "feed"
     const val YOU = "you"
     const val ADD_EXPENSE = "add"
+    const val ADD_CATEGORY = "add/category"
 
     // ── from the feed ──
     const val REPORT = "report/{period}/{anchor}"
@@ -233,6 +235,16 @@ fun DivaNavHost(
                 onDismiss = { navController.popBackStack() },
                 viewModel = quickAddViewModel,
                 onOpenScanner = { navController.navigate(DivaRoutes.SCANNER) },
+                onOpenCategoryPicker = { navController.navigate(DivaRoutes.ADD_CATEGORY) },
+            )
+        }
+
+        // The picker writes into the same hoisted ViewModel the add screen is using, so
+        // popping back is the whole of "returning" a selection.
+        composable(DivaRoutes.ADD_CATEGORY) {
+            CategoryPickerScreen(
+                onDone = { navController.popBackStack() },
+                viewModel = quickAddViewModel,
             )
         }
 

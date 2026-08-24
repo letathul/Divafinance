@@ -37,7 +37,7 @@ Three surfaces, and everything else is a detail page reached from one of them:
 ```
 main shell — a full-width translucent tab bar overlaying the content
 ├── TAB     feed   → report/{period}/{anchor} · transactions/detail/{id} · people/{id}
-├── CENTRE  add    → the full-screen expense flow
+├── CENTRE  add    → the full-screen expense flow · add/category
 └── TAB     you    → budgets · cards · graphs · people · map · scanner
                      backup · automation · settings
 ```
@@ -63,8 +63,7 @@ module constructs a `Scaffold`, `TopAppBar` or `Switch` of its own any more. Thr
 deliberate exceptions: `OnboardingScreen`, a full-bleed wizard that runs outside the tab
 shell and carries its own step chrome; `MapFallbackScreen`, which renders *inside*
 `SpendingMapScreen` and would otherwise draw a second nav bar; and `AddExpenseScreen`,
-a full-bleed accent gradient with a floating card, also outside the tab shell, whose only
-chrome is a close button.
+which sits outside the tab shell and whose only chrome is a close button.
 
 ### Layers
 
@@ -148,7 +147,7 @@ may be unreachable remotely and the build has to be verified locally.
 - [`feature/feed`](feature/feed/CLAUDE.md) — **the Feed tab**: today, period cards, day-grouped ledger
 - [`feature/cards`](feature/cards/CLAUDE.md) — card CRUD, reward rules, best-card
 - [`feature/transactions`](feature/transactions/CLAUDE.md) — transaction list/detail + period report
-- [`feature/quickadd`](feature/quickadd/CLAUDE.md) — full-screen add-expense with calculator keypad
+- [`feature/quickadd`](feature/quickadd/CLAUDE.md) — full-screen add-expense: calculator keypad, category picker, calendar, split and location sheets
 - [`feature/graphs`](feature/graphs/CLAUDE.md) — charts + spending thresholds
 - `feature/activity` — people, debts and the merged activity stream
 - [`feature/settings`](feature/settings/CLAUDE.md) — **the You tab**, settings, appearance, embedded-server control

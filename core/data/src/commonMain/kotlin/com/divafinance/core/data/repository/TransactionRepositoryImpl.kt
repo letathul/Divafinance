@@ -2,6 +2,7 @@ package com.divafinance.core.data.repository
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import com.divafinance.core.data.mapper.TransactionMapper
 import com.divafinance.core.data.mapper.toDomain
 import com.divafinance.core.database.DivaFinanceDb
 import com.divafinance.core.model.Transaction
@@ -100,6 +101,8 @@ class TransactionRepositoryImpl(
             is_recurring = if (transaction.isRecurring) 1L else 0L,
             created_at = transaction.createdAt.toString(),
             others_share = transaction.othersShare,
+            tags = TransactionMapper.encodeTags(transaction.tags),
+            custom_category_id = transaction.customCategoryId,
         )
     }
 
@@ -121,6 +124,8 @@ class TransactionRepositoryImpl(
             receipt_id = transaction.receiptId,
             is_recurring = if (transaction.isRecurring) 1L else 0L,
             others_share = transaction.othersShare,
+            tags = TransactionMapper.encodeTags(transaction.tags),
+            custom_category_id = transaction.customCategoryId,
             id = transaction.id,
         )
     }

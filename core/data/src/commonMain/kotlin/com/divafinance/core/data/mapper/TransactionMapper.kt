@@ -34,6 +34,20 @@ object TransactionMapper {
     fun typeOf(name: String): TransactionType =
         TransactionType.entries.firstOrNull { it.name == name } ?: TransactionType.DEBIT
 
+    /**
+     * Tags share `Receipt.page_paths`' newline encoding rather than JSON: the column is
+     * only ever read back whole, and a delimiter a tag cannot contain is cheaper than a
+     * parser that can fail. Blank entries are dropped so a trailing newline is harmless.
+     */
+    fun tagsOf(stored: String?): List<String> =
+        stored?.split('\n')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+
+    /** Null rather than "" for the empty list, so the column reads as "nothing recorded". */
+    fun encodeTags(tags: List<String>): String? =
+        tags.map { it.trim() }.filter { it.isNotEmpty() }
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("\n")
+
     fun toDomain(
         id: String,
         accountId: String,
@@ -53,6 +67,8 @@ object TransactionMapper {
         isRecurring: Boolean,
         createdAt: String,
         othersShare: Double = 0.0,
+        tags: String? = null,
+        customCategoryId: String? = null,
     ): Transaction = Transaction(
         id = id,
         accountId = accountId,
@@ -72,6 +88,8 @@ object TransactionMapper {
         isRecurring = isRecurring,
         createdAt = Instant.parse(createdAt),
         othersShare = othersShare,
+        tags = tagsOf(tags),
+        customCategoryId = customCategoryId,
     )
 
     fun toMap(transaction: Transaction): Map<String, Any?> = mapOf(
@@ -93,6 +111,8 @@ object TransactionMapper {
         "is_recurring" to transaction.isRecurring,
         "created_at" to transaction.createdAt.toString(),
         "others_share" to transaction.othersShare,
+        "tags" to encodeTags(transaction.tags),
+        "custom_category_id" to transaction.customCategoryId,
     )
 }
 
@@ -115,6 +135,8 @@ fun DivaTransaction.toDomain(): Transaction = TransactionMapper.toDomain(
     isRecurring = is_recurring == 1L,
     createdAt = created_at,
     othersShare = others_share,
+    tags = tags,
+    customCategoryId = custom_category_id,
 )
 
 fun SelectWithLocation.toDomain(): Transaction = TransactionMapper.toDomain(
@@ -136,4 +158,6 @@ fun SelectWithLocation.toDomain(): Transaction = TransactionMapper.toDomain(
     isRecurring = is_recurring == 1L,
     createdAt = created_at,
     othersShare = others_share,
+    tags = tags,
+    customCategoryId = custom_category_id,
 )

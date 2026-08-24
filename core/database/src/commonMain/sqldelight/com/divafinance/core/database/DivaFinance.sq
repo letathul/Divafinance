@@ -63,7 +63,14 @@ CREATE TABLE DivaTransaction (
     -- Set once when the split is created and never changed by repayments — being paid
     -- back does not retroactively make it your spending.
     -- Must be last: ALTER TABLE ADD COLUMN appends, and verifyMigrations compares shapes.
-    others_share REAL NOT NULL DEFAULT 0.0
+    others_share REAL NOT NULL DEFAULT 0.0,
+    -- Newline-delimited, like Receipt.page_paths. Nullable because "no tags" and "written
+    -- by a version that had no tags" are the same thing and neither is worth telling apart.
+    tags TEXT,
+    -- The CustomCategory this was filed under, or null to show `category` as itself.
+    -- Deliberately not a REFERENCES: PRAGMA foreign_keys is off app-wide, so the constraint
+    -- would document an integrity guarantee nothing actually enforces.
+    custom_category_id TEXT
 );
 
 -- Every transaction query filters or sorts on date, and the list/graph screens filter on
@@ -145,6 +152,18 @@ CREATE TABLE Person (
 -- One movement of money between the user and a person. `amount` is always positive; the
 -- direction lives in `kind`, so a balance is the signed sum and partial repayments need
 -- no special case. Settled means that sum is within half a minor unit of zero.
+-- A category the user invented. `parent` is the built-in SpendingCategory it behaves as
+-- everywhere off screen, so reward rules and thresholds keep working on the twelve-value
+-- enum and only display resolves the custom name/icon/colour.
+CREATE TABLE CustomCategory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    icon_key TEXT NOT NULL,
+    color_hex TEXT NOT NULL,
+    parent TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE LedgerEntry (
     id TEXT NOT NULL PRIMARY KEY,
     person_id TEXT NOT NULL REFERENCES Person(id),

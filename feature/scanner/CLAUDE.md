@@ -22,7 +22,7 @@ those reads have no use-case wrapper.
 | `ScannerViewModel.kt` | `ScannerTab` = `RECEIPT` / `HISTORY` / `IMPORT`. State carries the capture nonce, `reviewReceiptId`, and the CSV tab's fields; `receipts` is a separate `StateFlow` off `GetReceiptsUseCase`. |
 | `ScannerScreen.kt` | `DivaRoutes.SCANNER` — tab host for all three paths |
 | `review/ReceiptReviewViewModel.kt` | The review form. Its **only** input is a `receiptId`. |
-| `review/ReceiptReviewScreen.kt` | `DivaRoutes.RECEIPT_REVIEW` (`scanner/review/{receiptId}`) |
+| `review/ReceiptReviewScreen.kt` | `DivaRoutes.RECEIPT_REVIEW` (`scanner/review/{receiptId}`). A receipt is a table, so the items render as one — ITEM / QTY / PRICE / TOTAL over `CellField`s, with the line total **computed** from quantity × unit price rather than typed, and a grand-total footer above the save. |
 | `capture/ImageCapture.kt` | `ImageSource` · `ImageCaptureResult` · `fun interface ImageCaptureRequester` + `@Composable expect fun rememberImageCaptureRequester()` |
 | `capture/TextFilePicker.kt` | `TextFileResult` · `fun interface TextFilePicker` + `@Composable expect fun rememberTextFilePicker()` — the CSV import's file chooser |
 | `capture/ReceiptThumbnail.kt` | `@Composable expect fun rememberReceiptThumbnail(path, maxDimension)` |
@@ -51,6 +51,12 @@ those reads have no use-case wrapper.
 - **Check `isOcrAvailable()` before offering the scan tab.** An unavailable engine returns empty
   text rather than throwing, which would read as a failed scan instead of an unsupported device.
   There is deliberately **no demo-scan button** — a fabricated result hides a real problem.
+- **`LineItemDraft` carries quantity and unit price separately.** It used to hold only a
+  line total, which meant every re-save wrote the receipt back with its quantities erased —
+  `ReceiptLineItem` has always had all three columns. A blank quantity means one, which is
+  what a receipt line with no printed quantity means.
+- **This screen saves its own transaction.** It does not hand a total back to
+  `:feature:quickadd`'s add form; the Receipt action there simply opens this flow.
 - Parsing lives in `:core:domain` (`ReceiptParser`, pure and heavily tested), not here. No
   merchant or amount regexes in the feature layer.
 - Captured images go to `filesDir/receipts/`, never `cacheDir` — `Receipt.imagePath` is a

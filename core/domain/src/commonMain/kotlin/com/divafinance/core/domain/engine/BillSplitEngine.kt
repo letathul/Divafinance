@@ -40,12 +40,30 @@ data class SplitResult(
     val tipMinor: Long,
     val totalMinor: Long,
     val shares: List<SplitShare>,
+    /**
+     * Who actually put the money down. Index 0 — the user — unless someone else paid.
+     *
+     * This is metadata for the caller, not an input to the arithmetic: it decides which
+     * direction the resulting debt runs, never how much anyone consumed.
+     */
+    val payerIndex: Int = 0,
 ) {
-    /** The payer's own consumption — the only part that belongs in spending reports. */
-    val payerShareMinor: Long get() = shares.firstOrNull()?.amountMinor ?: 0L
+    /**
+     * The **user's** own consumption — the only part that belongs in spending reports.
+     *
+     * Index 0 is the user by this engine's convention, and that stays true whoever paid:
+     * what you ate does not change because someone else reached for the bill.
+     */
+    val ownShareMinor: Long get() = shares.firstOrNull()?.amountMinor ?: 0L
 
-    /** What everyone else owes back. Becomes the transaction's `others_share`. */
-    val othersShareMinor: Long get() = totalMinor - payerShareMinor
+    /**
+     * The part of the bill that is not the user's consumption. Becomes the transaction's
+     * `others_share`, and is payer-independent for the same reason [ownShareMinor] is.
+     */
+    val othersShareMinor: Long get() = totalMinor - ownShareMinor
+
+    /** The payer, or null when that is the user. */
+    val payer: SplitParticipant? get() = shares.getOrNull(payerIndex)?.participant?.takeIf { payerIndex != 0 }
 }
 
 /**
@@ -58,9 +76,10 @@ data class SplitResult(
  * Pure and history-free like [RewardRecommendationEngine] and [CategoryPredictionEngine]:
  * everything comes in as arguments, so every case is testable without repositories.
  *
- * Percentage-based splitting is deliberately absent; it needs its own "must sum to 100"
- * validation and nothing asks for it yet. [SplitMethod.ByExactAmounts] covers the cases
- * a percentage would.
+ * Percentage-based splitting is deliberately absent *here*: it needs its own "must sum to
+ * 100" validation, and percentages are a way of describing amounts rather than a different
+ * way of dividing them. Callers convert percentages to [SplitMethod.ByExactAmounts] before
+ * they arrive, which keeps the reconciliation check in one place.
  */
 class BillSplitEngine {
 
@@ -74,17 +93,19 @@ class BillSplitEngine {
         participants: List<SplitParticipant>,
         tipPercent: Double = 0.0,
         method: SplitMethod = SplitMethod.Evenly,
+        payerIndex: Int = 0,
     ): SplitResult? {
         if (participants.isEmpty()) return null
         if (subtotalMinor < 0L) return null
         if (!tipPercent.isFinite() || tipPercent < 0.0) return null
+        if (payerIndex !in participants.indices) return null
 
         val tipMinor = tipOf(subtotalMinor, tipPercent) ?: return null
         val totalMinor = subtotalMinor + tipMinor
 
         val amounts = when (method) {
-            SplitMethod.Evenly -> allocate(totalMinor, participants.map { 1 })
-            SplitMethod.ByShares -> allocate(totalMinor, participants.map { it.weight })
+            SplitMethod.Evenly -> allocate(totalMinor, participants.map { 1 }, payerIndex)
+            SplitMethod.ByShares -> allocate(totalMinor, participants.map { it.weight }, payerIndex)
             is SplitMethod.ByExactAmounts -> {
                 if (method.amountsMinor.size != participants.size) return null
                 if (method.amountsMinor.any { it < 0L }) return null
@@ -100,6 +121,7 @@ class BillSplitEngine {
             shares = participants.mapIndexed { index, participant ->
                 SplitShare(participant, amounts[index])
             },
+            payerIndex = payerIndex,
         )
     }
 
@@ -123,12 +145,12 @@ class BillSplitEngine {
      * Largest-remainder (Hamilton) allocation.
      *
      * Everyone gets the floor of their exact share, then the leftover units go one each to
-     * the largest fractional remainders. Ties break towards the lower index, and the payer
-     * is index 0 — so on a clean three-way split of £1000 the payer absorbs the odd penny.
-     * That falls out of the ordering rather than needing a special case, which is why it
-     * stays correct for weighted splits too.
+     * the largest fractional remainders. Ties break towards [payerIndex] first and the
+     * lower index after — so on a clean three-way split of £1000 whoever paid absorbs the
+     * odd penny. Rounding against the person holding the receipt is the one direction
+     * nobody has to be asked about; it stays correct for weighted splits too.
      */
-    private fun allocate(totalMinor: Long, weights: List<Int>): List<Long>? {
+    private fun allocate(totalMinor: Long, weights: List<Int>, payerIndex: Int): List<Long>? {
         if (weights.any { it < 0 }) return null
         val totalWeight = weights.sumOf { it.toLong() }
         if (totalWeight <= 0L) return null
@@ -139,9 +161,12 @@ class BillSplitEngine {
         var leftover = totalMinor - base.sum()
         val result = base.toMutableList()
 
-        // Descending remainder, then ascending index — deterministic for equal remainders.
+        // Descending remainder, then the payer, then ascending index — deterministic for
+        // equal remainders, which is exactly the case an even split produces.
         val order = remainders.indices.sortedWith(
-            compareByDescending<Int> { remainders[it] }.thenBy { it },
+            compareByDescending<Int> { remainders[it] }
+                .thenBy { if (it == payerIndex) 0 else 1 }
+                .thenBy { it },
         )
         var cursor = 0
         while (leftover > 0L && cursor < order.size) {

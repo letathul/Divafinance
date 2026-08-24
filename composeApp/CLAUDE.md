@@ -30,7 +30,7 @@ module that depends on every feature, and the only place features are composed t
 |------|-----------|
 | `KoinInit.kt` | `initKoin { }` — the single entry point |
 | `AppModule.kt` | Aggregates the module list |
-| `DataModule.kt` | All 9 repository interface → impl bindings |
+| `DataModule.kt` | All 10 repository interface → impl bindings |
 | `DomainModule.kt` | Every use case |
 | `ViewModelModule.kt` | Every feature ViewModel |
 | `ServerModule.kt` | `DivaServer`, `PinAuthProvider`, `WebResourceProvider.loadResources()` |
@@ -68,7 +68,9 @@ module that depends on every feature, and the only place features are composed t
   `currentBackStackEntryFlow` reports the route *pattern* (`"cards/{cardId}"`), never the
   resolved path, so membership is tested against the patterns in `DivaRoutes`.
 - `QuickAddViewModel` is hoisted in `MainScreen`, not resolved inside the add destination,
-  so the undo snackbar outlives the screen that produced it.
+  so the undo snackbar outlives the screen that produced it. `DivaRoutes.ADD_CATEGORY`
+  (`add/category`) is passed the **same instance**, which is why the category picker needs
+  no `savedStateHandle` result plumbing — it writes the selection and the caller pops.
 - `MainActivity`'s system bars are **fully transparent** and it sets
   `isNavigationBarContrastEnforced = false` on API 29+. The scrims used to mirror the
   theme's background hex by hand — a maintenance trap, since they resolve before Compose

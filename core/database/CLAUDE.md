@@ -14,9 +14,10 @@ generated row types stop at the data layer.
 
 | Path | What it does |
 |------|--------------|
-| `src/commonMain/sqldelight/.../DivaFinance.sq` | All 8 `CREATE TABLE` statements: `Account`, `CreditCard`, `RewardRule`, `DivaTransaction`, `Receipt`, `FeedPost`, `UserSettings`, `GraphThreshold`, plus three indices on `DivaTransaction` |
-| `Account.sq` `CreditCard.sq` `RewardRule.sq` `Transaction.sq` `Receipt.sq` `FeedPost.sq` `Settings.sq` `GraphThreshold.sq` | Named queries per table. Schema is *not* redeclared here — only `DivaFinance.sq` creates tables. |
+| `src/commonMain/sqldelight/.../DivaFinance.sq` | Every `CREATE TABLE`: `Account`, `CreditCard`, `RewardRule`, `DivaTransaction`, `Receipt`, `ReceiptLineItem`, `FeedPost`, `UserSettings`, `GraphThreshold`, `Person`, `CustomCategory`, `LedgerEntry`, plus the indices |
+| `Account.sq` `CreditCard.sq` `RewardRule.sq` `Transaction.sq` `Receipt.sq` `ReceiptLineItem.sq` `FeedPost.sq` `Settings.sq` `GraphThreshold.sq` `Person.sq` `CustomCategory.sq` `LedgerEntry.sq` | Named queries per table. Schema is *not* redeclared here — only `DivaFinance.sq` creates tables. |
 | `src/commonMain/sqldelight/.../migrations/1.sqm` | v1 → v2. Adds the three `DivaTransaction` indices to existing installs. |
+| `src/commonMain/sqldelight/.../migrations/4.sqm` | v4 → v5. Adds `CustomCategory`, plus `tags` and `custom_category_id` on `DivaTransaction`. |
 | `src/commonMain/sqldelight/databases/1.db` | Committed schema snapshot of v1. Used by `verifyMigrations`. |
 | `src/commonMain/kotlin/.../adapter/EnumColumnAdapters.kt` | `ColumnAdapter`s storing each enum by `.name` as TEXT |
 | `src/commonMain/kotlin/.../DatabaseDriverFactory.kt` | `expect class` with `create(): SqlDriver`; actuals in `androidMain` (AndroidSqliteDriver), `jvmMain` (JdbcSqliteDriver), `iosMain` (NativeSqliteDriver) |
@@ -31,6 +32,13 @@ generated row types stop at the data layer.
 - Any schema change needs a **new numbered `.sqm`**. `CREATE INDEX` inside a `.sq` file
   only runs during `Schema.create()`, so existing installs never see it without a
   migration — that's exactly what `1.sqm` exists to fix.
+- **New columns go last.** `ALTER TABLE ADD COLUMN` appends, and `verifyMigrations`
+  compares shapes, so a column declared mid-table in `DivaFinance.sq` will never match what
+  the migration produces. `others_share`, `tags` and `custom_category_id` are last on
+  `DivaTransaction` for exactly this reason.
+- Regenerate the schema snapshot after a schema edit with
+  `./gradlew :core:database:generateCommonMainDivaFinanceDbSchema`, and check the new
+  numbered `.db` in alongside the `.sqm`.
 - The transaction table is `DivaTransaction`, not `Transaction` — `TRANSACTION` is a SQL
   keyword.
 - Enums round-trip through `valueOf(name)`, so renaming an enum constant in `core:model`

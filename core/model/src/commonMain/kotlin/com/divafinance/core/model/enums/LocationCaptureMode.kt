@@ -15,4 +15,14 @@ enum class LocationCaptureMode {
 
     /** Read a fix only when the user taps the place line. */
     ON_TAP,
+
+    /**
+     * Never read a fix, and never ask again.
+     *
+     * Written when the user declines the contextual sheet the first save puts in front of
+     * them. Absent still means "never asked" — this is the difference between a question
+     * not yet put and a question already answered no, and without it a decline would be
+     * re-asked on the very next entry.
+     */
+    NEVER,
 }

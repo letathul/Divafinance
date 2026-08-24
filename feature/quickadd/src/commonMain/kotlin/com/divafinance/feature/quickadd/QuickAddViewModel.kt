@@ -10,8 +10,11 @@ import com.divafinance.core.common.roundToCents
 import com.divafinance.core.common.toFixed
 import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.common.toMinorUnits
+import com.divafinance.core.data.repository.CustomCategoryRepository
 import com.divafinance.core.data.repository.PersonRepository
 import com.divafinance.core.domain.engine.BillSplitEngine
+import com.divafinance.core.domain.engine.CardRecommendation
+import com.divafinance.core.domain.engine.SplitMethod
 import com.divafinance.core.domain.engine.SplitParticipant
 import com.divafinance.core.domain.engine.SplitResult
 import com.divafinance.core.domain.usecase.people.SaveSplitTransactionUseCase
@@ -19,6 +22,7 @@ import com.divafinance.core.domain.usecase.people.SplitShareInput
 import com.divafinance.core.model.Person
 import com.divafinance.core.data.repository.SettingsRepository
 import com.divafinance.core.domain.usecase.cards.GetAllCardsUseCase
+import com.divafinance.core.domain.usecase.cards.GetBestCardForCategoryUseCase
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.domain.usecase.feed.PostTransactionToFeedUseCase
 import com.divafinance.core.domain.usecase.location.SuggestNearbyPlacesUseCase
@@ -27,6 +31,7 @@ import com.divafinance.core.domain.usecase.transactions.DeleteTransactionUseCase
 import com.divafinance.core.domain.usecase.transactions.PredictCategoryUseCase
 import com.divafinance.core.domain.usecase.transactions.SuggestMerchantsUseCase
 import com.divafinance.core.model.CreditCard
+import com.divafinance.core.model.CustomCategory
 import com.divafinance.core.model.Currency
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Transaction
@@ -44,18 +49,26 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.number
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 /** How many category chips the sheet offers before the user has to expand the full list. */
 private const val SUGGESTED_CATEGORY_COUNT = 5
 
-/** Which day the entry is booked against. Backdating further is the full form's job. */
-enum class QuickAddDay(val label: String) {
-    TODAY("Today"),
-    YESTERDAY("Yesterday"),
+/** Today, in the device's zone. Read per construction so a session crossing midnight is right. */
+internal fun todayDate(): LocalDate =
+    Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+
+/** How the bill is divided between the people on it. */
+enum class SplitMode(val label: String) {
+    EQUALLY("Equally"),
+    BY_AMOUNT("By amount"),
+    BY_PERCENT("By percent"),
 }
 
 /**
@@ -85,16 +98,36 @@ data class QuickAddUiState(
     val type: TransactionType = TransactionType.DEBIT,
     val category: SpendingCategory = SpendingCategory.OTHER,
     val suggestedCategories: List<SpendingCategory> = emptyList(),
-    val showAllCategories: Boolean = false,
     val merchantName: String = "",
     val merchantSuggestions: List<String> = emptyList(),
     val note: String = "",
     val showDetails: Boolean = false,
     val selectedCardId: String? = null,
     val cards: List<CreditCard> = emptyList(),
-    val day: QuickAddDay = QuickAddDay.TODAY,
+    /**
+     * The day the entry is booked against. Any past date, chosen from the calendar sheet;
+     * the future is refused because a transaction that has not happened is not a record.
+     */
+    val date: LocalDate = todayDate(),
+    val dateSheetOpen: Boolean = false,
+    /** Which month the calendar is showing. Independent of [date] so paging can browse. */
+    val displayedMonth: LocalDate = todayDate(),
     /** Set once the user picks a category, after which prediction stops overriding it. */
     val categoryPickedManually: Boolean = false,
+    /** The user's own categories, offered alongside the built-in twelve. */
+    val customCategories: List<CustomCategory> = emptyList(),
+    /**
+     * The custom category picked, if any. [category] still carries its parent, so this is
+     * purely what the entry is *labelled* with.
+     */
+    val customCategoryId: String? = null,
+    /**
+     * The best card for this category and amount, computed on-device from the user's own
+     * cards. Null when there are no cards, or none that can take the charge.
+     */
+    val bestCard: CardRecommendation? = null,
+    /** Free-text labels. The ghost note row is where they are added. */
+    val tags: List<String> = emptyList(),
     /** Null until the user has been asked; nothing is captured while it is null. */
     val locationCaptureMode: LocationCaptureMode? = null,
     /** The dialog currently in front of the sheet, if any. */
@@ -121,6 +154,22 @@ data class QuickAddUiState(
     /** Premium: shops from the user's own history near [location]. */
     val nearbyPlaces: List<NearbyPlace> = emptyList(),
     val locationUnavailable: Boolean = false,
+    /**
+     * Whether the contextual consent sheet is up. Distinct from [locationPrompt], which is
+     * the inline card inside the location block; this one gates the first save.
+     */
+    val locationSheetOpen: Boolean = false,
+    /**
+     * Whether this entry has already put the consent sheet in front of a save. Set on
+     * either answer, so declining costs one interruption rather than one per save.
+     */
+    val locationAsked: Boolean = false,
+    /**
+     * Whether the platform can do location at all. False until [QuickAddViewModel.onOpened]
+     * has asked, so nothing is ever interrupted by a question about a capability that may
+     * not exist.
+     */
+    val locationSupported: Boolean = false,
     /** Off by default; the keypad amount becomes the bill subtotal once on. */
     val splitEnabled: Boolean = false,
     val tipPercent: Double = 0.0,
@@ -133,6 +182,20 @@ data class QuickAddUiState(
      */
     val splitWithCount: Int = 0,
     val peopleSuggestions: List<Person> = emptyList(),
+    val splitSheetOpen: Boolean = false,
+    val splitMode: SplitMode = SplitMode.EQUALLY,
+    /**
+     * Who actually paid, or null for the user. Someone else paying inverts the debt and
+     * takes the charge off the user's card entirely — see [SaveSplitTransactionUseCase].
+     */
+    val splitPaidBy: SplitPerson? = null,
+    /**
+     * Positional per-person figures for the two manual modes, index 0 being the user.
+     * Empty until the user edits one, at which point the whole list is seeded from the
+     * even split so there is never a half-filled allocation.
+     */
+    val splitCustomAmounts: List<Double> = emptyList(),
+    val splitPercents: List<Double> = emptyList(),
     val isSaving: Boolean = false,
     val error: String? = null,
 ) {
@@ -154,11 +217,33 @@ data class QuickAddUiState(
     val locationNeedsConsent: Boolean
         get() = showLocation && location == null && !locationPermissionGranted && !isLocatingNow
 
+    /**
+     * Whether the first save should stop and ask about location.
+     *
+     * Only when the user has never been asked at all: a stored capture mode, a granted
+     * permission, a fix already on the entry, or a platform that cannot do this are all
+     * answers, and none of them is worth interrupting a save to re-ask.
+     */
+    val shouldAskForLocation: Boolean
+        get() = locationSupported &&
+            !locationAsked &&
+            locationCaptureMode == null &&
+            location == null &&
+            !locationPermissionGranted &&
+            !locationUnavailable
+
     /** The amount that would actually be saved, or null if the entry is not valid. */
     val committedAmount: Double?
         get() = ExpressionEvaluator.evaluate(expression)?.roundToCents()?.takeIf { it > 0.0 }
 
     val canSave: Boolean get() = committedAmount != null && !isSaving && (!splitEnabled || split != null)
+
+    /** The label the date pill shows: the two recent days by name, anything else by date. */
+    fun dateLabel(today: LocalDate = todayDate()): String = when (date) {
+        today -> "Today"
+        today.minusDays(1) -> "Yesterday"
+        else -> "${date.day} ${MonthAbbreviations[date.month.number - 1]}"
+    }
 
     /**
      * How many people other than the payer are on this bill, named or not. The single
@@ -177,13 +262,122 @@ data class QuickAddUiState(
         get() {
             if (!splitEnabled) return null
             val subtotal = committedAmount ?: return null
-            return BillSplitEngine().split(
-                subtotalMinor = subtotal.toMinorUnits(),
-                // Index 0 is the payer, which is what makes them absorb the odd penny.
-                participants = listOf(SplitParticipant(personId = null, name = "You")) +
-                    splitParticipants(),
+            val engine = BillSplitEngine()
+            val subtotalMinor = subtotal.toMinorUnits()
+            val people = allParticipants()
+
+            // The even split is computed first in every mode, and not only as the answer
+            // for EQUALLY: the manual modes need the tip-inclusive total to reconcile
+            // against, and deriving it here rather than recomputing the tip keeps one
+            // rounding path for the figure the card is actually charged.
+            val even = engine.split(
+                subtotalMinor = subtotalMinor,
+                participants = people,
                 tipPercent = tipPercent,
-            )
+                payerIndex = payerIndex,
+            ) ?: return null
+            if (splitMode == SplitMode.EQUALLY) return even
+
+            return when (splitMode) {
+                SplitMode.BY_AMOUNT -> {
+                    val amounts = splitCustomAmounts
+                    if (amounts.size != people.size) return null
+                    engine.split(
+                        subtotalMinor = subtotalMinor,
+                        participants = people,
+                        tipPercent = tipPercent,
+                        // Amounts that do not add up to the total are rejected by the
+                        // engine, which is exactly what keeps a half-allocated bill
+                        // out of the ledger — `canSave` goes false and the sheet says so.
+                        method = SplitMethod.ByExactAmounts(amounts.map { it.toMinorUnits() }),
+                        payerIndex = payerIndex,
+                    )
+                }
+                SplitMode.BY_PERCENT -> {
+                    val percents = splitPercents
+                    if (percents.size != people.size) return null
+                    if (abs(percents.sum() - 100.0) > PERCENT_TOLERANCE) return null
+                    // Percentages are weights, not amounts: handing them to ByShares gets
+                    // the engine's largest-remainder allocation, so the shares still add
+                    // back up to the exact total instead of drifting a penny per person.
+                    engine.split(
+                        subtotalMinor = subtotalMinor,
+                        participants = people.mapIndexed { index, participant ->
+                            participant.copy(weight = (percents[index] * 100.0).roundToInt())
+                        },
+                        tipPercent = tipPercent,
+                        method = SplitMethod.ByShares,
+                        payerIndex = payerIndex,
+                    )
+                }
+                SplitMode.EQUALLY -> even
+            }
+        }
+
+    /** Index 0 is always the user; the rest are the other people on the bill. */
+    internal fun allParticipants(): List<SplitParticipant> =
+        listOf(SplitParticipant(personId = null, name = "You")) + splitParticipants()
+
+    /**
+     * Where the payer sits in [allParticipants]. Zero — the user — unless someone else
+     * paid, and zero again if the chosen payer is no longer on the bill.
+     */
+    val payerIndex: Int
+        get() {
+            val paidBy = splitPaidBy ?: return 0
+            val index = splitWith.indexOfFirst {
+                it.name.equals(paidBy.name, ignoreCase = true)
+            }
+            return if (index >= 0) index + 1 else 0
+        }
+
+    /** True when the bill was paid by someone other than the user. */
+    val paidByOther: Boolean get() = splitEnabled && payerIndex != 0
+
+    /** The even per-person figures, used to seed a manual allocation. */
+    fun evenShares(): List<Double> =
+        split?.shares?.map { it.amountMinor.toMajorUnits() } ?: emptyList()
+
+    /**
+     * What has actually been allocated so far, against what it must reach.
+     *
+     * An even split is trivially balanced — the engine did the arithmetic — but the design
+     * still shows the running check in every mode, so the reassurance is the same wherever
+     * the user is rather than appearing only once something can go wrong. Null until there
+     * is an amount to divide.
+     */
+    val allocation: SplitAllocation?
+        get() {
+            if (!splitEnabled) return null
+            val subtotal = committedAmount ?: return null
+            val people = allParticipants()
+            val total = BillSplitEngine().split(
+                subtotalMinor = subtotal.toMinorUnits(),
+                participants = people,
+                tipPercent = tipPercent,
+                payerIndex = payerIndex,
+            )?.totalMinor?.toMajorUnits() ?: return null
+
+            return when (splitMode) {
+                SplitMode.BY_AMOUNT -> SplitAllocation(
+                    allocated = splitCustomAmounts.sum().roundToCents(),
+                    target = total,
+                    people = people.size,
+                    isPercent = false,
+                )
+                SplitMode.BY_PERCENT -> SplitAllocation(
+                    allocated = splitPercents.sum().roundToCents(),
+                    target = 100.0,
+                    people = people.size,
+                    isPercent = true,
+                )
+                SplitMode.EQUALLY -> SplitAllocation(
+                    allocated = total,
+                    target = total,
+                    people = people.size,
+                    isPercent = false,
+                )
+            }
         }
 
     /**
@@ -203,7 +397,7 @@ data class QuickAddUiState(
     val splitTotal: Double? get() = split?.totalMinor?.toMajorUnits()
 
     /** The user's own consumption, which is all that reaches spending reports. */
-    val splitOwnShare: Double? get() = split?.payerShareMinor?.toMajorUnits()
+    val splitOwnShare: Double? get() = split?.ownShareMinor?.toMajorUnits()
 
     /**
      * What gets persisted: the captured fix, with whatever name the user settled on.
@@ -219,6 +413,30 @@ data class QuickAddUiState(
         return fix.copy(name = locationName.trim().takeIf { it.isNotEmpty() } ?: fix.name)
     }
 }
+
+/**
+ * The running "$57.80 of $57.80 allocated" check the manual split modes show.
+ *
+ * [isPercent] decides how it is rendered, not how it is computed — both modes are the same
+ * question of whether the parts add up to the whole.
+ */
+data class SplitAllocation(
+    val allocated: Double,
+    val target: Double,
+    val people: Int,
+    val isPercent: Boolean,
+) {
+    val isBalanced: Boolean get() = abs(allocated - target) < PERCENT_TOLERANCE
+    val remaining: Double get() = (target - allocated).roundToCents()
+}
+
+/** Half a percent / half a cent — the shares are rounded, so exact equality is too strict. */
+internal const val PERCENT_TOLERANCE = 0.005
+
+internal val MonthAbbreviations = listOf(
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
 
 /** Someone else on a split bill. [personId] is null until they are matched or created. */
 data class SplitPerson(
@@ -250,7 +468,9 @@ class QuickAddViewModel(
     private val postTransactionToFeedUseCase: PostTransactionToFeedUseCase,
     private val suggestNearbyPlacesUseCase: SuggestNearbyPlacesUseCase,
     private val saveSplitTransactionUseCase: SaveSplitTransactionUseCase,
+    private val getBestCardForCategoryUseCase: GetBestCardForCategoryUseCase,
     private val personRepository: PersonRepository,
+    private val customCategoryRepository: CustomCategoryRepository,
     private val locationSource: LocationSource,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
@@ -266,6 +486,9 @@ class QuickAddViewModel(
 
     /** Cancelled when the toggle flips, so an abandoned fix cannot land later. */
     private var locationJob: Job? = null
+
+    /** Cancelled on each category/amount change so only the latest ranking lands. */
+    private var bestCardJob: Job? = null
 
     private val cards: StateFlow<List<CreditCard>> = getAllCardsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -288,6 +511,10 @@ class QuickAddViewModel(
             val captureMode = locationCaptureMode()
             val predicted = predictCategoryUseCase(limit = SUGGESTED_CATEGORY_COUNT)
             val recentMerchants = suggestMerchantsUseCase()
+            val custom = runCatching { customCategoryRepository.getAll().first() }
+                .getOrDefault(emptyList())
+            val supported = runCatching { locationSource.isAvailable() }.getOrDefault(false)
+            val today = todayDate()
             _uiState.update {
                 it.copy(
                     selectedCardId = defaultCardId,
@@ -295,6 +522,12 @@ class QuickAddViewModel(
                     suggestedCategories = predicted,
                     category = predicted.firstOrNull() ?: SpendingCategory.OTHER,
                     merchantSuggestions = recentMerchants,
+                    customCategories = custom,
+                    locationSupported = supported,
+                    // Re-read rather than carried: a sheet left open across midnight would
+                    // otherwise go on booking entries against yesterday.
+                    date = today,
+                    displayedMonth = today,
                     locationCaptureMode = captureMode,
                     // Capturing without being asked has to be visible, or the entry
                     // acquires a place the user never saw it acquire.
@@ -309,6 +542,28 @@ class QuickAddViewModel(
                     },
                 )
             }
+            refreshBestCard()
+        }
+    }
+
+    /**
+     * Ranks the user's own cards for the category and amount on screen.
+     *
+     * Entirely on-device — [GetBestCardForCategoryUseCase] reads the cards and reward rules
+     * the user entered themselves. No bank connection, no network call, nothing leaves.
+     */
+    private fun refreshBestCard() {
+        bestCardJob?.cancel()
+        bestCardJob = viewModelScope.launch {
+            val state = _uiState.value
+            if (state.type != TransactionType.DEBIT) {
+                _uiState.update { it.copy(bestCard = null) }
+                return@launch
+            }
+            val amount = state.committedAmount ?: 0.0
+            val ranked = runCatching { getBestCardForCategoryUseCase(state.category, amount) }
+                .getOrDefault(emptyList())
+            _uiState.update { it.copy(bestCard = ranked.firstOrNull()) }
         }
     }
 
@@ -356,16 +611,88 @@ class QuickAddViewModel(
 
     // --- form ---------------------------------------------------------------
 
-    fun onTypeChange(type: TransactionType) = _uiState.update {
-        // A card only makes sense for money going out.
-        it.copy(type = type, selectedCardId = if (type == TransactionType.CREDIT) null else it.selectedCardId)
+    fun onTypeChange(type: TransactionType) {
+        _uiState.update {
+            // A card only makes sense for money going out.
+            it.copy(type = type, selectedCardId = if (type == TransactionType.CREDIT) null else it.selectedCardId)
+        }
+        refreshBestCard()
     }
 
-    fun onCategoryChange(category: SpendingCategory) =
-        _uiState.update { it.copy(category = category, categoryPickedManually = true) }
+    /** Picking a built-in clears any custom label that was on the entry. */
+    fun onCategoryChange(category: SpendingCategory) {
+        _uiState.update {
+            it.copy(category = category, customCategoryId = null, categoryPickedManually = true)
+        }
+        refreshBestCard()
+    }
 
-    fun onToggleAllCategories() =
-        _uiState.update { it.copy(showAllCategories = !it.showAllCategories) }
+    /**
+     * Picking one of the user's own categories. [category] takes its parent, so rewards,
+     * prediction and every report keep working on the built-in twelve.
+     */
+    fun onCustomCategoryChange(custom: CustomCategory) {
+        _uiState.update {
+            it.copy(
+                category = custom.parent,
+                customCategoryId = custom.id,
+                categoryPickedManually = true,
+            )
+        }
+        refreshBestCard()
+    }
+
+    /** Creates a category and selects it in one move — the picker has no other purpose. */
+    fun onCreateCustomCategory(name: String, iconKey: String, colorHex: String, parent: SpendingCategory) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val created = CustomCategory(
+                id = UuidGenerator.generate(),
+                name = trimmed,
+                iconKey = iconKey,
+                colorHex = colorHex,
+                parent = parent,
+                createdAt = Clock.System.now(),
+            )
+            runCatching { customCategoryRepository.insert(created) }
+                .onFailure { error ->
+                    _uiState.update { it.copy(error = error.message ?: "Couldn't add that category") }
+                    return@launch
+                }
+            _uiState.update {
+                it.copy(
+                    customCategories = it.customCategories + created,
+                    category = created.parent,
+                    customCategoryId = created.id,
+                    categoryPickedManually = true,
+                )
+            }
+            refreshBestCard()
+        }
+    }
+
+    /** The card the best-card chip is offering. Selecting it is an ordinary card change. */
+    fun onUseBestCard() {
+        val best = _uiState.value.bestCard ?: return
+        onCardChange(best.card.id)
+    }
+
+    // --- tags ----------------------------------------------------------------
+
+    /** Deduplicated case-insensitively: "Work" and "work" are one label, not two. */
+    fun onAddTag(tag: String) {
+        val trimmed = tag.trim().replace("\n", " ")
+        if (trimmed.isEmpty()) return
+        _uiState.update { state ->
+            if (state.tags.any { it.equals(trimmed, ignoreCase = true) }) state
+            else state.copy(tags = state.tags + trimmed)
+        }
+    }
+
+    fun onRemoveTag(tag: String) = _uiState.update { state ->
+        state.copy(tags = state.tags.filterNot { it.equals(tag, ignoreCase = true) })
+    }
 
     fun onToggleDetails() = _uiState.update { it.copy(showDetails = !it.showDetails) }
 
@@ -428,7 +755,28 @@ class QuickAddViewModel(
 
     fun onCardChange(cardId: String?) = _uiState.update { it.copy(selectedCardId = cardId) }
 
-    fun onDayChange(day: QuickAddDay) = _uiState.update { it.copy(day = day) }
+    // --- date ----------------------------------------------------------------
+
+    fun onDateSheetOpened() = _uiState.update {
+        it.copy(dateSheetOpen = true, displayedMonth = it.date, calculatorOpen = false)
+    }
+
+    fun onDateSheetDismissed() = _uiState.update { it.copy(dateSheetOpen = false) }
+
+    fun onDisplayedMonthChange(month: LocalDate) =
+        _uiState.update { it.copy(displayedMonth = month) }
+
+    /**
+     * Selecting closes the sheet in the same move — a date needs no confirming, and a
+     * second tap to agree with the first is a step with nothing in it.
+     *
+     * A future date is ignored rather than clamped: the calendar greys those days out, so
+     * this only guards a caller that did not.
+     */
+    fun onDateChange(date: LocalDate) {
+        if (date > todayDate()) return
+        _uiState.update { it.copy(date = date, dateSheetOpen = false) }
+    }
 
     // --- location -----------------------------------------------------------
 
@@ -559,6 +907,39 @@ class QuickAddViewModel(
         _uiState.update { it.copy(showLocation = false, locationPrompt = null) }
 
     /**
+     * The consent sheet's Allow, shown in front of the first save. Opts in and captures,
+     * then lets the save it interrupted go through — the fix lands on the entry if it
+     * arrives in time and the entry saves regardless if it does not, because location is
+     * an enrichment and must never be the reason an entry is lost.
+     */
+    fun onLocationSheetAllowed() {
+        _uiState.update { it.copy(locationSheetOpen = false) }
+        onLocationAllowed()
+        save()
+    }
+
+    /**
+     * The consent sheet's Not now: the save it interrupted goes straight through.
+     *
+     * Unlike the location block's own Not now, this answer is **recorded**. That card is
+     * shown because the user tapped the chip and can be tapped again; this sheet arrives
+     * unasked in front of a save, so re-raising it on the next entry would be nagging.
+     * Settings can still turn it back on.
+     */
+    fun onLocationSheetDeclined() {
+        viewModelScope.launch {
+            settingsRepository.set(
+                UserSettings.KEY_LOCATION_CAPTURE_MODE,
+                LocationCaptureMode.NEVER.name,
+            )
+        }
+        _uiState.update {
+            it.copy(locationSheetOpen = false, locationCaptureMode = LocationCaptureMode.NEVER)
+        }
+        save()
+    }
+
+    /**
      * The auto-capture toggle under a captured place. Writes straight through rather than
      * going via [onLocationAllowed], which would re-request a permission already granted.
      */
@@ -629,9 +1010,14 @@ class QuickAddViewModel(
         return QuickAddUiState(
             cards = cards.value,
             currency = previous.currency,
+            customCategories = previous.customCategories,
             locationCaptureMode = previous.locationCaptureMode,
             locationPermissionGranted = previous.locationPermissionGranted,
+            locationSupported = previous.locationSupported,
             permissionRequestNonce = previous.permissionRequestNonce,
+            // Carried for the same reason the capture mode is: being asked once is enough,
+            // and a fresh blank entry is not a new reason to ask.
+            locationAsked = previous.locationAsked,
         )
     }
 
@@ -655,6 +1041,11 @@ class QuickAddViewModel(
                     splitWith = emptyList(),
                     splitWithCount = 0,
                     tipPercent = 0.0,
+                    splitMode = SplitMode.EQUALLY,
+                    splitPaidBy = null,
+                    splitCustomAmounts = emptyList(),
+                    splitPercents = emptyList(),
+                    splitSheetOpen = false,
                     error = null,
                 )
             }
@@ -689,6 +1080,82 @@ class QuickAddViewModel(
     fun onTipPercentChange(percent: Double) =
         _uiState.update { it.copy(tipPercent = percent.coerceAtLeast(0.0)) }
 
+    fun onSplitSheetOpened() {
+        _uiState.update { it.copy(splitSheetOpen = true, calculatorOpen = false) }
+        if (!_uiState.value.splitEnabled) onSplitToggled(true)
+    }
+
+    fun onSplitSheetDismissed() = _uiState.update { it.copy(splitSheetOpen = false) }
+
+    /**
+     * Switching mode seeds the manual lists from the even split, so the sheet always opens
+     * already balanced and the user adjusts from a correct allocation rather than from
+     * zeros they have to make add up before anything works.
+     */
+    fun onSplitModeChange(mode: SplitMode) = _uiState.update { state ->
+        val people = state.allParticipants().size
+        when (mode) {
+            SplitMode.EQUALLY -> state.copy(
+                splitMode = mode,
+                splitCustomAmounts = emptyList(),
+                splitPercents = emptyList(),
+            )
+            SplitMode.BY_AMOUNT -> state.copy(
+                splitMode = mode,
+                splitCustomAmounts = state.evenShares().takeIf { it.size == people }
+                    ?: List(people) { 0.0 },
+            )
+            SplitMode.BY_PERCENT -> state.copy(
+                splitMode = mode,
+                splitPercents = evenPercents(people),
+            )
+        }
+    }
+
+    /** One person's figure in whichever manual mode is live. Index 0 is the user. */
+    fun onSplitShareChange(index: Int, value: Double) = _uiState.update { state ->
+        val safe = value.coerceAtLeast(0.0)
+        when (state.splitMode) {
+            SplitMode.BY_AMOUNT -> {
+                val amounts = state.splitCustomAmounts.toMutableList()
+                if (index !in amounts.indices) return@update state
+                amounts[index] = safe
+                state.copy(splitCustomAmounts = amounts)
+            }
+            SplitMode.BY_PERCENT -> {
+                val percents = state.splitPercents.toMutableList()
+                if (index !in percents.indices) return@update state
+                percents[index] = safe
+                state.copy(splitPercents = percents)
+            }
+            SplitMode.EQUALLY -> state
+        }
+    }
+
+    /**
+     * Chooses who paid. Null is the user.
+     *
+     * A bill someone else paid is not a charge on any of the user's cards, so the card
+     * selection is dropped here rather than at save time — leaving a card selected in the
+     * UI while silently ignoring it would be the screen disagreeing with the record.
+     */
+    fun onSplitPayerChange(person: SplitPerson?) = _uiState.update { state ->
+        state.copy(
+            splitPaidBy = person,
+            selectedCardId = if (person == null) state.selectedCardId else null,
+        )
+    }
+
+    /** Even percentages that still sum to exactly 100, the remainder going to the payer. */
+    private fun evenPercents(people: Int): List<Double> {
+        if (people <= 0) return emptyList()
+        val each = (10_000.0 / people).toLong()
+        val base = MutableList(people) { each / 100.0 }
+        val allocated = each * people
+        base[0] = ((each + (10_000L - allocated)) / 100.0)
+        return base
+    }
+
     /** Adding the same person twice would double their share, so names are deduplicated. */
     fun onAddSplitPerson(name: String, personId: String? = null) {
         val trimmed = name.trim()
@@ -702,14 +1169,33 @@ class QuickAddViewModel(
                 // The named list is now the whole bill, so the count follows it rather
                 // than leaving unnamed heads behind that nobody could be billed for.
                 val people = state.splitWith + SplitPerson(personId, trimmed)
-                state.copy(splitWith = people, splitWithCount = people.size)
+                state.copy(
+                    splitWith = people,
+                    splitWithCount = people.size,
+                    // Positional lists cannot survive the bill changing length.
+                    splitCustomAmounts = emptyList(),
+                    splitPercents = emptyList(),
+                    splitMode = SplitMode.EQUALLY,
+                )
             }
         }
     }
 
     fun onRemoveSplitPerson(name: String) = _uiState.update { state ->
         val people = state.splitWith.filterNot { it.name.equals(name, ignoreCase = true) }
-        state.copy(splitWith = people, splitWithCount = people.size)
+        state.copy(
+            splitWith = people,
+            splitWithCount = people.size,
+            // Removing whoever was paying hands the bill back to the user rather than
+            // leaving a payer who is no longer on it.
+            splitPaidBy = state.splitPaidBy?.takeIf { paid ->
+                people.any { it.name.equals(paid.name, ignoreCase = true) }
+            },
+            // The lists are positional, so a shorter bill invalidates them outright.
+            splitCustomAmounts = emptyList(),
+            splitPercents = emptyList(),
+            splitMode = if (state.splitMode == SplitMode.EQUALLY) state.splitMode else SplitMode.EQUALLY,
+        )
     }
 
     private fun loadPeopleSuggestions() {
@@ -730,6 +1216,16 @@ class QuickAddViewModel(
         }
         if (state.isSaving) return
 
+        // Location is asked for here rather than on launch, and only once: the first save
+        // is the first moment the request has any context to justify it. `locationAsked`
+        // is set whether the answer is yes or no, so a decline never gates a second save.
+        if (state.shouldAskForLocation) {
+            _uiState.update {
+                it.copy(locationSheetOpen = true, locationAsked = true, error = null)
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = null) }
 
@@ -744,22 +1240,40 @@ class QuickAddViewModel(
             val transaction = Transaction(
                 id = UuidGenerator.generate(),
                 accountId = defaultAccountId(),
-                cardId = state.selectedCardId,
+                // A bill someone else paid never touched the user's card, so it must not
+                // raise a card balance — `AddTransactionUseCase` would if a card were set.
+                cardId = if (state.paidByOther) null else state.selectedCardId,
                 amount = chargedAmount,
                 currency = state.currency,
                 category = state.category,
                 merchantName = state.merchantName.ifBlank { null },
                 note = state.note.ifBlank { null },
-                date = dateFor(state.day, now.toLocalDateTime(TimeZone.currentSystemDefault()).date),
+                date = state.date,
                 type = state.type,
                 location = state.locationForSaving(),
                 createdAt = now,
                 othersShare = othersShare,
+                tags = state.tags,
+                customCategoryId = state.customCategoryId,
             )
 
             try {
-                if (split != null && state.splitWith.isNotEmpty()) {
-                    // Drops the payer at index 0; only other people become debts.
+                if (split != null && state.paidByOther) {
+                    // Someone else paid: the only debt worth recording is the user's own
+                    // share, owed to them. What the rest of the table owes the payer is
+                    // between them and the payer.
+                    val payer = split.shares.getOrNull(state.payerIndex)?.participant
+                    saveSplitTransactionUseCase(
+                        transaction = transaction,
+                        shares = emptyList(),
+                        payer = SplitShareInput(
+                            personId = payer?.personId,
+                            name = payer?.name.orEmpty(),
+                            amount = (transaction.amount - transaction.othersShare).roundToCents(),
+                        ),
+                    )
+                } else if (split != null && state.splitWith.isNotEmpty()) {
+                    // Drops the user at index 0; only other people become debts.
                     val shares = split.shares.drop(1).map { share ->
                         SplitShareInput(
                             personId = share.participant.personId,
@@ -817,11 +1331,6 @@ class QuickAddViewModel(
      */
     private suspend fun defaultAccountId(): String =
         setting(UserSettings.KEY_DEFAULT_ACCOUNT_ID) ?: "default"
-
-    private fun dateFor(day: QuickAddDay, today: LocalDate): LocalDate = when (day) {
-        QuickAddDay.TODAY -> today
-        QuickAddDay.YESTERDAY -> today.minusDays(1)
-    }
 
 }
 
