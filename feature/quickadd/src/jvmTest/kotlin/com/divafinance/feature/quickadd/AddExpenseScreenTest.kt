@@ -5,11 +5,13 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runComposeUiTest
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.LocationTag
@@ -17,12 +19,14 @@ import com.divafinance.core.model.Person
 import com.divafinance.core.model.CustomCategory
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
+import com.divafinance.core.ui.theme.DivaPlatform
 import com.divafinance.core.ui.theme.DivaTheme
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.number
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.time.Clock
 
 /**
@@ -37,6 +41,33 @@ class AddExpenseScreenTest {
         name = name,
         createdAt = Clock.System.now(),
         updatedAt = Clock.System.now(),
+    )
+
+    /** $57.80 split 34 / 33 / 33 — the state the by-percent artboard is drawn in. */
+    private fun percentState() = QuickAddUiState(
+        expression = "57.80",
+        splitEnabled = true,
+        splitSheetOpen = true,
+        splitMode = SplitMode.BY_PERCENT,
+        splitWith = listOf(SplitPerson(null, "Sam"), SplitPerson(null, "Priya")),
+        splitWithCount = 2,
+        splitPercents = listOf(34.0, 33.0, 33.0),
+    )
+
+    /** The roster, with Sam already on the bill and three people who are not. */
+    private fun addPeopleState() = QuickAddUiState(
+        expression = "57.80",
+        splitEnabled = true,
+        splitSheetOpen = true,
+        addPeopleSheetOpen = true,
+        contactsSupported = true,
+        splitWith = listOf(SplitPerson("sam", "Sam")),
+        peopleSuggestions = listOf(
+            person("Sam").copy(id = "sam"),
+            person("Priya").copy(id = "priya"),
+            person("Jordan").copy(id = "jordan"),
+        ),
+        peopleSplitCounts = mapOf("sam" to 6, "priya" to 1),
     )
 
     /** Mirrors what QuickAddViewModel does, so the rendered total is the real one. */
@@ -705,6 +736,215 @@ class AddExpenseScreenTest {
             }
         }
         onNodeWithText("Enter an amount to split.").assertIsDisplayed()
+    }
+
+    /**
+     * The roster is drawn once, and the seat is a request rather than a panel.
+     *
+     * The picker is a whole sheet now, so the dashed seat reports upward and the ViewModel
+     * decides — which is the only way the same roster can be reached from the "Paid by" row
+     * and from the end of the share list without either one owning it.
+     */
+    @Test
+    fun theAddSeatAsksForThePicker() = runComposeUiTest {
+        var opened = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(
+                        expression = "60",
+                        splitEnabled = true,
+                        splitSheetOpen = true,
+                        splitWith = listOf(SplitPerson(null, "Sam")),
+                        peopleSuggestions = listOf(person("Priya")),
+                    ),
+                    onAddPeopleSheetOpened = { opened++ },
+                )
+            }
+        }
+        // Sam is on the roster once, and nobody else's names are drawn behind it.
+        onAllNodesWithContentDescription("Sam paid").assertCountEquals(1)
+        onNodeWithText("Priya").assertDoesNotExist()
+
+        onNodeWithContentDescription("Add someone to this bill").performClick()
+
+        assertEquals(1, opened)
+        onAllNodesWithContentDescription("Sam paid").assertCountEquals(1)
+    }
+
+    // --- by percent ---------------------------------------------------------
+
+    /** The steppers are the quick path, so a press has to be worth exactly one point. */
+    @Test
+    fun aStepperNudgesAShareByOnePercent() = runComposeUiTest {
+        val changes = mutableListOf<Pair<Int, Double>>()
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    percentState(),
+                    onSplitShareChange = { index, value -> changes += index to value },
+                )
+            }
+        }
+        onNodeWithContentDescription("One percent more for Sam").performClick()
+        onNodeWithContentDescription("One percent less for Sam").performClick()
+
+        // Sam is index 1 — index 0 is always the user.
+        assertEquals(listOf(1 to 34.0, 1 to 32.0), changes)
+    }
+
+    /** Nudging from 33 to 60 one press at a time is what typing the figure avoids. */
+    @Test
+    fun tappingAPercentageLetsItBeTyped() = runComposeUiTest {
+        var typed: Double? = null
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    percentState(),
+                    onSplitShareChange = { _, value -> typed = value },
+                )
+            }
+        }
+        onNodeWithContentDescription("Sam's percent").performClick()
+        onNodeWithContentDescription("Sam's percent").performTextReplacement("60")
+
+        assertEquals(60.0, typed)
+    }
+
+    /** Percentages are not what anyone owes, so the money has to be on the row beside them. */
+    @Test
+    fun eachPercentageShowsWhatItComesTo() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(percentState()) }
+        }
+        // 34 / 33 / 33 of $57.80, allocated to the exact cent by the engine.
+        onNodeWithText("$19.65").assertIsDisplayed()
+        onNodeWithText("$19.08").assertIsDisplayed()
+    }
+
+    /** A balanced percentage split says what it comes to; percentages alone do not. */
+    @Test
+    fun aBalancedPercentSplitReportsTheMoney() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(percentState()) }
+        }
+        onNodeWithText("100% allocated", substring = true).assertIsDisplayed()
+        onNodeWithText("$57.80 of $57.80", substring = true).assertIsDisplayed()
+    }
+
+    // --- add people ---------------------------------------------------------
+
+    /** Frequent is built from past splits, which is what makes the address book optional. */
+    @Test
+    fun theRosterSaysHowOftenEachPersonHasBeenSplitWith() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(addPeopleState()) }
+        }
+        onNodeWithText("Split 6 times before").assertIsDisplayed()
+        onNodeWithText("Split once before").assertIsDisplayed()
+        onNodeWithText("Not split yet").assertIsDisplayed()
+    }
+
+    /** Ticking is a batch: the bill changes length once, when it is committed. */
+    @Test
+    fun tickingSomeoneReportsThemWithoutTouchingTheBill() = runComposeUiTest {
+        var toggled: Pair<String?, String>? = null
+        var confirmed = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    addPeopleState().copy(pendingPeople = listOf(SplitPerson("priya", "Priya"))),
+                    onPersonToggled = { id, name -> toggled = id to name },
+                    onConfirmPeople = { confirmed++ },
+                )
+            }
+        }
+        onNodeWithContentDescription("Add Jordan").performClick()
+        assertEquals("jordan" to "Jordan", toggled)
+
+        onNodeWithText("Add to Split").performClick()
+        assertEquals(1, confirmed)
+
+        // Sam is already on the bill, so his row offers the way back off it.
+        onNodeWithContentDescription("Remove Sam").performClick()
+        assertEquals("sam" to "Sam", toggled)
+    }
+
+    /** The running count is the only thing saying how big the batch has got. */
+    @Test
+    fun theFooterCountsThePendingBatch() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    addPeopleState().copy(
+                        pendingPeople = listOf(
+                            SplitPerson("priya", "Priya"),
+                            SplitPerson("jordan", "Jordan"),
+                        ),
+                    ),
+                )
+            }
+        }
+        onNodeWithText("2 selected").assertIsDisplayed()
+        onNodeWithText("Add to Split").assertIsEnabled()
+    }
+
+    /** Nothing ticked is nothing to add — the button would otherwise close on a no-op. */
+    @Test
+    fun addToSplitIsDeadUntilSomeoneIsTicked() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(addPeopleState()) }
+        }
+        onNodeWithText("0 selected").assertIsDisplayed()
+        onNodeWithText("Add to Split").assertIsNotEnabled()
+    }
+
+    /** A name and a colour, and nothing else — the whole record a split needs. */
+    @Test
+    fun theNewPersonFormTakesANameAndAColour() = runComposeUiTest {
+        var name: String? = null
+        var colour: String? = null
+        var created = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    addPeopleState().copy(newPersonFormOpen = true, newPersonName = "Maya"),
+                    onNewPersonNameChange = { name = it },
+                    onNewPersonColorChange = { colour = it },
+                    onCreatePerson = { created++ },
+                )
+            }
+        }
+        onNodeWithContentDescription("Avatar colour 1").performClick()
+        assertEquals("#d1594b", colour?.lowercase())
+
+        onNodeWithText("Add Maya").performClick()
+        assertEquals(1, created)
+        assertNull(name)
+    }
+
+    /** Offered only where there is an address book to read. */
+    @Test
+    fun contactsAreOfferedOnlyWhereTheyExist() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(addPeopleState().copy(contactsSupported = false)) }
+        }
+        onNodeWithText("Import from Contacts").assertDoesNotExist()
+    }
+
+    /**
+     * The jvm host resolves to MATERIAL, so a sheet only ever tested there is half covered.
+     */
+    @Test
+    fun theRosterRendersOnCupertinoToo() = runComposeUiTest {
+        setContent {
+            DivaTheme(platform = DivaPlatform.CUPERTINO) {
+                AddExpenseContent(addPeopleState())
+            }
+        }
+        onNodeWithText("Add People").assertIsDisplayed()
+        onNodeWithText("Split 6 times before").assertIsDisplayed()
+        onNodeWithText("Add to Split").assertIsDisplayed()
     }
 
     // --- chrome -------------------------------------------------------------

@@ -41,6 +41,7 @@ class PersonRepositoryImpl(
             is_archived = if (person.isArchived) 1L else 0L,
             created_at = person.createdAt.toString(),
             updated_at = person.updatedAt.toString(),
+            color_hex = person.colorHex,
         )
     }
 
@@ -50,6 +51,7 @@ class PersonRepositoryImpl(
             note = person.note,
             is_archived = if (person.isArchived) 1L else 0L,
             updated_at = person.updatedAt.toString(),
+            color_hex = person.colorHex,
             id = person.id,
         )
     }
@@ -65,6 +67,7 @@ private fun com.divafinance.core.database.Person.toDomain() = Person(
     id = id,
     name = name,
     note = note,
+    colorHex = color_hex,
     isArchived = is_archived == 1L,
     createdAt = Instant.parse(created_at),
     updatedAt = Instant.parse(updated_at),

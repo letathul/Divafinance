@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -65,6 +67,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +94,7 @@ import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.CreditCard
 import com.divafinance.core.model.Currency
 import com.divafinance.core.model.CustomCategory
+import com.divafinance.core.model.Person
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
 import com.divafinance.core.ui.adaptive.DivaBottomSheet
@@ -108,6 +113,7 @@ import com.divafinance.core.ui.component.categoryIdentity
 import com.divafinance.core.ui.component.color
 import com.divafinance.core.ui.component.icon
 import com.divafinance.core.ui.component.initialsOf
+import com.divafinance.core.ui.component.personColor
 import com.divafinance.core.ui.theme.DivaTheme
 import com.divafinance.core.ui.theme.NumericStyle
 import com.divafinance.core.ui.theme.Pill
@@ -152,6 +158,7 @@ fun AddExpenseScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val permissionRequester = rememberLocationPermissionRequester()
+    val contactImporter = rememberContactImporter()
 
     LaunchedEffect(Unit) { viewModel.onOpened() }
 
@@ -213,8 +220,18 @@ fun AddExpenseScreen(
         onLocationNameChange = viewModel::onLocationNameChange,
         onNearbyPlacePicked = viewModel::onNearbyPlacePicked,
         onLocationCleared = viewModel::onLocationCleared,
-        onAddSplitPerson = { name -> viewModel.onAddSplitPerson(name) },
         onRemoveSplitPerson = viewModel::onRemoveSplitPerson,
+        onAddPeopleSheetOpened = viewModel::onAddPeopleSheetOpened,
+        onAddPeopleSheetDismissed = viewModel::onAddPeopleSheetDismissed,
+        onPeopleSearchChange = viewModel::onPeopleSearchChange,
+        onPersonToggled = viewModel::onPersonToggled,
+        onNewPersonFormToggled = viewModel::onNewPersonFormToggled,
+        onNewPersonNameChange = viewModel::onNewPersonNameChange,
+        onNewPersonColorChange = viewModel::onNewPersonColorChange,
+        onCreatePerson = viewModel::onCreatePerson,
+        // The importer prompts and reads; the ViewModel only ever sees names.
+        onImportContacts = { contactImporter.import(viewModel::onContactsImported) },
+        onConfirmPeople = viewModel::onConfirmPeople,
         onSave = viewModel::save,
     )
 }
@@ -271,8 +288,17 @@ internal fun AddExpenseContent(
     onLocationNameChange: (String) -> Unit = {},
     onNearbyPlacePicked: (NearbyPlace) -> Unit = {},
     onLocationCleared: () -> Unit = {},
-    onAddSplitPerson: (String) -> Unit = {},
     onRemoveSplitPerson: (String) -> Unit = {},
+    onAddPeopleSheetOpened: () -> Unit = {},
+    onAddPeopleSheetDismissed: () -> Unit = {},
+    onPeopleSearchChange: (String) -> Unit = {},
+    onPersonToggled: (String?, String) -> Unit = { _, _ -> },
+    onNewPersonFormToggled: () -> Unit = {},
+    onNewPersonNameChange: (String) -> Unit = {},
+    onNewPersonColorChange: (String) -> Unit = {},
+    onCreatePerson: () -> Unit = {},
+    onImportContacts: () -> Unit = {},
+    onConfirmPeople: () -> Unit = {},
     onSave: () -> Unit = {},
 ) {
     Box(modifier.fillMaxSize().background(diva.canvas)) {
@@ -397,8 +423,17 @@ internal fun AddExpenseContent(
             onSplitModeChange = onSplitModeChange,
             onSplitShareChange = onSplitShareChange,
             onSplitPayerChange = onSplitPayerChange,
-            onAddSplitPerson = onAddSplitPerson,
             onRemoveSplitPerson = onRemoveSplitPerson,
+            onAddPeopleSheetOpened = onAddPeopleSheetOpened,
+            onAddPeopleSheetDismissed = onAddPeopleSheetDismissed,
+            onPeopleSearchChange = onPeopleSearchChange,
+            onPersonToggled = onPersonToggled,
+            onNewPersonFormToggled = onNewPersonFormToggled,
+            onNewPersonNameChange = onNewPersonNameChange,
+            onNewPersonColorChange = onNewPersonColorChange,
+            onCreatePerson = onCreatePerson,
+            onImportContacts = onImportContacts,
+            onConfirmPeople = onConfirmPeople,
         )
     }
 
@@ -1504,10 +1539,42 @@ private fun SplitSheet(
     onSplitModeChange: (SplitMode) -> Unit,
     onSplitShareChange: (Int, Double) -> Unit,
     onSplitPayerChange: (SplitPerson?) -> Unit,
-    onAddSplitPerson: (String) -> Unit,
     onRemoveSplitPerson: (String) -> Unit,
+    onAddPeopleSheetOpened: () -> Unit,
+    onAddPeopleSheetDismissed: () -> Unit,
+    onPeopleSearchChange: (String) -> Unit,
+    onPersonToggled: (String?, String) -> Unit,
+    onNewPersonFormToggled: () -> Unit,
+    onNewPersonNameChange: (String) -> Unit,
+    onNewPersonColorChange: (String) -> Unit,
+    onCreatePerson: () -> Unit,
+    onImportContacts: () -> Unit,
+    onConfirmPeople: () -> Unit,
 ) {
+    // One sheet, two bodies. Stacking a second ModalBottomSheet over this one would put two
+    // scrims on screen and leave a back gesture with two things it could mean; the roster
+    // picker is a step *within* the split, so it takes over the same surface.
+    //
+    // A swipe or a scrim tap closes the whole sheet whichever body is up, because that is
+    // what taking a sheet away means — and the sheet has already animated out by the time
+    // this fires, so answering it by swapping bodies would leave a hidden sheet mounted
+    // with nothing able to bring it back. The roster's own ✕ is the way back to the split.
     DivaBottomSheet(onDismissRequest = onDismiss) {
+        if (state.addPeopleSheetOpen) {
+            AddPeopleBody(
+                state = state,
+                onDismiss = onAddPeopleSheetDismissed,
+                onPeopleSearchChange = onPeopleSearchChange,
+                onPersonToggled = onPersonToggled,
+                onNewPersonFormToggled = onNewPersonFormToggled,
+                onNewPersonNameChange = onNewPersonNameChange,
+                onNewPersonColorChange = onNewPersonColorChange,
+                onCreatePerson = onCreatePerson,
+                onImportContacts = onImportContacts,
+                onConfirmPeople = onConfirmPeople,
+            )
+            return@DivaBottomSheet
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1538,7 +1605,7 @@ private fun SplitSheet(
             }
 
             FieldLabel("Paid by")
-            PaidByRow(state, onSplitPayerChange, onAddSplitPerson, onRemoveSplitPerson)
+            PaidByRow(state, onSplitPayerChange, onAddPeopleSheetOpened, onRemoveSplitPerson)
 
             SegmentedControl(
                 options = SplitMode.entries.map { it.label },
@@ -1547,7 +1614,9 @@ private fun SplitSheet(
                 onSelect = { onSplitModeChange(SplitMode.entries[it]) },
             )
 
-            ShareList(state, onSplitShareChange)
+            if (state.splitMode == SplitMode.BY_PERCENT) PercentHint()
+
+            ShareList(state, onSplitShareChange, onAddPeopleSheetOpened)
 
             AllocationCheck(state)
 
@@ -1560,16 +1629,21 @@ private fun SplitSheet(
     }
 }
 
-/** Avatars for everyone on the bill; tapping one makes them the payer. */
+/**
+ * The one row of everyone on the bill: tapping someone makes them the payer, holding them
+ * takes them off, and the dashed seat at the end opens the picker.
+ *
+ * One row, not two. The avatars used to be drawn again inside the picker, which put the
+ * same three faces on screen twice and cost a second tap to reach the names — the row
+ * *is* the roster, so it is the only place the roster is shown.
+ */
 @Composable
 private fun PaidByRow(
     state: QuickAddUiState,
     onSplitPayerChange: (SplitPerson?) -> Unit,
-    onAddSplitPerson: (String) -> Unit,
+    onAddPeopleSheetOpened: () -> Unit,
     onRemoveSplitPerson: (String) -> Unit,
 ) {
-    var adding by remember { mutableStateOf(false) }
-
     Row(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.Top,
@@ -1586,7 +1660,7 @@ private fun PaidByRow(
             PayerAvatar(
                 name = person.name,
                 initials = initialsOf(person.name),
-                color = personColor(person.name),
+                color = personColor(person.name, state.colorFor(person.name)),
                 selected = state.splitPaidBy?.name.equals(person.name, ignoreCase = true),
                 onClick = { onSplitPayerChange(person) },
                 onLongClick = { onRemoveSplitPerson(person.name) },
@@ -1601,7 +1675,7 @@ private fun PaidByRow(
                     .size(44.dp)
                     .clip(CircleShape)
                     .dashedCircle(diva.fgHair)
-                    .clickable { adding = !adding },
+                    .clickable(onClick = onAddPeopleSheetOpened),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -1613,10 +1687,6 @@ private fun PaidByRow(
             }
             Text("Add", style = MaterialTheme.typography.labelSmall, color = diva.muted)
         }
-    }
-
-    if (adding) {
-        SplitPeopleRow(state, onAddSplitPerson, onRemoveSplitPerson)
     }
 }
 
@@ -1639,7 +1709,11 @@ private fun PayerAvatar(
                 if (onLongClick == null) {
                     Modifier.clickable(onClick = onClick)
                 } else {
-                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClickLabel = "Take $name off this bill",
+                        onLongClick = onLongClick,
+                    )
                 }
             )
             .semantics { contentDescription = "$name paid" },
@@ -1667,7 +1741,11 @@ private fun PayerAvatar(
 
 /** Per-person shares — read-only when the split is even, editable in the manual modes. */
 @Composable
-private fun ShareList(state: QuickAddUiState, onSplitShareChange: (Int, Double) -> Unit) {
+private fun ShareList(
+    state: QuickAddUiState,
+    onSplitShareChange: (Int, Double) -> Unit,
+    onAddPeopleSheetOpened: () -> Unit,
+) {
     val participants = state.allParticipants()
     val shares = state.split?.shares
 
@@ -1681,7 +1759,11 @@ private fun ShareList(state: QuickAddUiState, onSplitShareChange: (Int, Double) 
             ) {
                 Avatar(
                     initials = if (index == 0) "You" else initialsOf(participant.name),
-                    color = if (index == 0) diva.accent else personColor(participant.name),
+                    color = if (index == 0) {
+                        diva.accent
+                    } else {
+                        personColor(participant.name, state.colorFor(participant.name))
+                    },
                     size = 34.dp,
                 )
                 Text(
@@ -1704,15 +1786,229 @@ private fun ShareList(state: QuickAddUiState, onSplitShareChange: (Int, Double) 
                         label = "${participant.name}'s amount",
                         onChange = { onSplitShareChange(index, it) },
                     )
-                    SplitMode.BY_PERCENT -> ShareField(
-                        value = state.splitPercents.getOrNull(index) ?: 0.0,
-                        suffix = "%",
-                        label = "${participant.name}'s percent",
+                    SplitMode.BY_PERCENT -> PercentStepper(
+                        percent = state.splitPercents.getOrNull(index) ?: 0.0,
+                        amount = shares?.getOrNull(index)?.amountMinor?.toMajorUnits(),
+                        currency = state.currency,
+                        name = participant.name,
                         onChange = { onSplitShareChange(index, it) },
                     )
                 }
             }
+
+            // The seat nobody is in yet, at the end of the roster rather than only up in
+            // "Paid by": in the manual modes the list *is* what the user is working
+            // through, so that is where reaching for one more person happens.
+            Hairline()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(FieldRadius))
+                    .clickable(onClick = onAddPeopleSheetOpened)
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier.size(34.dp).clip(CircleShape).dashedCircle(diva.fgHair),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.Add,
+                        contentDescription = null,
+                        tint = diva.muted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    text = if (state.splitMode == SplitMode.BY_PERCENT) {
+                        "Add person · redistributes remaining %"
+                    } else {
+                        "Add person"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = diva.muted,
+                )
+            }
         }
+    }
+}
+
+/**
+ * What the two ways of setting a percentage are, said once above the list.
+ *
+ * The steppers are discoverable on their own; that a percentage can be *typed* is not, and
+ * nudging from 33 to 60 one press at a time is the failure that line prevents.
+ */
+@Composable
+private fun PercentHint() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            Icons.Outlined.Info,
+            contentDescription = null,
+            tint = diva.muted,
+            modifier = Modifier.size(14.dp).padding(top = 1.dp),
+        )
+        Text(
+            text = "Tap a percentage to type an exact number, or use +/- for 1% nudges. " +
+                "Starts split evenly.",
+            style = MaterialTheme.typography.bodySmall,
+            color = diva.muted,
+        )
+    }
+}
+
+/**
+ * One person's percentage, and what it comes to in money.
+ *
+ * Two ways in, because they answer different questions: the steppers are for "a bit more
+ * than an even share", the typed field for "she had the 60". The money beside it is the
+ * whole reason the percentages are being set at all, so it is live rather than waiting for
+ * the sheet to be committed.
+ */
+@Composable
+private fun PercentStepper(
+    percent: Double,
+    amount: Double?,
+    currency: String,
+    name: String,
+    onChange: (Double) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            StepperKey(
+                icon = Icons.Outlined.Remove,
+                // The glyph is a rule; a screen reader reading "minus" would not say what
+                // pressing it does, so the description spells the whole action out — the
+                // same contract CalculatorKeypad holds.
+                label = "One percent less for $name",
+                enabled = percent > 0.0,
+                onClick = { onChange(percent - 1.0) },
+            )
+            PercentBox(percent = percent, name = name, onChange = onChange)
+            StepperKey(
+                icon = Icons.Outlined.Add,
+                label = "One percent more for $name",
+                enabled = percent < 100.0,
+                onClick = { onChange(percent + 1.0) },
+            )
+        }
+        Text(
+            text = amount?.let { formatCurrency(it, currency) } ?: "—",
+            style = NumericStyle.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            modifier = Modifier.width(58.dp),
+        )
+    }
+}
+
+/** A 1% nudge. Square rather than round, so it does not read as one more avatar. */
+@Composable
+private fun StepperKey(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(diva.keyFill)
+            .border(1.dp, diva.fgHair, RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (enabled) MaterialTheme.colorScheme.onSurface else diva.muted,
+            modifier = Modifier.size(14.dp),
+        )
+    }
+}
+
+/**
+ * The figure itself: a label until tapped, a focused field after.
+ *
+ * It only becomes a text field on demand because three of these in a row, all focusable,
+ * turns a sheet the user is reading into a form they have to tab through. The typed text is
+ * held locally and only parsed upward, so a half-typed "3" is not rewritten under the
+ * cursor as "3.0" on the next keystroke.
+ */
+@Composable
+private fun PercentBox(percent: Double, name: String, onChange: (Double) -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    val shape = RoundedCornerShape(9.dp)
+    val display = percent.toFixed(1).trimEnd('0').trimEnd('.')
+
+    Row(
+        modifier = Modifier
+            .widthIn(min = 52.dp)
+            .clip(shape)
+            .background(if (editing) diva.accent.copy(alpha = 0.12f) else diva.keyFill)
+            .border(if (editing) 1.5.dp else 1.dp, if (editing) diva.accent else diva.fgHair, shape)
+            .then(if (editing) Modifier else Modifier.clickable { editing = true })
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (editing) {
+            var text by remember { mutableStateOf(display) }
+            BasicTextField(
+                value = text,
+                onValueChange = { typed ->
+                    text = typed
+                    typed.toDoubleOrNull()?.let(onChange)
+                },
+                textStyle = NumericStyle.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End,
+                ),
+                cursorBrush = SolidColor(diva.accent),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { editing = false }),
+                modifier = Modifier
+                    .width(30.dp)
+                    .focusRequester(focusRequester)
+                    .semantics { contentDescription = "$name's percent" },
+            )
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+        } else {
+            Text(
+                text = display,
+                style = NumericStyle.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { contentDescription = "$name's percent" },
+            )
+        }
+        Text(
+            text = "%",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = diva.muted,
+        )
     }
 }
 
@@ -1782,6 +2078,23 @@ private fun AllocationCheck(state: QuickAddUiState) {
         else formatCurrency(value, state.currency)
     }
 
+    // A balanced percentage split says what it comes to in money, because percentages are
+    // not what anyone owes anyone. An unbalanced one cannot: `ByShares` hands out the whole
+    // total whatever the weights, so the money pair would read as settled while the
+    // percentages plainly are not.
+    val total = state.splitTotal
+    val summary = if (allocation.isPercent) {
+        if (ok && total != null) {
+            "${figure(allocation.allocated)} allocated · " +
+                "${formatCurrency(total, state.currency)} of ${formatCurrency(total, state.currency)}"
+        } else {
+            "${figure(allocation.allocated)} of ${figure(allocation.target)} allocated"
+        }
+    } else {
+        "${allocation.people} ${if (allocation.people == 1) "person" else "people"} · " +
+            "${figure(allocation.allocated)} of ${figure(allocation.target)} allocated"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1800,157 +2113,12 @@ private fun AllocationCheck(state: QuickAddUiState) {
             modifier = Modifier.size(16.dp),
         )
         Text(
-            text = "${allocation.people} ${if (allocation.people == 1) "person" else "people"} · " +
-                "${figure(allocation.allocated)} of ${figure(allocation.target)} allocated",
+            text = summary,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
-}
-
-/**
- * Everyone on the bill as avatars: you first, then anyone named, then the button that
- * names another. Tapping someone already on it takes them off — the same gesture in and
- * out, since a row of four avatars has no room for four remove targets.
- */
-@Composable
-private fun SplitPeopleRow(
-    state: QuickAddUiState,
-    onAddSplitPerson: (String) -> Unit,
-    onRemoveSplitPerson: (String) -> Unit,
-) {
-    var adding by remember { mutableStateOf(false) }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-    ) {
-        Avatar(initials = "You", color = diva.muted, size = 37.dp)
-
-        state.splitWith.forEach { person ->
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { onRemoveSplitPerson(person.name) }
-                    .semantics { contentDescription = "Take ${person.name} off this bill" },
-            ) {
-                Avatar(
-                    initials = initialsOf(person.name),
-                    color = personColor(person.name),
-                    size = 37.dp,
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .size(37.dp)
-                .clip(CircleShape)
-                .border(1.5.dp, diva.fgHair, CircleShape)
-                .clickable { adding = !adding },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Outlined.Add,
-                contentDescription = "Add someone to this bill",
-                tint = diva.muted,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-
-    if (adding) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(FieldRadius))
-                .background(diva.barFill)
-                .padding(Space.md),
-            verticalArrangement = Arrangement.spacedBy(Space.sm),
-        ) {
-            FieldLabel("Add person")
-
-            // Everyone known who is not already on the bill.
-            state.peopleSuggestions
-                .filterNot { known ->
-                    state.splitWith.any { it.name.equals(known.name, ignoreCase = true) }
-                }
-                .forEach { person ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(1.dp, diva.fgHair, RoundedCornerShape(10.dp))
-                            .clickable {
-                                adding = false
-                                onAddSplitPerson(person.name)
-                            }
-                            .padding(horizontal = 9.dp, vertical = 7.dp),
-                        horizontalArrangement = Arrangement.spacedBy(9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Avatar(
-                            initials = initialsOf(person.name),
-                            color = personColor(person.name),
-                            size = 26.dp,
-                        )
-                        Text(
-                            text = person.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            Icons.Outlined.Add,
-                            contentDescription = null,
-                            tint = diva.accent,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
-
-            NewSplitPersonField(onAdd = {
-                adding = false
-                onAddSplitPerson(it)
-            })
-        }
-    }
-}
-
-/** Adds someone who is not in the list yet. */
-@Composable
-private fun NewSplitPersonField(onAdd: (String) -> Unit) {
-    var typed by remember { mutableStateOf("") }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(Space.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DivaTextField(
-            value = typed,
-            onValueChange = { typed = it },
-            label = "Add someone",
-            modifier = Modifier.weight(1f),
-        )
-        CategoryChip(
-            label = "Add",
-            selected = typed.isNotBlank(),
-            onClick = {
-                onAdd(typed)
-                typed = ""
-            },
-        )
-    }
-}
-
-/** A stable colour per name, so the same person keeps the same avatar between entries. */
-@Composable
-private fun personColor(name: String): Color {
-    val ramp = SpendingCategory.entries
-    val index = (name.lowercase().sumOf { it.code } % ramp.size)
-    return ramp[index].color
 }
 
 /**
@@ -2242,6 +2410,58 @@ private fun AddExpenseSplitSheetPreview() {
         )
     }
 }
+
+@Preview
+@Composable
+private fun AddExpenseSplitPercentPreview() {
+    DivaTheme {
+        AddExpenseContent(
+            state = QuickAddUiState(
+                expression = "57.80",
+                category = SpendingCategory.DINING,
+                splitEnabled = true,
+                splitSheetOpen = true,
+                splitMode = SplitMode.BY_PERCENT,
+                splitWith = listOf(SplitPerson(null, "Sam"), SplitPerson(null, "Priya")),
+                splitWithCount = 2,
+                splitPercents = listOf(34.0, 33.0, 33.0),
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AddExpenseAddPeoplePreview() {
+    DivaTheme {
+        AddExpenseContent(
+            state = QuickAddUiState(
+                expression = "57.80",
+                splitEnabled = true,
+                splitSheetOpen = true,
+                addPeopleSheetOpen = true,
+                contactsSupported = true,
+                splitWith = listOf(SplitPerson("sam", "Sam")),
+                peopleSuggestions = listOf(
+                    previewPerson("sam", "Sam"),
+                    previewPerson("priya", "Priya", "#B25FA8"),
+                    previewPerson("jordan", "Jordan"),
+                    previewPerson("alex", "Alex"),
+                ),
+                peopleSplitCounts = mapOf("sam" to 6, "priya" to 4, "jordan" to 2, "alex" to 1),
+                pendingPeople = listOf(SplitPerson("priya", "Priya")),
+            ),
+        )
+    }
+}
+
+private fun previewPerson(id: String, name: String, colorHex: String? = null) = Person(
+    id = id,
+    name = name,
+    colorHex = colorHex,
+    createdAt = Clock.System.now(),
+    updatedAt = Clock.System.now(),
+)
 
 @Preview
 @Composable

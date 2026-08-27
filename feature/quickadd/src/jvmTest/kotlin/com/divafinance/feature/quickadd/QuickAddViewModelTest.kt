@@ -81,6 +81,7 @@ class QuickAddViewModelTest {
         ),
         GetBestCardForCategoryUseCase(cardRepo, rewardRepo, settingsRepo),
         personRepo,
+        ledgerRepo,
         customCategoryRepo,
         locationSource,
         settingsRepo,
@@ -1333,6 +1334,173 @@ class QuickAddViewModelTest {
 
         assertNull(vm.uiState.value.splitPaidBy)
         assertEquals(0, vm.uiState.value.payerIndex)
+    }
+
+    /** The steppers run on a bounded scale, so they cannot walk a share off the end of it. */
+    @Test
+    fun aPercentageCannotExceedTheWholeBill() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("60")
+        vm.onSplitModeChange(SplitMode.BY_PERCENT)
+
+        vm.onSplitShareChange(0, 140.0)
+        assertEquals(100.0, vm.uiState.value.splitPercents[0])
+
+        vm.onSplitShareChange(0, -5.0)
+        assertEquals(0.0, vm.uiState.value.splitPercents[0])
+    }
+
+    // --- add people ----------------------------------------------------------
+
+    /**
+     * Frequent is built out of splits already made, which is what makes handing over an
+     * address book optional. A settlement in cash is not a bill they were on, so only
+     * ledger entries tied to a transaction count.
+     */
+    @Test
+    fun theRosterCountsOnlyBillsAPersonWasActuallyOn() = runTest {
+        personRepo.setPeople(listOf(TestData.person(id = "sam", name = "Sam")))
+        ledgerRepo.insert(TestData.ledgerEntry(id = "a", personId = "sam", transactionId = "tx-1"))
+        ledgerRepo.insert(TestData.ledgerEntry(id = "b", personId = "sam", transactionId = "tx-2"))
+        // Two entries from one bill are one split, not two.
+        ledgerRepo.insert(TestData.ledgerEntry(id = "c", personId = "sam", transactionId = "tx-2"))
+        // A hand repayment carries no transaction, so it is not a bill.
+        ledgerRepo.insert(TestData.ledgerEntry(id = "d", personId = "sam", transactionId = null))
+
+        val vm = viewModel()
+        vm.onAddPeopleSheetOpened()
+
+        assertEquals(2, vm.uiState.value.peopleSplitCounts["sam"])
+    }
+
+    /** Ticking queues; committing is what changes the bill. */
+    @Test
+    fun tickedPeopleReachTheBillOnlyOnConfirm() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.type("60")
+        vm.onAddPeopleSheetOpened()
+
+        vm.onPersonToggled("sam", "Sam")
+        vm.onPersonToggled("priya", "Priya")
+        assertEquals(2, vm.uiState.value.pendingPeople.size)
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+
+        vm.onConfirmPeople()
+
+        assertEquals(listOf("Sam", "Priya"), vm.uiState.value.splitWith.map { it.name })
+        assertTrue(vm.uiState.value.pendingPeople.isEmpty())
+        assertFalse(vm.uiState.value.addPeopleSheetOpen)
+    }
+
+    /** Ticking twice is a change of mind, not a second copy of the same person. */
+    @Test
+    fun tickingSomeoneTwiceUnticksThem() = runTest {
+        val vm = viewModel()
+        vm.onAddPeopleSheetOpened()
+        vm.onPersonToggled("sam", "Sam")
+        vm.onPersonToggled("sam", "Sam")
+
+        assertTrue(vm.uiState.value.pendingPeople.isEmpty())
+    }
+
+    /** The tick is one statement about whether they are on the bill, in both directions. */
+    @Test
+    fun untickingSomeoneAlreadyOnTheBillTakesThemOff() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onAddPeopleSheetOpened()
+
+        vm.onPersonToggled("sam", "Sam")
+
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+        assertTrue(vm.uiState.value.pendingPeople.isEmpty())
+    }
+
+    /**
+     * Written straight away rather than at save time: the roster is the point, so a person
+     * named for an entry that is then abandoned should still be there next time — and
+     * `SaveSplitTransactionUseCase` would otherwise create them by name, without the colour.
+     */
+    @Test
+    fun creatingAPersonStoresTheirNameAndColour() = runTest {
+        val vm = viewModel()
+        vm.onAddPeopleSheetOpened()
+        vm.onNewPersonFormToggled()
+        vm.onNewPersonNameChange("Maya")
+        vm.onNewPersonColorChange("#D1594B")
+        vm.onCreatePerson()
+
+        val stored = assertNotNull(personRepo.findByName("Maya"))
+        assertEquals("#D1594B", stored.colorHex)
+        assertEquals(listOf("Maya"), vm.uiState.value.pendingPeople.map { it.name })
+        assertFalse(vm.uiState.value.newPersonFormOpen)
+    }
+
+    /** Typing a name the app already knows is picking that person, not making a second one. */
+    @Test
+    fun creatingAPersonWhoAlreadyExistsRecoloursThemInstead() = runTest {
+        personRepo.setPeople(listOf(TestData.person(id = "sam", name = "Sam")))
+        val vm = viewModel()
+        vm.onAddPeopleSheetOpened()
+        vm.onNewPersonFormToggled()
+        vm.onNewPersonNameChange("sam")
+        vm.onNewPersonColorChange("#4A7FD1")
+        vm.onCreatePerson()
+
+        assertEquals(1, personRepo.count())
+        assertEquals("#4A7FD1", personRepo.getById("sam")?.colorHex)
+    }
+
+    /** Importing is not the same act as putting everyone in the address book on the bill. */
+    @Test
+    fun importedContactsAreOfferedRatherThanAdded() = runTest {
+        personRepo.setPeople(listOf(TestData.person(id = "sam", name = "Sam")))
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddPeopleSheetOpened()
+
+        vm.onContactsImported(listOf("Jordan", " sam ", "", "Alex", "Jordan"))
+
+        // Deduplicated, trimmed, and stripped of anyone Frequent already lists.
+        assertEquals(listOf("Alex", "Jordan"), vm.uiState.value.importedContacts)
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+    }
+
+    /**
+     * Both bodies share one sheet, so dismissing the sheet has to clear both flags — an
+     * `addPeopleSheetOpen` left set would reopen the split on the roster, and a sheet whose
+     * state says "open" after it has animated out cannot be brought back at all.
+     */
+    @Test
+    fun dismissingTheSplitSheetClosesTheRosterWithIt() = runTest {
+        val vm = viewModel()
+        vm.onSplitSheetOpened()
+        vm.onAddPeopleSheetOpened()
+        vm.onPersonToggled(null, "Sam")
+
+        vm.onSplitSheetDismissed()
+
+        assertFalse(vm.uiState.value.splitSheetOpen)
+        assertFalse(vm.uiState.value.addPeopleSheetOpen)
+        assertTrue(vm.uiState.value.pendingPeople.isEmpty())
+    }
+
+    /** Closing without committing leaves the bill alone — nothing was added. */
+    @Test
+    fun dismissingTheRosterDiscardsTheBatch() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddPeopleSheetOpened()
+        vm.onPersonToggled(null, "Sam")
+        vm.onAddPeopleSheetDismissed()
+
+        assertTrue(vm.uiState.value.pendingPeople.isEmpty())
+        assertTrue(vm.uiState.value.splitWith.isEmpty())
+        assertFalse(vm.uiState.value.addPeopleSheetOpen)
     }
 
     // --- the date ------------------------------------------------------------

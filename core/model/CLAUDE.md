@@ -29,6 +29,7 @@ All under `src/commonMain/kotlin/com/divafinance/core/model/`.
 | `GraphThreshold.kt` | A per-category spending threshold used by the graphs feature |
 | `UserSettings.kt` | Currency, PIN hash + salt, onboarding-complete flag, toggles |
 | `BackupArchive.kt` | Serializable envelope for the full export/import payload |
+| `Person.kt` | Someone money is owed to or from. Local to this device — a name, an optional note, and a **`colorHex`** avatar colour. Nullable: rows written before the colour existed have none, and the UI answers that with a hash of the name |
 | `Currency.kt` | `Currency(code, name, symbol)` + 7 supported currencies in `Currency.supported`, plus `fromCode()` which falls back to an unknown-code currency rather than throwing |
 | `enums/` | `SpendingCategory` (12 values, each with a `displayName`), `CardNetwork`, `RewardType`, `CapPeriod`, `TransactionType`, `AccountType`, `FeedPostType`, `ReceiptStatus`, `LedgerEntryKind`, `LocationCaptureMode` (`ALWAYS` / `ON_TAP` / `NEVER`, and **absent is a fourth state** meaning never asked) |
 

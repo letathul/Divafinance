@@ -54,6 +54,8 @@
     <string>Diva Finance uses the camera to scan receipts.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Diva Finance uses your location to tag transactions on the spending map.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Diva Finance reads contact names so you can split a bill with someone without typing their name. Names stay on this device.</string>
     <!-- The target of every automation shortcut. `AutomationViewModel` mints
          `divafinance://automation/{id}` and the Siri suggestions registered by
          `IosShortcutRegistrar` open it; without this the scheme resolves to nothing. -->

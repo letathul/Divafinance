@@ -114,11 +114,13 @@ object TestData {
         id: String = "person-1",
         name: String = "Sam",
         note: String? = null,
+        colorHex: String? = null,
         isArchived: Boolean = false,
     ) = Person(
         id = id,
         name = name,
         note = note,
+        colorHex = colorHex,
         isArchived = isArchived,
         createdAt = now,
         updatedAt = now,

@@ -49,6 +49,7 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | `LedgerRow.kt` | `DayHeader` + `TransactionRow` — the ledger's two building blocks |
 | `MomentCard.kt` | The feed's full-width "post" for a split or notable spend |
 | `Avatar.kt` | `Avatar`, `AvatarRing` (accent-ringed), `initialsOf()` |
+| `PersonVisuals.kt` | `personColor(name, colorHex)`, the six-swatch `PersonPalette` the add-person form offers, and `Color.toHex()`. The stored colour wins; absent falls back to a stable hash of the name, so a person written before `Person.colorHex` existed keeps the avatar they always had. The palette is deliberately **not** the category ramp — those twelve hues encode *what* was spent, and a person wearing one would make the same colour mean two things on one screen |
 | `CalculatorKeypad.kt` | The 4×4 arithmetic pad — circular keys on Cupertino, rounded rects on Material. `extended = true` swaps in the 5×4 pad the add-expense amount sheet uses, adding `( ) C` and `=` (`onGroup` / `onClear` / `onEquals`). Visible labels are typographic (`÷ × − ⌫`), `contentDescription` is spelled out (`Open bracket`, `Clear`, `Equals`, …) — tests select on the descriptions. |
 | `chart/` | `SpendingPieChart`, `ThresholdBarChart`, `TrendLineChart`, and `Sparkline` (the bare inline line, no axes or empty state) over neutral `ChartSlice`/`ChartPoint`/`ChartBar` types |
 | `DivaLogo.kt` | The brand wordmark, drawn in type. No asset pipeline — replacing it is this file plus the two `DivaBrand*` colours |

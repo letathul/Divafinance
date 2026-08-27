@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Asked for only when "Import from Contacts" is tapped on the split sheet, never on
+         launch. Names are read, nothing else, and they stay in this device's database. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- The local server runs as a foreground service and needs its notification to
          be visible on API 33+. -->

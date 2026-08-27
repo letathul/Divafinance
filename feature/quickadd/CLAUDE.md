@@ -9,9 +9,9 @@ calendar, the split and the location consent are all sheets. Optimised for a few
 everything beyond the amount has a usable default.
 
 **Gradle:** `:feature:quickadd` · `diva.kmp.compose`
-**Depends on:** `:core:model`, `:core:domain`, **`:core:data`** (reads `SettingsRepository`
-and `CustomCategoryRepository` directly), `:core:ui`, `:core:common`. Android adds
-`androidx-activity-compose` for the permission launcher.
+**Depends on:** `:core:model`, `:core:domain`, **`:core:data`** (reads `SettingsRepository`,
+`CustomCategoryRepository`, `PersonRepository` and `LedgerRepository` directly), `:core:ui`,
+`:core:common`. Android adds `androidx-activity-compose` for the permission launchers.
 
 ## Key files
 
@@ -22,7 +22,9 @@ and `CustomCategoryRepository` directly), `:core:ui`, `:core:common`. Android ad
 | `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, the base currency, the custom categories and whether the platform does location at all, runs `PredictCategoryUseCase`, loads recent merchants and ranks the best card. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
 | `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Its own chrome (see below): `AddExpenseHeader`, `TypeToggle`, `AmountBlock`, `CategoryBlock`, `BestCardChip`, `CardSelector`, `DatePill`, `NoteRow`, `LocationBlock`, `SplitSummary`, then the pinned `ActionRow` + save. `AmountSheet` is the keypad; `DateSheet`, `SplitSheet` and `LocationConsentSheet` are the three `DivaBottomSheet`s. `AddExpenseContent` is the stateless body tests drive directly. |
 | `CategoryPickerScreen.kt` | `DivaRoutes.ADD_CATEGORY` — search, a Recent row, the grid of built-ins plus the user's own, and the `+ Add custom` creator. Writes into the **same hoisted `QuickAddViewModel`** the add screen uses, so a selection needs no navigation-result plumbing. |
+| `AddPeopleSheet.kt` | `AddPeopleBody` — the roster picker, rendered on the split sheet's own surface. Search, a **Frequent** list built from past splits, a **From contacts** list once imported, the add-by-name form with its colour swatches, the Import row, and the `N selected` / *Add to Split* footer. |
 | `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
+| `ContactPicker.kt` | `fun interface ContactImporter` + `@Composable expect fun rememberContactImporter()` and `expect fun contactsSupported()`. Actuals in `androidMain` (`READ_CONTACTS` + a `ContactsContract` query off the main thread), `iosMain` (`CNContactStore`), and `jvmMain` (reports nothing). **Names only** — no numbers, no emails, no ids. |
 
 **This screen draws its own chrome** and is the third deliberate exception to the
 `DivaScaffold` rule, alongside `OnboardingScreen` and `MapFallbackScreen`. It is opened
@@ -62,22 +64,47 @@ and the card all share one horizontal inset. Don't re-apply it inside those chil
 
 ## Conventions / gotchas
 
-- **Naming people is now the only split path with a UI.** The sheet was trimmed to
-  `addTransaction/SplitTransaction.png`, which cost it the `Just me` / `Split with N` count
-  selector (and its long-press `SplitCountDialog`). Splitting means adding people through
-  the `+` avatar in `PaidByRow` → `SplitPeopleRow`, which creates real debts. `splitOthers`
-  is still the one number the UI reads, and `onSplitSheetOpened()` is what turns splitting
-  on.
-  **Open follow-up:** the ViewModel keeps the whole unnamed-count path — `splitWithCount`,
-  `onSplitCountChange`, the `"Person N"` branch of `splitParticipants()`, and the
-  `AddTransactionUseCase` save branch that writes `othersShare` with no ledger entries —
-  along with its six tests, but **nothing calls `onSplitCountChange` any more**. It was left
-  in rather than ripped out because deleting it is a refactor of `save()`, not a UI trim.
-  Either give it an entry point or delete it deliberately; do not leave it half-alive.
-  Note `onAddSplitPerson` still collapses `splitWithCount` onto `splitWith.size`, so
-  `splitParticipants()` never has to reconcile the two — which matters because
-  `SaveSplitTransactionUseCase` requires the shares it is given to add up to `othersShare`
-  exactly.
+- **The roster is a sheet of its own, on the split sheet's surface.** `AddPersonPanel` and
+  `NewSplitPersonField` are gone; the dashed seat at the end of `PaidByRow` and the dashed
+  row at the end of `ShareList` both call `onAddPeopleSheetOpened()`, and `SplitSheet`
+  swaps its body for `AddPeopleBody`. **One `DivaBottomSheet`, two bodies** — stacking a
+  second `ModalBottomSheet` over the first would put two scrims on screen and leave a back
+  gesture with two things it could mean, so `onDismissRequest` closes the roster first when
+  it is open and the split sheet otherwise.
+  **Selection is a batch.** Ticking someone adds them to `pendingPeople`; only
+  `onConfirmPeople()` folds them into `splitWith`, one at a time through `onAddSplitPerson`.
+  Three people picked is the bill changing length once rather than three times, each of
+  which would reset the positional share lists in turn. Dismissing discards the batch.
+  Unticking someone *already on* the bill takes them off it there and then — the tick is
+  one statement about whether they are on this bill, so it cannot mean "queued" in one
+  direction and "added" in the other. Holding an avatar on `PaidByRow` still removes, and
+  that long press keeps its `onLongClickLabel`.
+  **Frequent is built from splits already made.** `peopleSplitCounts` counts a person's
+  ledger entries that carry a `transactionId`, distinct by transaction — that is what ties
+  a debt to the spend that created it, so a cash settlement is not a bill they were on, and
+  two entries from one bill are one split. This is what makes the address book optional
+  rather than the way in.
+  **A person is a name and a colour.** No phone number, no email — a split is settled
+  between people who already know each other, and the app is local-first, so there is
+  nothing for an identifier to reach. `onCreatePerson()` writes the row immediately rather
+  than at save time, so someone named for an abandoned entry is still under Frequent next
+  time; typing a name that already exists recolours that person instead of making a second.
+  `personColor(name, colorHex)` in `:core:ui` resolves the avatar, falling back to the name
+  hash for anyone written before `Person.colorHex` existed.
+  **Importing contacts is offered, never required.** `onContactsImported` fills
+  `importedContacts` — a second list to pick from — rather than `pendingPeople`, because
+  dumping an address book onto a bill is not a selection. The row only appears where
+  `contactsSupported` is true, read in `onOpened()` the way `locationSupported` is.
+  **Open follow-up:** the ViewModel still keeps the whole unnamed-count path —
+  `splitWithCount`, `onSplitCountChange`, the `"Person N"` branch of `splitParticipants()`,
+  and the `AddTransactionUseCase` save branch that writes `othersShare` with no ledger
+  entries — along with its six tests, but **nothing calls `onSplitCountChange` any more**.
+  It was left in rather than ripped out because deleting it is a refactor of `save()`, not a
+  UI trim. Either give it an entry point or delete it deliberately; do not leave it
+  half-alive. Note `onAddSplitPerson` still collapses `splitWithCount` onto
+  `splitWith.size`, so `splitParticipants()` never has to reconcile the two — which matters
+  because `SaveSplitTransactionUseCase` requires the shares it is given to add up to
+  `othersShare` exactly.
 - **The split sheet has three modes and a real payer.** `SplitMode` is
   `EQUALLY` / `BY_AMOUNT` / `BY_PERCENT`. By-amount goes to `SplitMethod.ByExactAmounts`,
   which *rejects* shares that do not reach the total — that rejection is what drives the
@@ -87,6 +114,22 @@ and the card all share one horizontal inset. Don't re-apply it inside those chil
   deliberately not a `SplitMethod` of their own.
   `splitCustomAmounts` / `splitPercents` are **positional**, index 0 being you, so adding
   or removing anyone clears them and drops back to `EQUALLY`.
+  **By percent has two ways in, because they answer different questions.** `PercentStepper`
+  draws `− [34 %] +` and the person's live money figure beside it: the steppers are for "a
+  bit more than an even share", the typed field for "she had the 60". `PercentBox` is a
+  `Text` until tapped and only then a focused `BasicTextField` — three focusable fields in a
+  row turns a sheet the user is reading into a form they have to tab through. The typed text
+  is held locally and parsed upward, so a half-typed "3" is not rewritten as "3.0" under the
+  cursor. `onSplitShareChange` **clamps the percent branch to 0..100**, not just to ≥ 0:
+  the steppers would otherwise walk a share off the end of a scale where past-100 has no
+  meaning the allocation check could explain. The stepper glyphs carry spelled-out
+  `contentDescription`s ("One percent more for Sam") — the same contract `CalculatorKeypad`
+  holds, and what the tests select on.
+  The allocation line reads **"100% allocated · $57.80 of $57.80"** once a percentage split
+  balances, because percentages are not what anyone owes. It falls back to
+  "97% of 100% allocated" when it does not: `ByShares` hands out the whole total whatever
+  the weights, so a money pair on an unbalanced split would read as settled when it plainly
+  is not.
   The "X of Y allocated" check now renders in **all three** modes, not just the manual two:
   `QuickAddUiState.allocation` reports an even split as trivially balanced rather than
   returning null, because the design shows that line wherever the user is and moving it in
@@ -194,6 +237,10 @@ and the card all share one horizontal inset. Don't re-apply it inside those chil
 
 `src/jvmTest/` — `QuickAddViewModelTest.kt`, `AddExpenseScreenTest.kt`,
 `CategoryPickerScreenTest.kt` (both Compose UI), and `TestDoubles.kt`. Uses `:core:testing`.
+
+The jvm host resolves to `MATERIAL`, so `theRosterRendersOnCupertinoToo` passes
+`platform = DivaPlatform.CUPERTINO` explicitly — without it the Add People sheet would only
+ever be covered on half the design system.
 
 `QuickAddViewModelTest` saves through a `saveNow()` helper rather than `save()`: the first
 save on a fresh entry raises the location sheet, and every test that is not about that gate

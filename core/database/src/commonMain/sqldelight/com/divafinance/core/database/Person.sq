@@ -13,11 +13,11 @@ selectByName:
 SELECT * FROM Person WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1;
 
 insert:
-INSERT INTO Person(id, name, note, is_archived, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO Person(id, name, note, is_archived, created_at, updated_at, color_hex)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 update:
-UPDATE Person SET name = ?, note = ?, is_archived = ?, updated_at = ? WHERE id = ?;
+UPDATE Person SET name = ?, note = ?, is_archived = ?, updated_at = ?, color_hex = ? WHERE id = ?;
 
 delete:
 DELETE FROM Person WHERE id = ?;

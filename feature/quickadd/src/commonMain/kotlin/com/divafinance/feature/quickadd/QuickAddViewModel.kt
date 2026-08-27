@@ -11,6 +11,7 @@ import com.divafinance.core.common.toFixed
 import com.divafinance.core.common.toMajorUnits
 import com.divafinance.core.common.toMinorUnits
 import com.divafinance.core.data.repository.CustomCategoryRepository
+import com.divafinance.core.data.repository.LedgerRepository
 import com.divafinance.core.data.repository.PersonRepository
 import com.divafinance.core.domain.engine.BillSplitEngine
 import com.divafinance.core.domain.engine.CardRecommendation
@@ -182,7 +183,37 @@ data class QuickAddUiState(
      */
     val splitWithCount: Int = 0,
     val peopleSuggestions: List<Person> = emptyList(),
+    /**
+     * How many past bills each known person has been on, by person id. What the Add People
+     * sheet ranks and labels them by — an address book the user never had to hand over,
+     * built from the splits they have already made.
+     */
+    val peopleSplitCounts: Map<String, Int> = emptyMap(),
     val splitSheetOpen: Boolean = false,
+    /**
+     * Whether the Add People sheet is the one on screen. It takes over the split sheet's
+     * surface rather than opening a second one over it: two stacked modal sheets means two
+     * scrims and two things a back gesture could mean.
+     */
+    val addPeopleSheetOpen: Boolean = false,
+    val peopleSearch: String = "",
+    /**
+     * Who has been ticked but not yet added. The sheet commits as a batch, so picking three
+     * people is one edit to the bill rather than three — each of which would otherwise
+     * reset the positional share lists in turn.
+     */
+    val pendingPeople: List<SplitPerson> = emptyList(),
+    val newPersonFormOpen: Boolean = false,
+    val newPersonName: String = "",
+    /** The swatch picked for a person being created, or null to take the name's hash. */
+    val newPersonColorHex: String? = null,
+    /**
+     * Names read from the address book, offered as a second list to pick from. Held rather
+     * than added: importing contacts is not the same act as putting them on this bill.
+     */
+    val importedContacts: List<String> = emptyList(),
+    /** Whether the platform has an address book to read at all. Set by [QuickAddViewModel.onOpened]. */
+    val contactsSupported: Boolean = false,
     val splitMode: SplitMode = SplitMode.EQUALLY,
     /**
      * Who actually paid, or null for the user. Someone else paying inverts the debt and
@@ -237,6 +268,24 @@ data class QuickAddUiState(
         get() = ExpressionEvaluator.evaluate(expression)?.roundToCents()?.takeIf { it > 0.0 }
 
     val canSave: Boolean get() = committedAmount != null && !isSaving && (!splitEnabled || split != null)
+
+    /** Ticked in the Add People sheet: already on the bill, or waiting in the batch. */
+    fun isPersonSelected(name: String): Boolean =
+        splitWith.any { it.name.equals(name, ignoreCase = true) } ||
+            pendingPeople.any { it.name.equals(name, ignoreCase = true) }
+
+    /** "Split 6 times before" — how often this person has been on a bill already. */
+    fun splitCountFor(person: Person): Int = peopleSplitCounts[person.id] ?: 0
+
+    /**
+     * The colour stored for whoever is on the bill under this name, if the app knows them.
+     *
+     * A name is what the split carries — `SplitPerson.personId` is null for anyone typed in
+     * rather than picked — so the roster is what the colour has to be looked up in. Null
+     * means the avatar falls back to the name's hash, which is what it always did.
+     */
+    fun colorFor(name: String): String? =
+        peopleSuggestions.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }?.colorHex
 
     /** The label the date pill shows: the two recent days by name, anything else by date. */
     fun dateLabel(today: LocalDate = todayDate()): String = when (date) {
@@ -470,6 +519,7 @@ class QuickAddViewModel(
     private val saveSplitTransactionUseCase: SaveSplitTransactionUseCase,
     private val getBestCardForCategoryUseCase: GetBestCardForCategoryUseCase,
     private val personRepository: PersonRepository,
+    private val ledgerRepository: LedgerRepository,
     private val customCategoryRepository: CustomCategoryRepository,
     private val locationSource: LocationSource,
     private val settingsRepository: SettingsRepository,
@@ -514,6 +564,7 @@ class QuickAddViewModel(
             val custom = runCatching { customCategoryRepository.getAll().first() }
                 .getOrDefault(emptyList())
             val supported = runCatching { locationSource.isAvailable() }.getOrDefault(false)
+            val contacts = runCatching { contactsSupported() }.getOrDefault(false)
             val today = todayDate()
             _uiState.update {
                 it.copy(
@@ -524,6 +575,7 @@ class QuickAddViewModel(
                     merchantSuggestions = recentMerchants,
                     customCategories = custom,
                     locationSupported = supported,
+                    contactsSupported = contacts,
                     // Re-read rather than carried: a sheet left open across midnight would
                     // otherwise go on booking entries against yesterday.
                     date = today,
@@ -1014,6 +1066,7 @@ class QuickAddViewModel(
             locationCaptureMode = previous.locationCaptureMode,
             locationPermissionGranted = previous.locationPermissionGranted,
             locationSupported = previous.locationSupported,
+            contactsSupported = previous.contactsSupported,
             permissionRequestNonce = previous.permissionRequestNonce,
             // Carried for the same reason the capture mode is: being asked once is enough,
             // and a fresh blank entry is not a new reason to ask.
@@ -1085,7 +1138,25 @@ class QuickAddViewModel(
         if (!_uiState.value.splitEnabled) onSplitToggled(true)
     }
 
-    fun onSplitSheetDismissed() = _uiState.update { it.copy(splitSheetOpen = false) }
+    /**
+     * Closes the split sheet, and the roster with it.
+     *
+     * Both live on one surface, so a swipe that takes the sheet away has to take the whole
+     * state with it — leaving `addPeopleSheetOpen` set would reopen the split on the roster
+     * rather than on the split, and a sheet whose flags say "open" while it has already
+     * animated out is a sheet that cannot be reopened at all.
+     */
+    fun onSplitSheetDismissed() = _uiState.update {
+        it.copy(
+            splitSheetOpen = false,
+            addPeopleSheetOpen = false,
+            pendingPeople = emptyList(),
+            peopleSearch = "",
+            newPersonFormOpen = false,
+            newPersonName = "",
+            newPersonColorHex = null,
+        )
+    }
 
     /**
      * Switching mode seeds the manual lists from the even split, so the sheet always opens
@@ -1125,7 +1196,10 @@ class QuickAddViewModel(
             SplitMode.BY_PERCENT -> {
                 val percents = state.splitPercents.toMutableList()
                 if (index !in percents.indices) return@update state
-                percents[index] = safe
+                // Capped as well as floored: one person can consume the whole bill, but a
+                // share above 100% is not an over-allocation the check could explain, it is
+                // a number with no meaning — and the steppers would happily run past it.
+                percents[index] = safe.coerceAtMost(100.0)
                 state.copy(splitPercents = percents)
             }
             SplitMode.EQUALLY -> state
@@ -1198,10 +1272,191 @@ class QuickAddViewModel(
         )
     }
 
+    /**
+     * Everyone the app already knows, and how often each has been split with.
+     *
+     * A past split is a ledger entry carrying a `transactionId` — that is what ties a debt
+     * to the spend that created it, so entries without one are cash settlements and hand
+     * repayments, which are not bills this person was on.
+     */
     private fun loadPeopleSuggestions() {
         viewModelScope.launch {
             val people = runCatching { personRepository.getActive().first() }.getOrDefault(emptyList())
-            _uiState.update { it.copy(peopleSuggestions = people) }
+            val counts = people.associate { person ->
+                val splits = runCatching { ledgerRepository.getByPersonId(person.id) }
+                    .getOrDefault(emptyList())
+                    .mapNotNull { it.transactionId }
+                    .distinct()
+                    .size
+                person.id to splits
+            }
+            _uiState.update { it.copy(peopleSuggestions = people, peopleSplitCounts = counts) }
+        }
+    }
+
+    // --- add people ----------------------------------------------------------
+
+    /**
+     * Opens the roster picker over the split sheet.
+     *
+     * The batch starts empty rather than pre-ticked with whoever is already on the bill:
+     * the sheet renders those as selected from `splitWith` directly, so seeding them here
+     * would make "Add to Split" re-add the people it had already added.
+     */
+    fun onAddPeopleSheetOpened() {
+        _uiState.update {
+            it.copy(addPeopleSheetOpen = true, peopleSearch = "", pendingPeople = emptyList())
+        }
+        loadPeopleSuggestions()
+    }
+
+    /** Closes it, discarding the batch — nothing was committed to the bill. */
+    fun onAddPeopleSheetDismissed() = _uiState.update {
+        it.copy(
+            addPeopleSheetOpen = false,
+            pendingPeople = emptyList(),
+            peopleSearch = "",
+            newPersonFormOpen = false,
+            newPersonName = "",
+            newPersonColorHex = null,
+        )
+    }
+
+    fun onPeopleSearchChange(query: String) = _uiState.update { it.copy(peopleSearch = query) }
+
+    /**
+     * Ticks or unticks someone.
+     *
+     * Untickng a person already on the bill takes them off it there and then — the tick is
+     * one statement about whether they are on this bill, so it cannot mean "added" in one
+     * direction and "queued" in the other.
+     */
+    fun onPersonToggled(personId: String?, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val state = _uiState.value
+        val onBill = state.splitWith.any { it.name.equals(trimmed, ignoreCase = true) }
+        if (onBill) {
+            onRemoveSplitPerson(trimmed)
+            return
+        }
+        _uiState.update { current ->
+            val pending = current.pendingPeople
+            val already = pending.any { it.name.equals(trimmed, ignoreCase = true) }
+            current.copy(
+                pendingPeople = if (already) {
+                    pending.filterNot { it.name.equals(trimmed, ignoreCase = true) }
+                } else {
+                    pending + SplitPerson(personId, trimmed)
+                },
+            )
+        }
+    }
+
+    fun onNewPersonFormToggled() = _uiState.update {
+        it.copy(
+            newPersonFormOpen = !it.newPersonFormOpen,
+            newPersonName = "",
+            newPersonColorHex = null,
+        )
+    }
+
+    fun onNewPersonNameChange(name: String) = _uiState.update { it.copy(newPersonName = name) }
+
+    fun onNewPersonColorChange(hex: String) = _uiState.update { it.copy(newPersonColorHex = hex) }
+
+    /**
+     * Creates someone from a name and a colour, and nothing else.
+     *
+     * They are written to the database immediately rather than at save time so they show up
+     * under Frequent next time even if this entry is abandoned — which is the whole point of
+     * a roster that builds itself. `SaveSplitTransactionUseCase` would otherwise create them
+     * by name, without the colour the user just picked.
+     */
+    fun onCreatePerson() {
+        val state = _uiState.value
+        val name = state.newPersonName.trim()
+        if (name.isEmpty()) return
+
+        viewModelScope.launch {
+            val existing = runCatching { personRepository.findByName(name) }.getOrNull()
+            val id = existing?.id ?: UuidGenerator.generate()
+            if (existing == null) {
+                val now = Clock.System.now()
+                runCatching {
+                    personRepository.insert(
+                        Person(
+                            id = id,
+                            name = name,
+                            colorHex = state.newPersonColorHex,
+                            createdAt = now,
+                            updatedAt = now,
+                        )
+                    )
+                }
+            } else if (state.newPersonColorHex != null && existing.colorHex != state.newPersonColorHex) {
+                // Typing a name that already exists is picking that person, not making a
+                // second one — but the colour just chosen is still the newer decision.
+                runCatching {
+                    personRepository.update(
+                        existing.copy(
+                            colorHex = state.newPersonColorHex,
+                            updatedAt = Clock.System.now(),
+                        )
+                    )
+                }
+            }
+
+            _uiState.update { current ->
+                val already = current.pendingPeople.any { it.name.equals(name, ignoreCase = true) } ||
+                    current.splitWith.any { it.name.equals(name, ignoreCase = true) }
+                current.copy(
+                    pendingPeople = if (already) {
+                        current.pendingPeople
+                    } else {
+                        current.pendingPeople + SplitPerson(id, name)
+                    },
+                    newPersonFormOpen = false,
+                    newPersonName = "",
+                    newPersonColorHex = null,
+                )
+            }
+            loadPeopleSuggestions()
+        }
+    }
+
+    /** Names read off the device. Held for picking, not put on the bill. */
+    fun onContactsImported(names: List<String>) = _uiState.update { state ->
+        val known = state.peopleSuggestions.map { it.name.lowercase().trim() }.toSet()
+        state.copy(
+            importedContacts = names
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && it.lowercase() !in known }
+                .distinct()
+                .sorted(),
+        )
+    }
+
+    /**
+     * Commits the batch to the bill.
+     *
+     * One at a time through [onAddSplitPerson], which dedupes and collapses the unnamed
+     * count — the positional share lists are reset once at the end of the run rather than
+     * once per person, but the reset is the same either way, so batching is only about the
+     * bill changing length once instead of three times.
+     */
+    fun onConfirmPeople() {
+        val pending = _uiState.value.pendingPeople
+        pending.forEach { onAddSplitPerson(it.name, it.personId) }
+        _uiState.update {
+            it.copy(
+                addPeopleSheetOpen = false,
+                pendingPeople = emptyList(),
+                peopleSearch = "",
+                newPersonFormOpen = false,
+                newPersonName = "",
+                newPersonColorHex = null,
+            )
         }
     }
 

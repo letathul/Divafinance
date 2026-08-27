@@ -1,0 +1,17 @@
+-- v5 -> v6
+--
+-- People get a colour of their own.
+--
+-- The add-person form on the split sheet lets the user pick an avatar colour, and "a name
+-- and a colour" is the whole record a split needs — no phone number, no email. Before this
+-- the colour was derived from a hash of the name, so two people could collide and nobody
+-- could change theirs.
+--
+-- Nullable, and last in the table: every existing row was written without one, and NULL
+-- means "never chose", which the UI answers with the same name hash it always used. A
+-- non-null default would be a colour the user has to un-pick.
+--
+-- Mirrored in DivaFinance.sq, which is what fresh installs run via Schema.create(); this is
+-- what existing installs run via Schema.migrate(). verifyMigrations fails the build if the
+-- two disagree.
+ALTER TABLE Person ADD COLUMN color_hex TEXT;

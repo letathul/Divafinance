@@ -34,7 +34,7 @@ val viewModelModule = module {
     viewModel {
         QuickAddViewModel(
             get(), get(), get(), get(), get(), get(), get(), get(),
-            get(), get(), get(), get(), get(),
+            get(), get(), get(), get(), get(), get(),
         )
     }
     viewModel { GraphsViewModel(get(), get(), get()) }

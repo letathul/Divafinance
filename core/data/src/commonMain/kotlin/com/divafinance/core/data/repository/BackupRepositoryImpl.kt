@@ -56,6 +56,7 @@ class BackupRepositoryImpl(
         val people = db.personQueries.selectAll().executeAsList().map { row ->
             Person(
                 id = row.id, name = row.name, note = row.note,
+                colorHex = row.color_hex,
                 isArchived = row.is_archived == 1L,
                 createdAt = Instant.parse(row.created_at),
                 updatedAt = Instant.parse(row.updated_at),
@@ -244,6 +245,7 @@ class BackupRepositoryImpl(
                     is_archived = if (person.isArchived) 1L else 0L,
                     created_at = person.createdAt.toString(),
                     updated_at = person.updatedAt.toString(),
+                    color_hex = person.colorHex,
                 )
             }
 
