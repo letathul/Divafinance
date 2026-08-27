@@ -19,8 +19,8 @@ everything beyond the amount has a usable default.
 
 | File | What it does |
 |------|--------------|
-| `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. `onOpened()` re-reads the default card, the base currency, the custom categories and whether the platform does location at all, runs `PredictCategoryUseCase`, loads recent merchants and ranks the best card. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
-| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Its own chrome (see below): `AddExpenseHeader`, `TypeToggle`, `AmountBlock`, `CategoryBlock`, `BestCardChip`, `CardSelector`, `DatePill`, `NoteRow`, `LocationBlock`, `SplitSummary`, then the pinned `ActionRow` + save. `AmountSheet` is the keypad; `DateSheet`, `SplitSheet` and `LocationConsentSheet` are the three `DivaBottomSheet`s. `AddExpenseContent` is the stateless body tests drive directly. |
+| `QuickAddViewModel.kt` | `QuickAddUiState` holds the raw `expression` string, not a parsed amount — `previewAmount` (tolerates a dangling operator) and `committedAmount` (null unless valid and `> 0`) are derived properties over `ExpressionEvaluator` + `roundToCents()`. Every keypad handler goes through **`ExpressionEvaluator.append`**, so a key with no reading is refused rather than appended; `justEvaluated` and `calcHistory` are the two bits of memory the pad keeps (see below). `onOpened()` re-reads the default card, the base currency, the custom categories and whether the platform does location at all, runs `PredictCategoryUseCase`, loads recent merchants and ranks the best card. `QuickAddSaved` is emitted once per save so the shell can offer undo. |
+| `AddExpenseScreen.kt` | `DivaRoutes.ADD_EXPENSE`. Its own chrome (see below): `AddExpenseHeader`, `TypeToggle`, `AmountBlock`, `CategoryBlock`, `BestCardChip`, `CardSelector`, `DatePill`, `NoteRow`, `LocationBlock`, `SplitSummary`, then the pinned `ActionRow` + save. `AmountSheet` is the keypad, and is now a `DivaBottomSheet` like the other three (`DateSheet`, `SplitSheet`, `LocationConsentSheet`). `AddExpenseContent` is the stateless body tests drive directly. |
 | `CategoryPickerScreen.kt` | `DivaRoutes.ADD_CATEGORY` — search, a Recent row, the grid of built-ins plus the user's own, and the `+ Add custom` creator. Writes into the **same hoisted `QuickAddViewModel`** the add screen uses, so a selection needs no navigation-result plumbing. |
 | `AddPeopleSheet.kt` | `AddPeopleBody` — the roster picker, rendered on the split sheet's own surface. Search, a **Frequent** list built from past splits, a **From contacts** list once imported, the add-by-name form with its colour swatches, the Import row, and the `N selected` / *Add to Split* footer. |
 | `LocationPermission.kt` | `fun interface LocationPermissionRequester` + `@Composable expect fun rememberLocationPermissionRequester()`. Actuals in `androidMain` (Activity result launcher), `iosMain`, and `jvmMain` (reports denial). |
@@ -47,6 +47,44 @@ its `extended = true` variant — the 5×4 pad with `( ) C =`. Its accessibility
 load-bearing: visible labels are typographic (`÷ × − ⌫ =`) while `contentDescription` is
 spelled out ("Divide", "Backspace", "Open bracket", "Clear", "Equals"), and the tests
 select on those descriptions.
+
+**The pad is a real sheet now.** It was a hand-rolled pair of `AnimatedVisibility` blocks
+over a manual scrim, with a grabber drawn on it that could not be dragged; it is a
+`DivaBottomSheet`, which is where the drag, the scrim and predictive back come from.
+Nothing stacks under it — `onDateSheetOpened` and `onSplitSheetOpened` both force
+`calculatorOpen = false`. It passes `showHandle = false` and draws `DivaSheetHandle`
+inside its own `diva.barFill` column: the sheet's default fill is `colorScheme.surface`,
+which on Cupertino is the *same colour as a digit key*, and Cupertino keys carry no
+border — taking the default would render twenty invisible keys.
+
+**Done is a full-width `DivaButton` under the pad**, not a text link in the corner, and it
+is never disabled: the amount has been live behind the sheet the whole time, so there is
+nothing here that can fail to be confirmed.
+
+**Nothing that leaves the pad loses the sum.** `onCalculatorDismissed` files the expression
+into `calcHistory` first, so Done, the scrim, back and the dismiss drag are all
+non-destructive; `onEquals` files it too. Only sums are kept — an expression with no
+operator is a figure someone typed, not one they worked out — deduped on the expression
+and capped at `CALC_HISTORY_LIMIT = 8`. `CalcHistoryRow` renders them as chips above the
+display and `onHistoryEntryPicked` puts one back on the pad. `clearedState()` builds a
+fresh state, so **saving clears the history**: the next entry is a new context.
+
+**`=` reports back.** `onEquals()` returns `Boolean`, false when the expression is
+unfinished and there is nothing to fold in. The keypad turns that into a `Reject` haptic —
+`=` used to be the one key that could be asked for something it could not do and answer
+with nothing at all, which reads as a dead key rather than as "not yet". A digit typed
+straight after a successful `=` starts a **new** entry (`justEvaluated`), because "20.50"
+then "9" is not "20.509"; an operator continues from the result, which is what the fold is
+for.
+
+**A grey zero means one thing only.** `previewAmount == null` with a non-empty expression
+puts *"That's not a number yet"* under the figure, because a greyed `$0.00` otherwise means
+both "nothing typed" and "what you typed cannot be read". The typing rules make this state
+nearly unreachable; the caption covers the residue, such as a lone `(`.
+
+**Both figures shrink rather than clip.** `AutoSizeText` wraps `BasicText` +
+`TextAutoSize.StepBased`; the sheet's figure runs 22–40sp and `AmountBlock`'s 30–56sp.
+Losing the leading digits of an amount is worse than reading it a little smaller.
 
 **Any past date, from a calendar sheet.** `QuickAddDay` is gone; the state carries a real
 `LocalDate` and `DatePill` opens a `DivaBottomSheet` holding Today/Yesterday chips over

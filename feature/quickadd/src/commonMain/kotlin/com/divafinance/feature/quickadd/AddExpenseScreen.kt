@@ -1,11 +1,5 @@
 package com.divafinance.feature.quickadd
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,9 +29,11 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -46,18 +42,14 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,12 +59,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
@@ -80,11 +72,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.divafinance.core.common.toFixed
@@ -97,7 +91,10 @@ import com.divafinance.core.model.CustomCategory
 import com.divafinance.core.model.Person
 import com.divafinance.core.model.enums.SpendingCategory
 import com.divafinance.core.model.enums.TransactionType
+import com.divafinance.core.ui.adaptive.DivaSheetHandle
 import com.divafinance.core.ui.adaptive.DivaBottomSheet
+import com.divafinance.core.ui.adaptive.DivaChip
+import com.divafinance.core.ui.adaptive.DivaChipStyle
 import com.divafinance.core.ui.adaptive.DivaSwitch
 import com.divafinance.core.ui.component.Avatar
 import com.divafinance.core.ui.component.CalculatorKeypad
@@ -120,11 +117,9 @@ import com.divafinance.core.ui.theme.Pill
 import com.divafinance.core.ui.theme.Space
 import com.divafinance.core.ui.theme.diva
 import com.divafinance.core.ui.util.formatCurrency
-import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.time.Clock
 
 /*
  * Screen geometry, taken from the design rather than from `Space`: this flow is drawn to
@@ -184,6 +179,7 @@ fun AddExpenseScreen(
         onBackspace = viewModel::onBackspace,
         onClear = viewModel::onClear,
         onEquals = viewModel::onEquals,
+        onHistoryEntryPicked = viewModel::onHistoryEntryPicked,
         onToggleCalculator = viewModel::onToggleCalculator,
         onCalculatorDismissed = viewModel::onCalculatorDismissed,
         onToggleCurrencyPicker = viewModel::onToggleCurrencyPicker,
@@ -251,7 +247,8 @@ internal fun AddExpenseContent(
     onGroup: (Char) -> Unit = {},
     onBackspace: () -> Unit = {},
     onClear: () -> Unit = {},
-    onEquals: () -> Unit = {},
+    onEquals: () -> Boolean = { false },
+    onHistoryEntryPicked: (CalcEntry) -> Unit = {},
     onToggleCalculator: () -> Unit = {},
     onCalculatorDismissed: () -> Unit = {},
     onToggleCurrencyPicker: () -> Unit = {},
@@ -353,6 +350,8 @@ internal fun AddExpenseContent(
                     onRemoveTag = onRemoveTag,
                 )
 
+                SplitSummary(state, onSplitSheetOpened)
+
                 LocationBlock(
                     state = state,
                     onLocationAllowed = onLocationAllowed,
@@ -363,8 +362,6 @@ internal fun AddExpenseContent(
                     onNearbyPlacePicked = onNearbyPlacePicked,
                     onLocationCleared = onLocationCleared,
                 )
-
-                SplitSummary(state, onSplitSheetOpened)
             }
 
             // Pinned rather than scrolled to: the amount is the only required field, so
@@ -395,6 +392,9 @@ internal fun AddExpenseContent(
             )
         }
 
+    }
+
+    if (state.calculatorOpen) {
         AmountSheet(
             state = state,
             onDigit = onDigit,
@@ -403,6 +403,7 @@ internal fun AddExpenseContent(
             onBackspace = onBackspace,
             onClear = onClear,
             onEquals = onEquals,
+            onHistoryEntryPicked = onHistoryEntryPicked,
             onConfirm = onCalculatorDismissed,
         )
     }
@@ -651,15 +652,16 @@ private fun AmountBlock(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        Text(
+        AutoSizeText(
             text = formatCurrency(amount ?: 0.0, state.currency),
             // NumericStyle, not a display slot: the figure changes a digit at a time as
-            // the keypad is used, and tabular figures stop it jittering sideways.
+            // the keypad is used, and tabular figures stop it jittering sideways. It
+            // shrinks rather than clipping — this figure has no upper bound.
             style = NumericStyle.copy(
-                fontSize = 56.sp,
                 lineHeight = 62.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-1.5).sp,
+                textAlign = TextAlign.Center,
             ),
             // Greyed until there is a real figure, so the zero reads as a placeholder
             // rather than as an amount someone might save by accident.
@@ -668,7 +670,8 @@ private fun AmountBlock(
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
-            textAlign = TextAlign.Center,
+            minFontSize = 30.sp,
+            maxFontSize = 56.sp,
             modifier = Modifier
                 .clip(MaterialTheme.shapes.small)
                 .clickable(onClick = onToggleCalculator)
@@ -1795,42 +1798,42 @@ private fun ShareList(
                     )
                 }
             }
+        }
 
-            // The seat nobody is in yet, at the end of the roster rather than only up in
-            // "Paid by": in the manual modes the list *is* what the user is working
-            // through, so that is where reaching for one more person happens.
-            Hairline()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(FieldRadius))
-                    .clickable(onClick = onAddPeopleSheetOpened)
-                    .padding(vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(Space.md),
-                verticalAlignment = Alignment.CenterVertically,
+        // The seat nobody is in yet, once at the end of the roster rather than only up in
+        // "Paid by": in the manual modes the list *is* what the user is working
+        // through, so that is where reaching for one more person happens.
+        Hairline()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(FieldRadius))
+                .clickable(onClick = onAddPeopleSheetOpened)
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(34.dp).clip(CircleShape).dashedCircle(diva.fgHair),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier.size(34.dp).clip(CircleShape).dashedCircle(diva.fgHair),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Outlined.Add,
-                        contentDescription = null,
-                        tint = diva.muted,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                Text(
-                    text = if (state.splitMode == SplitMode.BY_PERCENT) {
-                        "Add person · redistributes remaining %"
-                    } else {
-                        "Add person"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = diva.muted,
+                Icon(
+                    Icons.Outlined.Add,
+                    contentDescription = null,
+                    tint = diva.muted,
+                    modifier = Modifier.size(16.dp),
                 )
             }
+            Text(
+                text = if (state.splitMode == SplitMode.BY_PERCENT) {
+                    "Add person · redistributes remaining %"
+                } else {
+                    "Add person"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = diva.muted,
+            )
         }
     }
 }
@@ -2074,8 +2077,11 @@ private fun AllocationCheck(state: QuickAddUiState) {
     }
     val ok = allocation.isBalanced
     val figure: (Double) -> String = { value ->
-        if (allocation.isPercent) "${value.toFixed(1).trimEnd('0').trimEnd('.')}%"
-        else formatCurrency(value, state.currency)
+        if (allocation.isPercent) {
+            "${value.toFixed(1).trimEnd('0').trimEnd('.')}%"
+        } else {
+            formatCurrency(value, state.currency)
+        }
     }
 
     // A balanced percentage split says what it comes to in money, because percentages are
@@ -2128,53 +2134,32 @@ private fun AllocationCheck(state: QuickAddUiState) {
  * `)` and `=` on it: once grouping is possible, "what have I typed" and "what does it
  * come to" stop being the same question. Confirm only dismisses — the amount is already
  * live behind the sheet, so there is nothing to commit.
+ *
+ * A `DivaBottomSheet` rather than a hand-rolled overlay, which is what buys the drag, the
+ * scrim and predictive back that a panel with a grabber drawn on it was promising and not
+ * delivering. Nothing stacks under it: opening the date or split sheet closes the pad.
+ * A dismissal of any kind files the sum first (`onCalculatorDismissed`), so the gesture
+ * that takes the pad away is not one that loses a totalled receipt.
  */
 @Composable
-private fun BoxScope.AmountSheet(
+private fun AmountSheet(
     state: QuickAddUiState,
     onDigit: (Char) -> Unit,
     onOperator: (Char) -> Unit,
     onGroup: (Char) -> Unit,
     onBackspace: () -> Unit,
     onClear: () -> Unit,
-    onEquals: () -> Unit,
+    onEquals: () -> Boolean,
+    onHistoryEntryPicked: (CalcEntry) -> Unit,
     onConfirm: () -> Unit,
 ) {
-    AnimatedVisibility(
-        visible = state.calculatorOpen,
-        enter = fadeIn(tween(220)),
-        exit = fadeOut(tween(220)),
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.42f))
-                .clickable(onClick = onConfirm),
-        )
-    }
-
-    AnimatedVisibility(
-        visible = state.calculatorOpen,
-        enter = slideInVertically(tween(300)) { it },
-        exit = slideOutVertically(tween(280)) { it },
-        modifier = Modifier.align(Alignment.BottomCenter),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-                .background(diva.barFill)
-                .navigationBarsPadding()
-                .padding(bottom = Space.md),
-        ) {
-            Box(
-                Modifier
-                    .padding(top = 9.dp, bottom = 3.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .size(width = 38.dp, height = 4.5.dp)
-                    .clip(Pill)
-                    .background(diva.fgHair),
-            )
+    DivaBottomSheet(onDismissRequest = onConfirm, showHandle = false) {
+        // The pad keeps `barFill` rather than taking the sheet's own surface, and draws the
+        // grabber inside it so there is no seam at the top. On Cupertino the sheet fills
+        // with the same colour as a digit key, and Cupertino keys carry no border — the pad
+        // would be twenty invisible keys.
+        Column(Modifier.fillMaxWidth().background(diva.barFill)) {
+            DivaSheetHandle()
 
             // The category and the date stay visible while the pad is up: totalling a
             // receipt is long enough that losing sight of what is being entered turns a
@@ -2193,18 +2178,9 @@ private fun BoxScope.AmountSheet(
                 )
                 ContextPill(identity.label, identity.color)
                 ContextPill(state.dateLabel(), null)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "Done",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = diva.accent,
-                    modifier = Modifier
-                        .clip(Pill)
-                        .clickable(onClick = onConfirm)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                )
             }
+
+            CalcHistoryRow(state, onHistoryEntryPicked)
 
             // The running sum sits *above* the result, in reading order: the expression is
             // what the user is building and the total is what it currently comes to.
@@ -2216,19 +2192,19 @@ private fun BoxScope.AmountSheet(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(
+                AutoSizeText(
                     text = state.expression.takeIf { it.any { c -> c in "+-*/()" } } ?: " ",
-                    style = NumericStyle.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                    style = NumericStyle.copy(fontWeight = FontWeight.SemiBold),
                     color = diva.muted,
-                    maxLines = 1,
+                    minFontSize = 11.sp,
+                    maxFontSize = 17.sp,
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
+                    AutoSizeText(
                         text = state.previewAmount
                             ?.let { formatCurrency(it, state.currency) }
                             ?: formatCurrency(0.0, state.currency),
                         style = NumericStyle.copy(
-                            fontSize = 40.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-1).sp,
                         ),
@@ -2237,7 +2213,9 @@ private fun BoxScope.AmountSheet(
                         } else {
                             MaterialTheme.colorScheme.onSurface
                         },
-                        maxLines = 1,
+                        minFontSize = 22.sp,
+                        maxFontSize = 40.sp,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     Text(
                         text = " ${state.currency}",
@@ -2247,20 +2225,99 @@ private fun BoxScope.AmountSheet(
                         modifier = Modifier.padding(bottom = 6.dp),
                     )
                 }
+                // A grey zero means two different things — "nothing typed" and "what you typed
+                // cannot be read" — and the second one has to say so, or the pad looks broken.
+                // The keypad's typing rules make this nearly unreachable; this covers the rest.
+                if (state.previewAmount == null && state.expression.isNotEmpty()) {
+                    Text(
+                        text = "That's not a number yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = diva.negative,
+                    )
+                }
             }
 
             CalculatorKeypad(
                 onDigit = onDigit,
                 onOperator = onOperator,
                 onBackspace = onBackspace,
-                modifier = Modifier.padding(horizontal = 13.dp),
+                modifier = Modifier.padding(horizontal = ScreenGutter),
                 extended = true,
                 onGroup = onGroup,
                 onClear = onClear,
                 onEquals = onEquals,
             )
+
+            // Full width and under the pad, where the thumb already is. It only dismisses —
+            // the amount has been live behind the sheet the whole time — so it is never
+            // disabled: there is nothing here that can fail to be confirmed.
+            DivaButton(
+                text = "Done",
+                onClick = onConfirm,
+                modifier = Modifier
+                    .padding(horizontal = ScreenGutter)
+                    .padding(top = Space.pad, bottom = Space.sm),
+            )
         }
     }
+}
+
+/**
+ * The sums already worked out on this pad, newest first.
+ *
+ * Present only once there is something to show. Tapping one puts it back on the pad, which
+ * is what makes both `=` and a dismiss-drag recoverable — the two moments where a receipt
+ * totalled from five figures would otherwise become a number with no history.
+ */
+@Composable
+private fun CalcHistoryRow(state: QuickAddUiState, onPicked: (CalcEntry) -> Unit) {
+    if (state.calcHistory.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = ScreenGutter)
+            .padding(bottom = Space.sm),
+        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        state.calcHistory.forEach { entry ->
+            DivaChip(
+                label = entry.expression,
+                style = DivaChipStyle.Outlined,
+                selected = entry.expression == state.expression,
+                onClick = { onPicked(entry) },
+                modifier = Modifier.semantics { contentDescription = "Reuse ${entry.expression}" },
+            )
+        }
+    }
+}
+
+/**
+ * One line of text that shrinks to fit rather than clipping.
+ *
+ * Both figures on this screen are typed a digit at a time and have no upper bound: a
+ * receipt totalled from five amounts, or a sum in a currency with no minor unit, runs off
+ * the end of a fixed size. Losing the leading digits of an amount is worse than reading it
+ * a little smaller.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AutoSizeText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    minFontSize: TextUnit,
+    maxFontSize: TextUnit,
+    modifier: Modifier = Modifier,
+) {
+    BasicText(
+        text = text,
+        modifier = modifier,
+        style = style.copy(color = color),
+        maxLines = 1,
+        autoSize = TextAutoSize.StepBased(minFontSize, maxFontSize, stepSize = 1.sp),
+    )
 }
 
 /** A read-only reminder of what the amount is being entered against. */
@@ -2390,6 +2447,26 @@ private fun AddExpenseCalculatorPreview() {
     DivaTheme {
         AddExpenseContent(
             state = QuickAddUiState(expression = "12*(3+4)", calculatorOpen = true),
+        )
+    }
+}
+
+/** The pad once a receipt has been totalled on it a couple of times. */
+@Preview
+@Composable
+private fun AddExpenseKeypadWithHistoryPreview() {
+    DivaTheme {
+        AddExpenseContent(
+            state = QuickAddUiState(
+                expression = "12+8.50",
+                calculatorOpen = true,
+                category = SpendingCategory.DINING,
+                calcHistory = listOf(
+                    CalcEntry("10+20+30", 60.0),
+                    CalcEntry("120/3", 40.0),
+                    CalcEntry("12*(3+4)", 84.0),
+                ),
+            ),
         )
     }
 }

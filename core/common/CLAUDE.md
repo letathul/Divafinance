@@ -17,7 +17,7 @@ and every `feature/*` module.
 | `commonMain/.../DispatcherProvider.kt` | `expect` wrapper over IO/Default/Main so ViewModels and use cases can be given a test dispatcher |
 | `commonMain/.../FileSystem.kt` | `expect class` — backup directory, read/write text, list/delete backup files. Backs `:feature:backup`. |
 | `commonMain/.../UuidGenerator.kt` | ID generation for new entities |
-| `commonMain/.../ExpressionEvaluator.kt` | Evaluates `+ - * / ( )` over decimal literals with standard precedence, for the quick-add keypad (`"12+8.50"`, `"120/3"`, `"12*(3+4)"`). `2(3+4)` reads as multiplication. Returns `null` for anything not acceptable as an amount, including division by zero and an unbalanced group; `preview()` closes an unclosed group rather than falling back past it. |
+| `commonMain/.../ExpressionEvaluator.kt` | Evaluates `+ - * / ( )` over decimal literals with standard precedence, for the quick-add keypad (`"12+8.50"`, `"120/3"`, `"12*(3+4)"`). `2(3+4)` reads as multiplication. Returns `null` for anything not acceptable as an amount, including division by zero and an unbalanced group; `preview()` closes an unclosed group rather than falling back past it. `append(expression, key)` is the keypad's **typing** rule and lives here rather than in the ViewModel because every rule in it is a statement about the same grammar: an operator replaces a dangling one, a second decimal point is refused, `.` alone becomes `0.`, a lone leading `0` is replaced, a digit after `)` multiplies, `)` needs an open group with something in it, and a typed literal stops at two decimals. Keys with no reading are refused rather than appended — a rejected keystroke is what stops the running total from silently blanking three keys later. |
 | `commonMain/.../NumberFormat.kt` | `Double.toFixed(decimals)` / `Float.toFixed(decimals)` — multiplatform stand-in for `"%.2f".format()`, which is JVM-only and breaks the iOS targets. Also `Double.roundToCents()`, half-up and sign-preserving. |
 | `commonMain/.../Result.kt` | `DivaResult<T>` sealed class: `Success` / `Error` / `Loading`, with `map` and `getOrNull` |
 | `commonMain/.../BackupFileInfo.kt` | Name/path/size/mtime record returned by `FileSystem.listBackupFiles()` |
@@ -56,7 +56,9 @@ and every `feature/*` module.
 ## Tests
 
 `src/commonTest/` — currently only `ExpressionEvaluatorTest.kt`, the one piece of real
-logic in the module.
+logic in the module. It covers the grammar and the typing rules together, because
+`append()` only earns its place here if what it builds is always something `preview()` can
+read — which is what `typingNeverBuildsAnUnreadableExpression` asserts.
 
 ```bash
 ./gradlew :core:common:jvmTest

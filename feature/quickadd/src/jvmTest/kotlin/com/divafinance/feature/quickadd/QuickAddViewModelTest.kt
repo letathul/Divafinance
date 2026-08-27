@@ -89,7 +89,11 @@ class QuickAddViewModelTest {
 
     private fun QuickAddViewModel.type(expression: String) {
         expression.forEach { char ->
-            if (char in "+-*/") onOperator(char) else onDigit(char)
+            when (char) {
+                in "+-*/" -> onOperator(char)
+                in "()" -> onGroup(char)
+                else -> onDigit(char)
+            }
         }
     }
 
@@ -157,6 +161,165 @@ class QuickAddViewModelTest {
         vm.type("0.1+0.2")
 
         assertEquals(0.3, vm.uiState.value.committedAmount)
+    }
+
+    // --- typing rules -------------------------------------------------------
+
+    /**
+     * The keypad refuses the keystroke rather than letting the expression become one the
+     * evaluator has to reject: "12+*" reads as nothing, and a running total that blanks
+     * out four keys later cannot say why.
+     */
+    @Test
+    fun reachingForASecondOperatorCorrectsTheFirst() = runTest {
+        val vm = viewModel()
+        vm.type("12+")
+        vm.onOperator('*')
+
+        assertEquals("12*", vm.uiState.value.expression)
+        assertEquals(12.0, vm.uiState.value.previewAmount)
+    }
+
+    @Test
+    fun anOperatorWithNothingToOperateOnIsRefused() = runTest {
+        val vm = viewModel()
+        vm.onOperator('*')
+
+        assertEquals("", vm.uiState.value.expression)
+    }
+
+    @Test
+    fun aSecondDecimalPointIsRefused() = runTest {
+        val vm = viewModel()
+        vm.type("1.5")
+        vm.onDigit('.')
+
+        assertEquals("1.5", vm.uiState.value.expression)
+    }
+
+    /** Amounts are money; a third decimal would only be rounded away on save. */
+    @Test
+    fun aTypedAmountStopsAtTwoDecimals() = runTest {
+        val vm = viewModel()
+        vm.type("1.555")
+
+        assertEquals("1.55", vm.uiState.value.expression)
+    }
+
+    @Test
+    fun aDigitAfterAGroupMultiplies() = runTest {
+        val vm = viewModel()
+        vm.type("(3+4)5")
+
+        assertEquals("(3+4)*5", vm.uiState.value.expression)
+        assertEquals(35.0, vm.uiState.value.committedAmount)
+    }
+
+    // --- equals and history -------------------------------------------------
+
+    @Test
+    fun equalsFoldsTheResultBackIn() = runTest {
+        val vm = viewModel()
+        vm.type("12+8.50")
+
+        assertTrue(vm.onEquals())
+        assertEquals("20.50", vm.uiState.value.expression)
+    }
+
+    /** Nothing to fold in yet — and the pad turns that false into the feedback `=` gives. */
+    @Test
+    fun equalsOnAnUnfinishedExpressionChangesNothing() = runTest {
+        val vm = viewModel()
+        vm.type("12+")
+
+        assertFalse(vm.onEquals())
+        assertEquals("12+", vm.uiState.value.expression)
+    }
+
+    /** Otherwise "20.50" then "9" reads as "20.509" — the result extended, not replaced. */
+    @Test
+    fun aDigitAfterEqualsStartsAFreshEntry() = runTest {
+        val vm = viewModel()
+        vm.type("12+8.50")
+        vm.onEquals()
+        vm.onDigit('9')
+
+        assertEquals("9", vm.uiState.value.expression)
+    }
+
+    /** An operator after `=` is what the fold is for: carry on from the total. */
+    @Test
+    fun anOperatorAfterEqualsContinuesFromTheResult() = runTest {
+        val vm = viewModel()
+        vm.type("12+8.50")
+        vm.onEquals()
+        vm.type("+5")
+
+        assertEquals("20.50+5", vm.uiState.value.expression)
+        assertEquals(25.50, vm.uiState.value.committedAmount)
+    }
+
+    @Test
+    fun equalsRemembersTheSum() = runTest {
+        val vm = viewModel()
+        vm.type("12+8.50")
+        vm.onEquals()
+
+        assertEquals(listOf(CalcEntry("12+8.50", 20.50)), vm.uiState.value.calcHistory)
+    }
+
+    /** The point of the history: a drag that takes the pad away must not lose the receipt. */
+    @Test
+    fun dismissingTheKeypadRemembersTheSum() = runTest {
+        val vm = viewModel()
+        vm.type("10+20+30")
+        vm.onCalculatorDismissed()
+
+        assertEquals(listOf(CalcEntry("10+20+30", 60.0)), vm.uiState.value.calcHistory)
+    }
+
+    /** A figure typed straight in is not a calculation, and would only crowd the row. */
+    @Test
+    fun aBareAmountIsNotRemembered() = runTest {
+        val vm = viewModel()
+        vm.type("57.80")
+        vm.onCalculatorDismissed()
+
+        assertTrue(vm.uiState.value.calcHistory.isEmpty())
+    }
+
+    @Test
+    fun theSameSumIsRememberedOnceHoweverOftenItIsConfirmed() = runTest {
+        val vm = viewModel()
+        vm.type("12+8")
+        vm.onEquals()
+        vm.onCalculatorDismissed()
+        vm.onCalculatorDismissed()
+
+        assertEquals(1, vm.uiState.value.calcHistory.size)
+    }
+
+    @Test
+    fun pickingARememberedSumPutsItBackOnThePad() = runTest {
+        val vm = viewModel()
+        vm.type("10+20+30")
+        vm.onCalculatorDismissed()
+        vm.onClear()
+        vm.onHistoryEntryPicked(vm.uiState.value.calcHistory.first())
+
+        assertEquals("10+20+30", vm.uiState.value.expression)
+        assertEquals(60.0, vm.uiState.value.committedAmount)
+    }
+
+    /** A saved entry is finished; the next one is a new context, not a continuation. */
+    @Test
+    fun savingClearsTheHistory() = runTest {
+        val vm = viewModel()
+        vm.type("12+8")
+        vm.onEquals()
+        vm.saveNow()
+
+        assertTrue(vm.uiState.value.calcHistory.isEmpty())
     }
 
     // --- save gating --------------------------------------------------------

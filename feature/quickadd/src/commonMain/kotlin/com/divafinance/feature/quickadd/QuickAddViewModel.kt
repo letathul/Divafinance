@@ -61,6 +61,12 @@ import kotlinx.datetime.toLocalDateTime
 /** How many category chips the sheet offers before the user has to expand the full list. */
 private const val SUGGESTED_CATEGORY_COUNT = 5
 
+/**
+ * How many worked-out sums the pad keeps. Enough to cover a session of totalling receipts,
+ * short enough that the chip row stays one scan rather than a list to search.
+ */
+private const val CALC_HISTORY_LIMIT = 8
+
 /** Today, in the device's zone. Read per construction so a session crossing midnight is right. */
 internal fun todayDate(): LocalDate =
     Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -85,8 +91,24 @@ enum class LocationPrompt {
     CONSENT,
 }
 
+/** A sum the user has already worked out on the pad, kept so dismissing never loses it. */
+data class CalcEntry(val expression: String, val result: Double)
+
 data class QuickAddUiState(
     val expression: String = "",
+    /**
+     * Set by `=`, cleared by every other key. A digit typed against it starts a fresh
+     * entry rather than being appended to the result `=` just folded in — otherwise
+     * pressing `=` on "12+8" and then "9" would read as "20.509".
+     */
+    val justEvaluated: Boolean = false,
+    /**
+     * Sums already worked out on the pad, newest first. The pad can be dragged away, so
+     * a totalled receipt has to survive being dismissed; without this, "drag to dismiss"
+     * would be a gesture that silently discards the only record of how a figure was
+     * arrived at. Capped at [CALC_HISTORY_LIMIT], and cleared with the entry on save.
+     */
+    val calcHistory: List<CalcEntry> = emptyList(),
     /**
      * Whether the amount sheet is up. The keypad lives behind the amount rather than
      * under it: everything else on this screen has a usable default, so the form is
@@ -626,39 +648,92 @@ class QuickAddViewModel(
 
     // --- keypad ------------------------------------------------------------
 
-    fun onDigit(char: Char) = appendToExpression(char.toString())
+    /**
+     * A digit typed straight after `=` starts a new entry rather than extending the result
+     * that `=` just folded in — which is what a calculator does, and what stops "20.50"
+     * becoming "20.509" on the next key.
+     */
+    fun onDigit(char: Char) = _uiState.update {
+        val from = if (it.justEvaluated) "" else it.expression
+        it.copy(expression = ExpressionEvaluator.append(from, char), justEvaluated = false, error = null)
+    }
 
-    fun onOperator(symbol: Char) = appendToExpression(symbol.toString())
+    /** An operator after `=` continues *from* the result, so the fold is what it is for. */
+    fun onOperator(symbol: Char) = press(symbol)
 
     /** `(` and `)`. The evaluator reads "2(3+4)" as multiplication, so no rule is needed here. */
-    fun onGroup(char: Char) = appendToExpression(char.toString())
+    fun onGroup(char: Char) = press(char)
 
     /**
      * Folds the running result back into the expression, so the next key continues from
-     * the total rather than from the sum that produced it. A no-op while the expression
-     * is unfinished — there is nothing to fold in yet.
+     * the total rather than from the sum that produced it, and files the sum under
+     * [QuickAddUiState.calcHistory]. Returns false — and changes nothing — while the
+     * expression is unfinished: there is nothing to fold in yet, and the caller turns that
+     * into the one bit of feedback `=` used to give none of.
      */
-    fun onEquals() {
-        val result = ExpressionEvaluator.evaluate(_uiState.value.expression)?.roundToCents() ?: return
+    fun onEquals(): Boolean {
+        val state = _uiState.value
+        val result = ExpressionEvaluator.evaluate(state.expression)?.roundToCents() ?: return false
         val text = if (result % 1.0 == 0.0) result.toLong().toString() else result.toFixed(2)
-        _uiState.update { it.copy(expression = text, error = null) }
+        _uiState.update {
+            it.copy(
+                expression = text,
+                justEvaluated = true,
+                calcHistory = it.calcHistory.remembering(state.expression, result),
+                error = null,
+            )
+        }
+        return true
     }
 
     fun onToggleCalculator() =
         _uiState.update { it.copy(calculatorOpen = !it.calculatorOpen, currencyPickerOpen = false) }
 
-    fun onCalculatorDismissed() = _uiState.update { it.copy(calculatorOpen = false) }
+    /**
+     * Closing files the sum first. Done, the scrim and the dismiss drag all land here, so
+     * this is what makes a gesture that takes the pad away non-destructive.
+     */
+    fun onCalculatorDismissed() = _uiState.update {
+        val result = it.committedAmount
+        it.copy(
+            calculatorOpen = false,
+            calcHistory = if (result != null) it.calcHistory.remembering(it.expression, result) else it.calcHistory,
+        )
+    }
+
+    /** Puts a remembered sum back on the pad to be carried on with or corrected. */
+    fun onHistoryEntryPicked(entry: CalcEntry) {
+        _uiState.update { it.copy(expression = entry.expression, justEvaluated = false, error = null) }
+    }
 
     fun onBackspace() {
-        _uiState.update { it.copy(expression = it.expression.dropLast(1), error = null) }
+        _uiState.update {
+            it.copy(expression = it.expression.dropLast(1), justEvaluated = false, error = null)
+        }
     }
 
     fun onClear() {
-        _uiState.update { it.copy(expression = "", error = null) }
+        _uiState.update { it.copy(expression = "", justEvaluated = false, error = null) }
     }
 
-    private fun appendToExpression(text: String) {
-        _uiState.update { it.copy(expression = it.expression + text, error = null) }
+    private fun press(key: Char) = _uiState.update {
+        it.copy(
+            expression = ExpressionEvaluator.append(it.expression, key),
+            justEvaluated = false,
+            error = null,
+        )
+    }
+
+    /**
+     * [expression] filed at the head, or this list unchanged when there is nothing to
+     * remember. A bare figure is not a calculation — folding "57.80" into "57.80" is the
+     * user typing an amount, not working one out — and re-filing a sum already at the head
+     * would turn one receipt into a column of identical chips.
+     */
+    private fun List<CalcEntry>.remembering(expression: String, result: Double): List<CalcEntry> {
+        if (expression.none { it in "+-*/" }) return this
+        return (listOf(CalcEntry(expression, result)) + filterNot { it.expression == expression })
+            .take(CALC_HISTORY_LIMIT)
     }
 
     // --- form ---------------------------------------------------------------

@@ -2,11 +2,100 @@ package com.divafinance.core.common
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class ExpressionEvaluatorTest {
 
     private fun eval(expression: String) = ExpressionEvaluator.evaluate(expression)
+
+    // --- typing rules ------------------------------------------------------
+
+    /** Types [keys] one at a time, the way the keypad does. */
+    private fun type(keys: String, from: String = "") =
+        keys.fold(from) { text, key -> ExpressionEvaluator.append(text, key) }
+
+    @Test
+    fun typingBuildsAnExpression() {
+        assertEquals("12+8.50", type("12+8.50"))
+        assertEquals("(2+3)*4", type("(2+3)*4"))
+    }
+
+    /** Reaching for a second operator is a correction; "12+*" has no reading at all. */
+    @Test
+    fun anOperatorReplacesADanglingOne() {
+        assertEquals("12*", type("12+*"))
+        assertEquals("12/", type("12+-*/"))
+    }
+
+    @Test
+    fun anOperatorNeedsSomethingToOperateOn() {
+        assertEquals("", type("+"))
+        assertEquals("", type("*"))
+        assertEquals("(", type("(+"))
+    }
+
+    /** The one operator the grammar reads as a sign rather than an operation. */
+    @Test
+    fun aLeadingMinusIsAllowedThrough() {
+        assertEquals("-5", type("-5"))
+        assertEquals("(-5+2)", type("(-5+2)"))
+    }
+
+    @Test
+    fun aNumberTakesOnlyOneDecimalPoint() {
+        assertEquals("1.5", type("1.5."))
+        assertEquals("1.5+2.5", type("1.5.+2.5."))
+    }
+
+    /** The grammar rejects a bare ".", so the keypad never produces one. */
+    @Test
+    fun aLeadingPointBecomesZeroPoint() {
+        assertEquals("0.5", type(".5"))
+        assertEquals("2+0.5", type("2+.5"))
+        assertEquals("(0.", type("(."))
+    }
+
+    @Test
+    fun aLeadingZeroIsReplacedRatherThanStacked() {
+        assertEquals("5", type("05"))
+        assertEquals("0.5", type("0.5"))
+        assertEquals("2+5", type("2+05"))
+    }
+
+    /** Money. A third decimal would only be rounded away by roundToCents() on save. */
+    @Test
+    fun aTypedAmountStopsAtTwoDecimals() {
+        assertEquals("1.55", type("1.555"))
+        assertEquals("1.55+2", type("1.5555+2"))
+        assertEquals("1555", type("1555"))
+    }
+
+    /** "(3+4)5" is multiplication everywhere it is written; the grammar only had the other way. */
+    @Test
+    fun aDigitAfterAGroupMultiplies() {
+        assertEquals("(3+4)*5", type("(3+4)5"))
+        assertEquals(35.0, eval(type("(3+4)5")))
+    }
+
+    @Test
+    fun aCloseBracketNeedsAnOpenGroupWithSomethingInIt() {
+        assertEquals("12", type("12)"))
+        assertEquals("(12", type("()12"))
+        assertEquals("(12+", type("(12+)"))
+        assertEquals("(12+3)", type("(12+3)"))
+    }
+
+    /** Whatever is typed, the result is something evaluate() or preview() can read. */
+    @Test
+    fun typingNeverBuildsAnUnreadableExpression() {
+        val keys = "+*.).5+-/(7..8))*3+"
+        var text = ""
+        for (key in keys) {
+            text = ExpressionEvaluator.append(text, key)
+            if (text.isNotEmpty()) assertNotNull(ExpressionEvaluator.preview(text), text)
+        }
+    }
 
     // --- plain numbers -----------------------------------------------------
 

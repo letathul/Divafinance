@@ -41,6 +41,80 @@ object ExpressionEvaluator {
         return null
     }
 
+    /**
+     * [expression] after the keypad's [key] is pressed, or unchanged where that key has no
+     * reading here.
+     *
+     * This lives beside the grammar rather than in the ViewModel because every rule below is
+     * a statement *about* that grammar — that `5+*3` has no reading, that `)` needs something
+     * to close over — and split across two modules the two would drift. Rejecting a keystroke
+     * outright is what keeps the running total from silently blanking: [preview] can only
+     * answer null, and a null that means "you typed nonsense four keys ago" is indistinguishable
+     * on screen from one that means "you have typed nothing".
+     *
+     * Amounts are money, so a third decimal is refused rather than rounded away later.
+     */
+    fun append(expression: String, key: Char): String = when {
+        key.isDigit() -> appendDigit(expression, key)
+        key == '.' -> appendPoint(expression)
+        key in OPERATORS -> appendOperator(expression, key)
+        // A group can always open: the grammar reads "2(" as multiplication.
+        key == '(' -> expression + key
+        key == ')' -> if (openGroups(expression) > 0 && endsWithValue(expression)) {
+            expression + key
+        } else {
+            expression
+        }
+        else -> expression
+    }
+
+    private fun appendDigit(expression: String, key: Char): String {
+        val literal = trailingLiteral(expression)
+        // "0" alone is a placeholder, not a figure someone meant to lead with — but "0." is
+        // the start of a real number, so only the bare zero is replaced.
+        if (literal == "0") return expression.dropLast(1) + key
+        // The grammar inserts the implicit "*" of "2(3+4)" but has no rule the other way, so
+        // ")5" would be dead input. It reads as multiplication everywhere it is written.
+        if (expression.endsWith(')')) return expression + '*' + key
+        if (decimalsOf(literal) >= MAX_DECIMALS) return expression
+        return expression + key
+    }
+
+    private fun appendPoint(expression: String): String {
+        val literal = trailingLiteral(expression)
+        if (literal.contains('.')) return expression
+        // A point with no number in front of it is written as "0." rather than left as the
+        // bare "." the grammar rejects.
+        return if (literal.isEmpty()) expression + "0." else expression + "."
+    }
+
+    private fun appendOperator(expression: String, key: Char): String {
+        val trimmed = expression.trimEnd()
+        // Nothing to operate on yet: only the sign the grammar allows at the start of an
+        // expression or a group.
+        if (trimmed.isEmpty() || trimmed.endsWith('(')) {
+            return if (key == '-') trimmed + key else expression
+        }
+        // Reaching for a second operator is a correction, not a second operation. Replacing
+        // is what every calculator does, and appending would make "12+*" — which has no
+        // reading at all.
+        if (trimmed.last() in OPERATORS) return trimmed.dropLast(1) + key
+        return trimmed + key
+    }
+
+    /** The number literal currently being typed — empty if the expression ends on anything else. */
+    private fun trailingLiteral(expression: String): String =
+        expression.takeLastWhile { it.isDigit() || it == '.' }
+
+    private fun decimalsOf(literal: String): Int =
+        literal.substringAfter('.', "").length
+
+    private fun endsWithValue(expression: String): Boolean =
+        expression.lastOrNull()?.let { it.isDigit() || it == '.' || it == ')' } ?: false
+
+    private fun openGroups(expression: String): Int =
+        expression.count { it == '(' } - expression.count { it == ')' }
+
     /** [expression] with its unclosed groups closed, or null if none are open. */
     private fun closed(expression: String): String? {
         val open = expression.count { it == '(' } - expression.count { it == ')' }
@@ -196,4 +270,7 @@ object ExpressionEvaluator {
     }
 
     private val OPERATORS = charArrayOf('+', '-', '*', '/')
+
+    /** Amounts are money. A third typed decimal is refused rather than rounded away on save. */
+    private const val MAX_DECIMALS = 2
 }

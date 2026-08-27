@@ -50,7 +50,7 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
 | `MomentCard.kt` | The feed's full-width "post" for a split or notable spend |
 | `Avatar.kt` | `Avatar`, `AvatarRing` (accent-ringed), `initialsOf()` |
 | `PersonVisuals.kt` | `personColor(name, colorHex)`, the six-swatch `PersonPalette` the add-person form offers, and `Color.toHex()`. The stored colour wins; absent falls back to a stable hash of the name, so a person written before `Person.colorHex` existed keeps the avatar they always had. The palette is deliberately **not** the category ramp — those twelve hues encode *what* was spent, and a person wearing one would make the same colour mean two things on one screen |
-| `CalculatorKeypad.kt` | The 4×4 arithmetic pad — circular keys on Cupertino, rounded rects on Material. `extended = true` swaps in the 5×4 pad the add-expense amount sheet uses, adding `( ) C` and `=` (`onGroup` / `onClear` / `onEquals`). Visible labels are typographic (`÷ × − ⌫`), `contentDescription` is spelled out (`Open bracket`, `Clear`, `Equals`, …) — tests select on the descriptions. |
+| `CalculatorKeypad.kt` | The 4×4 arithmetic pad — circular keys on Cupertino, rounded rects on Material. `extended = true` swaps in the 5×4 pad the add-expense amount sheet uses, adding `( ) C` and `=` (`onGroup` / `onClear` / `onEquals`). **The grid is uniform and spans the pad on both platforms**: the four columns divide the full width, and key *height* follows that width only until `MaxKeyHeight` (68dp), so five rows still fit under a display and a button. A key wider than it is tall comes out as a stadium on Cupertino, because `CircleShape` takes its 50% corner off the smaller side. Every press ticks (`HapticFeedbackType.KeyboardTap`) and dips the key; **holding ⌫ clears**; `onEquals` returns whether it folded, so `=` on an unfinished expression answers `Reject` rather than nothing at all. Visible labels are typographic (`÷ × − ⌫`), `contentDescription` is spelled out (`Open bracket`, `Clear`, `Equals`, …) — tests select on the descriptions, and the semantics sit on the *clickable* node so the node found by description is the one that acts. |
 | `chart/` | `SpendingPieChart`, `ThresholdBarChart`, `TrendLineChart`, and `Sparkline` (the bare inline line, no axes or empty state) over neutral `ChartSlice`/`ChartPoint`/`ChartBar` types |
 | `DivaLogo.kt` | The brand wordmark, drawn in type. No asset pipeline — replacing it is this file plus the two `DivaBrand*` colours |
 | `DivaTextField.kt` | Themed text field; supports `visualTransformation` and `keyboardOptions` (used for PIN and amount entry) |
@@ -105,11 +105,12 @@ is tokens; the handful of components that genuinely branch live in `adaptive/`.
   composable, which every existing call site already does.
 - **A new adaptive component gets a test that runs both branches.** The `jvm` host is
   `MATERIAL`, so a test that does not pass `platform = CUPERTINO` covers half the system.
-  See `src/jvmTest/.../AdaptiveComponentsTest.kt`.
+  See `src/jvmTest/.../AdaptiveComponentsTest.kt` and `component/CalculatorKeypadTest.kt`.
 
 ## Tests
 
-`src/jvmTest/.../adaptive/AdaptiveComponentsTest.kt` — every case runs once per
+`src/jvmTest/.../adaptive/AdaptiveComponentsTest.kt` and
+`src/jvmTest/.../component/CalculatorKeypadTest.kt` — every case in both runs once per
 `DivaPlatform`. Everything else is covered indirectly by the feature modules' Compose UI
 tests. `diva.kmp.compose` wires the Compose test host into `jvmTest`, so any test added
 here goes in `src/jvmTest/`.

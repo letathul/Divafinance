@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runComposeUiTest
+import com.divafinance.core.common.ExpressionEvaluator
 import com.divafinance.core.domain.engine.NearbyPlace
 import com.divafinance.core.model.LocationTag
 import com.divafinance.core.model.Person
@@ -70,16 +71,27 @@ class AddExpenseScreenTest {
         peopleSplitCounts = mapOf("sam" to 6, "priya" to 1),
     )
 
-    /** Mirrors what QuickAddViewModel does, so the rendered total is the real one. */
+    /**
+     * Mirrors what QuickAddViewModel does, so the rendered total is the real one.
+     *
+     * Typing goes through `ExpressionEvaluator.append`, the same rule the ViewModel uses —
+     * a harness that appended blindly would let these tests pass on key sequences the app
+     * refuses, which is the opposite of what they are for.
+     */
     private class Harness(state: QuickAddUiState = QuickAddUiState(calculatorOpen = true)) {
         var state = state
             private set
 
-        fun digit(char: Char) { state = state.copy(expression = state.expression + char) }
-        fun operator(symbol: Char) { state = state.copy(expression = state.expression + symbol) }
-        fun group(char: Char) { state = state.copy(expression = state.expression + char) }
+        fun digit(char: Char) = press(char)
+        fun operator(symbol: Char) = press(symbol)
+        fun group(char: Char) = press(char)
         fun backspace() { state = state.copy(expression = state.expression.dropLast(1)) }
         fun clear() { state = state.copy(expression = "") }
+        fun pick(entry: CalcEntry) { state = state.copy(expression = entry.expression) }
+
+        private fun press(key: Char) {
+            state = state.copy(expression = ExpressionEvaluator.append(state.expression, key))
+        }
     }
 
     @Test
@@ -232,7 +244,7 @@ class AddExpenseScreenTest {
             DivaTheme {
                 AddExpenseContent(
                     QuickAddUiState(expression = "12+8", calculatorOpen = true),
-                    onEquals = { folded++ },
+                    onEquals = { folded++; true },
                 )
             }
         }
@@ -257,6 +269,76 @@ class AddExpenseScreenTest {
         onAllNodesWithText("$12.00").assertCountEquals(2)
         // The pad carries the expression too, so closing it never loses the sum.
         onAllNodesWithText("12+").assertCountEquals(2)
+    }
+
+    /** Done is the pad's own commit affordance and is under the thumb, not up in a corner. */
+    @Test
+    fun doneDismissesTheKeypad() = runComposeUiTest {
+        var dismissed = 0
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(expression = "12+8", calculatorOpen = true),
+                    onCalculatorDismissed = { dismissed++ },
+                )
+            }
+        }
+        onNodeWithText("Done").performClick()
+
+        assertEquals(1, dismissed)
+    }
+
+    /** Nothing to show until something has been worked out; an empty row is just a gap. */
+    @Test
+    fun theHistoryRowIsAbsentUntilThereIsASum() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(QuickAddUiState(calculatorOpen = true)) }
+        }
+        onAllNodesWithContentDescription("Reuse 12+8.50").assertCountEquals(0)
+    }
+
+    /**
+     * The whole point of remembering the sum: the pad can be dragged away, and what it was
+     * totalling has to be one tap from coming back.
+     */
+    @Test
+    fun aRememberedSumGoesBackOnThePad() = runComposeUiTest {
+        val harness = Harness(
+            QuickAddUiState(
+                calculatorOpen = true,
+                calcHistory = listOf(CalcEntry("12+8.50", 20.50)),
+            ),
+        )
+        setContent {
+            DivaTheme {
+                AddExpenseContent(state = harness.state, onHistoryEntryPicked = harness::pick)
+            }
+        }
+        onNodeWithContentDescription("Reuse 12+8.50").performClick()
+
+        assertEquals("12+8.50", harness.state.expression)
+    }
+
+    /**
+     * A grey zero means "nothing typed"; it must not also mean "what you typed cannot be
+     * read", or the pad looks broken rather than unfinished.
+     */
+    @Test
+    fun anUnreadableExpressionSaysSoRatherThanShowingAGreyZero() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                AddExpenseContent(QuickAddUiState(expression = "(", calculatorOpen = true))
+            }
+        }
+        onNodeWithText("That's not a number yet").assertIsDisplayed()
+    }
+
+    @Test
+    fun anEmptyPadDoesNotAccuseTheUserOfAnything() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(QuickAddUiState(calculatorOpen = true)) }
+        }
+        onAllNodesWithText("That's not a number yet").assertCountEquals(0)
     }
 
     // --- currency -----------------------------------------------------------
@@ -830,6 +912,16 @@ class AddExpenseScreenTest {
         }
         onNodeWithText("100% allocated", substring = true).assertIsDisplayed()
         onNodeWithText("$57.80 of $57.80", substring = true).assertIsDisplayed()
+    }
+
+    /** One seat at the end of the list, not one after every person already in it. */
+    @Test
+    fun theRosterOffersOneSeatHoweverManyPeopleAreOnTheBill() = runComposeUiTest {
+        setContent {
+            DivaTheme { AddExpenseContent(percentState()) }
+        }
+        // "Add person · redistributes remaining %" in this mode, hence the substring.
+        onAllNodesWithText("Add person", substring = true).assertCountEquals(1)
     }
 
     // --- add people ---------------------------------------------------------
