@@ -146,7 +146,7 @@ and the card all share one horizontal inset. Don't re-apply it inside those chil
 - **The split sheet has three modes and a real payer.** `SplitMode` is
   `EQUALLY` / `BY_AMOUNT` / `BY_PERCENT`. By-amount goes to `SplitMethod.ByExactAmounts`,
   which *rejects* shares that do not reach the total — that rejection is what drives the
-  "X of Y allocated" check and keeps `canSave` false until it balances. By-percent goes to
+  allocation check and keeps `canSave` false until it balances. By-percent goes to
   `SplitMethod.ByShares` with the percentages as weights, so the engine's largest-remainder
   allocation still makes the shares add back to the exact total; percentages are
   deliberately not a `SplitMethod` of their own.
@@ -163,16 +163,44 @@ and the card all share one horizontal inset. Don't re-apply it inside those chil
   meaning the allocation check could explain. The stepper glyphs carry spelled-out
   `contentDescription`s ("One percent more for Sam") — the same contract `CalculatorKeypad`
   holds, and what the tests select on.
-  The allocation line reads **"100% allocated · $57.80 of $57.80"** once a percentage split
-  balances, because percentages are not what anyone owes. It falls back to
-  "97% of 100% allocated" when it does not: `ByShares` hands out the whole total whatever
-  the weights, so a money pair on an unbalanced split would read as settled when it plainly
-  is not.
-  The "X of Y allocated" check now renders in **all three** modes, not just the manual two:
+  **The check leads with the remainder, not with the pair it comes from.** "$85.00 of
+  $100.00 allocated" is a verdict the user has to do arithmetic on; while typing, the only
+  question is how much further there is to go. So `AllocationCheck` puts
+  **"$15.00 left to allocate"** or **"$15.00 over"** on the first line and demotes
+  "$85.00 of $100.00 allocated · 2 people" to the second, where seeing both figures is what
+  makes the first line checkable. `SplitAllocation` carries `remaining` (signed),
+  `shortfall` (unsigned) and `isOver`; **`formatCurrency` drops the sign**, so the direction
+  must always come from the wording, never from the figure.
+  **Three states, not two.** Balanced is `diva.positive`; **short of the total is neutral
+  `diva.keyFill`, deliberately not red**, because a half-typed bill is not an error and the
+  spec asks for no alarming red during normal entry; over is `diva.negative`, the one state
+  typing onwards cannot resolve. Green/grey/red also stops "settled" and "still going" from
+  being two shades of one hue. There is no amber token and this does not add one.
+  **The imbalance is resolved where it is reported.** `AssignRemainderPill` — the accent
+  pill the roster's "N selected" chip uses, not a `DivaButton`, which would compete with
+  *Add Split* — reads "Give $15.00 to You" / "Take $8.00 off You" and calls
+  `onAssignRemainder()`. Which row it targets is `QuickAddUiState.remainderTargetIndex`,
+  read by both the label and the mutator so the two cannot disagree: **never the share just
+  edited** (that figure is the number the user meant; putting the difference back under it
+  would undo the edit), index 0 otherwise. It is **null — so the pill is absent, not
+  disabled** — when the move would leave a figure below 0, or above 100 in percent mode: a
+  button that fires and leaves the check still unbalanced is worse than no button.
+  `lastEditedShareIndex` is what "just edited" means, and it is **positional like
+  `splitCustomAmounts` / `splitPercents`**, so it resets everywhere they do — mode change,
+  person added or removed, splitting turned off.
+  Percent mode gets all of this on its own scale ("12% left to allocate"), but a balanced
+  percentage split still reads **"100% allocated"** over "$57.80 of $57.80 · 3 people",
+  because percentages are not what anyone owes. An unbalanced one cannot show that money
+  pair: `ByShares` hands out the whole total whatever the weights, so it would read as
+  settled when it plainly is not.
+  The check renders in **all three** modes, not just the manual two:
   `QuickAddUiState.allocation` reports an even split as trivially balanced rather than
   returning null, because the design shows that line wherever the user is and moving it in
   and out as the mode changes makes its absence read as a problem. It is null only until
   there is an amount, where the sheet shows "Enter an amount to split." instead.
+  `SplitSummary` — the collapsed row back on the form — says the same figure rather than the
+  old bare "Shares don't add up yet", and is the one place that copy is still visible once
+  the sheet closes. That is why the UI tests assert **two** matching nodes.
   The tip preset row went with the trim, so **`tipPercent` is always `0.0` from the UI** —
   the engine still folds a tip into the total, and `onTipPercentChange` and its test still
   work, but nothing on screen sets it.

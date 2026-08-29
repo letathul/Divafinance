@@ -249,6 +249,13 @@ data class QuickAddUiState(
      */
     val splitCustomAmounts: List<Double> = emptyList(),
     val splitPercents: List<Double> = emptyList(),
+    /**
+     * Whose figure was touched most recently, so the remainder can be offered to someone
+     * *else*: the number just typed is the one the user meant, and moving it back under
+     * them would undo the edit that created the imbalance. Positional like the two lists
+     * above, so it resets wherever they do.
+     */
+    val lastEditedShareIndex: Int? = null,
     val isSaving: Boolean = false,
     val error: String? = null,
 ) {
@@ -452,6 +459,33 @@ data class QuickAddUiState(
         }
 
     /**
+     * Who the leftover — or the overshoot — can be handed to in one tap, or null when
+     * there is nobody it would balance.
+     *
+     * Never the share just edited: that figure is the one the user meant, and putting the
+     * difference back under it would simply undo the edit. Index 0 — the user — otherwise,
+     * because absorbing the rest of your own bill is the move that needs no explaining.
+     *
+     * Null rather than clamped when the move would leave a figure outside its scale: a
+     * button that fires and leaves the check still unbalanced is worse than no button.
+     */
+    val remainderTargetIndex: Int?
+        get() {
+            val allocation = allocation ?: return null
+            if (allocation.isBalanced) return null
+            val figures = when (splitMode) {
+                SplitMode.BY_AMOUNT -> splitCustomAmounts
+                SplitMode.BY_PERCENT -> splitPercents
+                SplitMode.EQUALLY -> return null
+            }
+            val index = figures.indices.firstOrNull { it != lastEditedShareIndex } ?: return null
+            val settled = (figures[index] + allocation.remaining).roundToCents()
+            if (settled < 0.0) return null
+            if (splitMode == SplitMode.BY_PERCENT && settled > 100.0) return null
+            return index
+        }
+
+    /**
      * Everyone but the payer. Named people win outright: an unnamed head is a share the
      * user simply does not want counted as their own, and there is nobody to owe it, so
      * the two kinds are never mixed in one bill.
@@ -498,7 +532,20 @@ data class SplitAllocation(
     val isPercent: Boolean,
 ) {
     val isBalanced: Boolean get() = abs(allocated - target) < PERCENT_TOLERANCE
+
+    /** Signed: positive is still to give out, negative is past the total. */
     val remaining: Double get() = (target - allocated).roundToCents()
+
+    /** Past the total rather than short of it — the only state typing onwards cannot fix. */
+    val isOver: Boolean get() = !isBalanced && remaining < 0.0
+
+    /**
+     * How far out it is, unsigned.
+     *
+     * [isOver] carries the direction, because `formatCurrency` drops the sign — an
+     * over-allocation rendered from the signed figure would read as money still owed.
+     */
+    val shortfall: Double get() = abs(remaining)
 }
 
 /** Half a percent / half a cent — the shares are rounded, so exact equality is too strict. */
@@ -1173,6 +1220,7 @@ class QuickAddViewModel(
                     splitPaidBy = null,
                     splitCustomAmounts = emptyList(),
                     splitPercents = emptyList(),
+                    lastEditedShareIndex = null,
                     splitSheetOpen = false,
                     error = null,
                 )
@@ -1245,15 +1293,18 @@ class QuickAddViewModel(
                 splitMode = mode,
                 splitCustomAmounts = emptyList(),
                 splitPercents = emptyList(),
+                lastEditedShareIndex = null,
             )
             SplitMode.BY_AMOUNT -> state.copy(
                 splitMode = mode,
                 splitCustomAmounts = state.evenShares().takeIf { it.size == people }
                     ?: List(people) { 0.0 },
+                lastEditedShareIndex = null,
             )
             SplitMode.BY_PERCENT -> state.copy(
                 splitMode = mode,
                 splitPercents = evenPercents(people),
+                lastEditedShareIndex = null,
             )
         }
     }
@@ -1266,7 +1317,7 @@ class QuickAddViewModel(
                 val amounts = state.splitCustomAmounts.toMutableList()
                 if (index !in amounts.indices) return@update state
                 amounts[index] = safe
-                state.copy(splitCustomAmounts = amounts)
+                state.copy(splitCustomAmounts = amounts, lastEditedShareIndex = index)
             }
             SplitMode.BY_PERCENT -> {
                 val percents = state.splitPercents.toMutableList()
@@ -1275,7 +1326,36 @@ class QuickAddViewModel(
                 // share above 100% is not an over-allocation the check could explain, it is
                 // a number with no meaning — and the steppers would happily run past it.
                 percents[index] = safe.coerceAtMost(100.0)
-                state.copy(splitPercents = percents)
+                state.copy(splitPercents = percents, lastEditedShareIndex = index)
+            }
+            SplitMode.EQUALLY -> state
+        }
+    }
+
+    /**
+     * Hands whatever is left — or takes back whatever is over — in one tap.
+     *
+     * The imbalance is reported at the bottom of the sheet, so it is resolved there too:
+     * the alternative is reading a figure in one place and then hunting up the list for the
+     * row to correct. Which row that is comes from
+     * [QuickAddUiState.remainderTargetIndex], so the label on the button and the figure it
+     * moves cannot disagree — and a null target means the button is not on screen at all.
+     */
+    fun onAssignRemainder() = _uiState.update { state ->
+        val allocation = state.allocation ?: return@update state
+        val index = state.remainderTargetIndex ?: return@update state
+        when (state.splitMode) {
+            SplitMode.BY_AMOUNT -> {
+                val amounts = state.splitCustomAmounts.toMutableList()
+                if (index !in amounts.indices) return@update state
+                amounts[index] = (amounts[index] + allocation.remaining).roundToCents()
+                state.copy(splitCustomAmounts = amounts, lastEditedShareIndex = index)
+            }
+            SplitMode.BY_PERCENT -> {
+                val percents = state.splitPercents.toMutableList()
+                if (index !in percents.indices) return@update state
+                percents[index] = (percents[index] + allocation.remaining).roundToCents()
+                state.copy(splitPercents = percents, lastEditedShareIndex = index)
             }
             SplitMode.EQUALLY -> state
         }
@@ -1324,6 +1404,7 @@ class QuickAddViewModel(
                     // Positional lists cannot survive the bill changing length.
                     splitCustomAmounts = emptyList(),
                     splitPercents = emptyList(),
+                    lastEditedShareIndex = null,
                     splitMode = SplitMode.EQUALLY,
                 )
             }
@@ -1343,6 +1424,7 @@ class QuickAddViewModel(
             // The lists are positional, so a shorter bill invalidates them outright.
             splitCustomAmounts = emptyList(),
             splitPercents = emptyList(),
+            lastEditedShareIndex = null,
             splitMode = if (state.splitMode == SplitMode.EQUALLY) state.splitMode else SplitMode.EQUALLY,
         )
     }

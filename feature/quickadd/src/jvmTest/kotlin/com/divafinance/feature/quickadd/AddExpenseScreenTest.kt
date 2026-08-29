@@ -728,9 +728,12 @@ class AddExpenseScreenTest {
         assertEquals(SplitMode.BY_AMOUNT, mode)
     }
 
-    /** A manual allocation has to say whether it adds up, or it cannot be corrected. */
+    /**
+     * A manual allocation has to say **how far** out it is, not merely that it is: the pair
+     * it is derived from leaves the subtraction to the user.
+     */
     @Test
-    fun theSheetSaysWhenAManualSplitDoesNotAddUp() = runComposeUiTest {
+    fun theSheetSaysHowMuchOfAManualSplitIsLeft() = runComposeUiTest {
         setContent {
             DivaTheme {
                 AddExpenseContent(
@@ -745,8 +748,87 @@ class AddExpenseScreenTest {
                 )
             }
         }
-        onNodeWithText("of", substring = true).assertIsDisplayed()
-        onNodeWithText("allocated", substring = true).assertIsDisplayed()
+        onAllNodesWithText("$30.00 left to allocate", substring = true).assertCountEquals(2)
+        onNodeWithText("$30.00 of $60.00 allocated", substring = true).assertIsDisplayed()
+    }
+
+    /**
+     * Over the total reads as *more progress* when it is phrased the same way as under it,
+     * which is exactly backwards — it is the one state typing onwards cannot fix.
+     */
+    @Test
+    fun theSheetSaysWhenAManualSplitGoesOver() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(
+                        expression = "60",
+                        splitEnabled = true,
+                        splitSheetOpen = true,
+                        splitWithCount = 1,
+                        splitMode = SplitMode.BY_AMOUNT,
+                        splitCustomAmounts = listOf(10.0, 58.0),
+                    ),
+                )
+            }
+        }
+        onAllNodesWithText("$8.00 over", substring = true).assertCountEquals(2)
+        onNodeWithText("$68.00 of $60.00 allocated", substring = true).assertIsDisplayed()
+    }
+
+    /**
+     * The remainder is resolved where it is reported. The offer goes to whoever was *not*
+     * just edited — the figure the user typed is the one they meant.
+     */
+    @Test
+    fun theRemainderCanBeHandedOverInOneTap() = runComposeUiTest {
+        var called = false
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(
+                        expression = "60",
+                        splitEnabled = true,
+                        splitSheetOpen = true,
+                        splitWith = listOf(SplitPerson(null, "Sam")),
+                        splitWithCount = 1,
+                        splitMode = SplitMode.BY_AMOUNT,
+                        splitCustomAmounts = listOf(10.0, 20.0),
+                        lastEditedShareIndex = 1,
+                    ),
+                    onAssignRemainder = { called = true },
+                )
+            }
+        }
+        onNodeWithContentDescription("Give the remaining $30.00 to You").performClick()
+
+        assertEquals(true, called)
+    }
+
+    /**
+     * A button that fires and leaves the check still unbalanced is worse than no button:
+     * You only owe $10, so the $30 overshoot cannot come off them.
+     */
+    @Test
+    fun theRemainderIsNotOfferedWhereItCouldNotBalance() = runComposeUiTest {
+        setContent {
+            DivaTheme {
+                AddExpenseContent(
+                    QuickAddUiState(
+                        expression = "60",
+                        splitEnabled = true,
+                        splitSheetOpen = true,
+                        splitWith = listOf(SplitPerson(null, "Sam")),
+                        splitWithCount = 1,
+                        splitMode = SplitMode.BY_AMOUNT,
+                        splitCustomAmounts = listOf(10.0, 80.0),
+                        lastEditedShareIndex = 1,
+                    ),
+                )
+            }
+        }
+        onAllNodesWithText("$30.00 over", substring = true).assertCountEquals(2)
+        onAllNodesWithText("Take", substring = true).assertCountEquals(0)
     }
 
     /** Choosing a payer is what inverts the debt, so it has to be reachable. */

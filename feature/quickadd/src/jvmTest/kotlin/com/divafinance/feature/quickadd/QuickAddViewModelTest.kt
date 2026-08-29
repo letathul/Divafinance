@@ -1472,6 +1472,117 @@ class QuickAddViewModelTest {
         assertTrue(vm.uiState.value.allocation?.isBalanced == true)
     }
 
+    // --- the running remainder -----------------------------------------------
+
+    /** The figure the user needs while typing is what is *left*, not what is placed. */
+    @Test
+    fun theAllocationSaysHowMuchIsLeft() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("100")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(0, 20.0)
+        vm.onSplitShareChange(1, 65.0)
+
+        val allocation = assertNotNull(vm.uiState.value.allocation)
+        assertEquals(15.0, allocation.remaining)
+        assertEquals(15.0, allocation.shortfall)
+        assertEquals(false, allocation.isOver)
+    }
+
+    /**
+     * Over and under are the same distance but not the same state: `shortfall` is unsigned
+     * for rendering, so `isOver` is what has to carry the direction.
+     */
+    @Test
+    fun theAllocationSaysHowMuchItIsOver() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("100")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(0, 20.0)
+        vm.onSplitShareChange(1, 95.0)
+
+        val allocation = assertNotNull(vm.uiState.value.allocation)
+        assertEquals(-15.0, allocation.remaining)
+        assertEquals(15.0, allocation.shortfall)
+        assertEquals(true, allocation.isOver)
+    }
+
+    /** The one tap has to leave the bill saveable, or it is not a fix. */
+    @Test
+    fun assigningTheRemainderBalancesTheBill() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("100")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(1, 65.0)
+        vm.onAssignRemainder()
+
+        assertEquals(listOf(35.0, 65.0), vm.uiState.value.splitCustomAmounts)
+        assertNotNull(vm.uiState.value.split)
+        assertEquals(true, vm.uiState.value.canSave)
+    }
+
+    /**
+     * The share just edited is the number the user meant — putting the difference back
+     * under it would simply undo the edit that created the imbalance.
+     */
+    @Test
+    fun theRemainderGoesToSomeoneOtherThanTheShareJustEdited() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("100")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(0, 20.0)
+
+        assertEquals(1, vm.uiState.value.remainderTargetIndex)
+        vm.onAssignRemainder()
+        assertEquals(listOf(20.0, 80.0), vm.uiState.value.splitCustomAmounts)
+    }
+
+    /** An overshoot bigger than the target's whole share is not offered rather than clamped. */
+    @Test
+    fun theRemainderIsNotOfferedWhereItWouldGoNegative() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.type("100")
+        vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(0, 10.0)
+        vm.onSplitShareChange(1, 130.0)
+
+        assertNull(vm.uiState.value.remainderTargetIndex)
+        vm.onAssignRemainder()
+        assertEquals(listOf(10.0, 130.0), vm.uiState.value.splitCustomAmounts)
+    }
+
+    /** Percentages get the same treatment, on their own scale rather than in money. */
+    @Test
+    fun aPercentRemainderBalancesToExactlyOneHundred() = runTest {
+        val vm = viewModel()
+        vm.onSplitToggled(true)
+        vm.onAddSplitPerson("Sam")
+        vm.onAddSplitPerson("Priya")
+        vm.type("57.80")
+        vm.onSplitModeChange(SplitMode.BY_PERCENT)
+        vm.onSplitShareChange(2, 21.0)
+
+        // An even three-way split is 33.34 / 33.33 / 33.33 — the odd point goes to the
+        // payer — so dropping Priya to 21 leaves 12.33 of the scale unassigned.
+        val allocation = assertNotNull(vm.uiState.value.allocation)
+        assertEquals(true, allocation.isPercent)
+        assertEquals(12.33, allocation.shortfall)
+
+        vm.onAssignRemainder()
+        assertEquals(100.0, vm.uiState.value.splitPercents.sum())
+        assertNotNull(vm.uiState.value.split)
+    }
+
     /** Adding someone changes the length of a positional list, so it cannot be kept. */
     @Test
     fun addingAPersonResetsAManualAllocation() = runTest {
@@ -1480,10 +1591,13 @@ class QuickAddViewModelTest {
         vm.onAddSplitPerson("Sam")
         vm.type("60")
         vm.onSplitModeChange(SplitMode.BY_AMOUNT)
+        vm.onSplitShareChange(1, 15.0)
         vm.onAddSplitPerson("Priya")
 
         assertEquals(SplitMode.EQUALLY, vm.uiState.value.splitMode)
         assertTrue(vm.uiState.value.splitCustomAmounts.isEmpty())
+        // The index points into a list that no longer exists at that length.
+        assertNull(vm.uiState.value.lastEditedShareIndex)
     }
 
     /** Removing whoever was paying hands the bill back rather than leaving a ghost payer. */

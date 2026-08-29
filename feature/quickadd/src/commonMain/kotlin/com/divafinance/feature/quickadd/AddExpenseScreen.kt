@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -206,6 +207,7 @@ fun AddExpenseScreen(
         onSplitSheetDismissed = viewModel::onSplitSheetDismissed,
         onSplitModeChange = viewModel::onSplitModeChange,
         onSplitShareChange = viewModel::onSplitShareChange,
+        onAssignRemainder = viewModel::onAssignRemainder,
         onSplitPayerChange = viewModel::onSplitPayerChange,
         onOpenScanner = onOpenScanner,
         onLocationChipToggled = viewModel::onLocationChipToggled,
@@ -275,6 +277,7 @@ internal fun AddExpenseContent(
     onSplitSheetDismissed: () -> Unit = {},
     onSplitModeChange: (SplitMode) -> Unit = {},
     onSplitShareChange: (Int, Double) -> Unit = { _, _ -> },
+    onAssignRemainder: () -> Unit = {},
     onSplitPayerChange: (SplitPerson?) -> Unit = {},
     onOpenScanner: () -> Unit = {},
     onLocationChipToggled: () -> Unit = {},
@@ -423,6 +426,7 @@ internal fun AddExpenseContent(
             onDismiss = onSplitSheetDismissed,
             onSplitModeChange = onSplitModeChange,
             onSplitShareChange = onSplitShareChange,
+            onAssignRemainder = onAssignRemainder,
             onSplitPayerChange = onSplitPayerChange,
             onRemoveSplitPerson = onRemoveSplitPerson,
             onAddPeopleSheetOpened = onAddPeopleSheetOpened,
@@ -1332,12 +1336,30 @@ private fun SplitSummary(state: QuickAddUiState, onOpen: () -> Unit) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+            // A split that does not reconcile said only that it did not; the figure it is
+            // out by is already computed, and it is the whole of what the user has to fix.
+            val allocation = state.allocation
+            val unbalanced = allocation?.takeIf { !it.isBalanced }
+            val shortfall = unbalanced?.let { out ->
+                val figure = if (out.isPercent) {
+                    "${out.shortfall.toFixed(1).trimEnd('0').trimEnd('.')}%"
+                } else {
+                    formatCurrency(out.shortfall, state.currency)
+                }
+                if (out.isOver) "$figure over" else "$figure left to allocate"
+            }
             Text(
-                text = state.splitOwnShare?.let {
-                    "Your share ${formatCurrency(it, state.currency)}"
-                } ?: "Shares don't add up yet",
+                text = shortfall
+                    ?: state.splitOwnShare?.let { "Your share ${formatCurrency(it, state.currency)}" }
+                    ?: "Shares don't add up yet",
                 style = MaterialTheme.typography.bodySmall,
-                color = if (split == null) MaterialTheme.colorScheme.error else diva.muted,
+                // Short of the total is a bill still being typed, not a mistake — the same
+                // reason the sheet's own check goes grey rather than red there.
+                color = when {
+                    unbalanced?.isOver == true -> MaterialTheme.colorScheme.error
+                    split == null && shortfall == null -> MaterialTheme.colorScheme.error
+                    else -> diva.muted
+                },
             )
         }
         Icon(
@@ -1541,6 +1563,7 @@ private fun SplitSheet(
     onDismiss: () -> Unit,
     onSplitModeChange: (SplitMode) -> Unit,
     onSplitShareChange: (Int, Double) -> Unit,
+    onAssignRemainder: () -> Unit,
     onSplitPayerChange: (SplitPerson?) -> Unit,
     onRemoveSplitPerson: (String) -> Unit,
     onAddPeopleSheetOpened: () -> Unit,
@@ -1621,7 +1644,7 @@ private fun SplitSheet(
 
             ShareList(state, onSplitShareChange, onAddPeopleSheetOpened)
 
-            AllocationCheck(state)
+            AllocationCheck(state, onAssignRemainder)
 
             DivaButton(
                 text = "Add Split",
@@ -2058,14 +2081,24 @@ private fun ShareField(
 }
 
 /**
- * "3 people · $57.80 of $57.80 allocated".
+ * What is left, or what is over — and a way to be rid of it.
+ *
+ * The remainder is the headline, not the pair it is derived from: "$85.00 of $100.00" is a
+ * verdict the user has to do arithmetic on before it means anything, and while typing the
+ * only question is how much further there is to go. The pair stays on the second line,
+ * because seeing the two figures is what makes the first line checkable.
+ *
+ * Three states rather than two. Balanced is green; **short is neutral grey**, because a
+ * half-typed bill is not an error and the design asks for no alarming red during normal
+ * entry; over is red, since it is the one state typing onwards cannot resolve. Green and
+ * grey also keep "settled" and "still going" from being two shades of one hue.
  *
  * Shown in every mode, including an even split where it can only ever be balanced: the
  * running total is the one line that says the bill is accounted for, and moving it in and
  * out as the mode changes would make its absence read as a problem.
  */
 @Composable
-private fun AllocationCheck(state: QuickAddUiState) {
+private fun AllocationCheck(state: QuickAddUiState, onAssignRemainder: () -> Unit) {
     val allocation = state.allocation
     if (allocation == null) {
         Text(
@@ -2076,6 +2109,7 @@ private fun AllocationCheck(state: QuickAddUiState) {
         return
     }
     val ok = allocation.isBalanced
+    val over = allocation.isOver
     val figure: (Double) -> String = { value ->
         if (allocation.isPercent) {
             "${value.toFixed(1).trimEnd('0').trimEnd('.')}%"
@@ -2083,22 +2117,30 @@ private fun AllocationCheck(state: QuickAddUiState) {
             formatCurrency(value, state.currency)
         }
     }
+    val people = "${allocation.people} ${if (allocation.people == 1) "person" else "people"}"
+
+    val headline = when {
+        ok && allocation.isPercent -> "100% allocated"
+        ok -> "All ${figure(allocation.target)} allocated"
+        // `shortfall` is unsigned and `formatCurrency` drops the sign anyway, so the
+        // direction is carried by the wording — an over-allocation rendered as a bare
+        // figure would read as money still owed.
+        over -> "${figure(allocation.shortfall)} over"
+        else -> "${figure(allocation.shortfall)} left to allocate"
+    }
 
     // A balanced percentage split says what it comes to in money, because percentages are
     // not what anyone owes anyone. An unbalanced one cannot: `ByShares` hands out the whole
     // total whatever the weights, so the money pair would read as settled while the
     // percentages plainly are not.
     val total = state.splitTotal
-    val summary = if (allocation.isPercent) {
-        if (ok && total != null) {
-            "${figure(allocation.allocated)} allocated · " +
-                "${formatCurrency(total, state.currency)} of ${formatCurrency(total, state.currency)}"
-        } else {
-            "${figure(allocation.allocated)} of ${figure(allocation.target)} allocated"
-        }
-    } else {
-        "${allocation.people} ${if (allocation.people == 1) "person" else "people"} · " +
-            "${figure(allocation.allocated)} of ${figure(allocation.target)} allocated"
+    val detail = when {
+        ok && allocation.isPercent && total != null ->
+            "${formatCurrency(total, state.currency)} of " +
+                "${formatCurrency(total, state.currency)} · $people"
+        ok -> people
+        else ->
+            "${figure(allocation.allocated)} of ${figure(allocation.target)} allocated · $people"
     }
 
     Row(
@@ -2106,25 +2148,96 @@ private fun AllocationCheck(state: QuickAddUiState) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(FieldRadius))
             .background(
-                if (ok) diva.positive.copy(alpha = 0.14f) else diva.negative.copy(alpha = 0.12f)
+                when {
+                    ok -> diva.positive.copy(alpha = 0.14f)
+                    over -> diva.negative.copy(alpha = 0.12f)
+                    else -> diva.keyFill
+                }
             )
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            if (ok) Icons.Outlined.Check else Icons.Outlined.Info,
+            when {
+                ok -> Icons.Outlined.Check
+                over -> Icons.Outlined.Warning
+                else -> Icons.Outlined.Info
+            },
             contentDescription = null,
-            tint = if (ok) diva.positive else diva.negative,
+            tint = when {
+                ok -> diva.positive
+                over -> diva.negative
+                else -> diva.muted
+            },
             modifier = Modifier.size(16.dp),
         )
-        Text(
-            text = summary,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = headline,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = diva.muted,
+            )
+        }
+
+        // Offered only where it would actually balance the bill — see `remainderTargetIndex`.
+        val target = state.remainderTargetIndex
+        if (target != null) {
+            AssignRemainderPill(
+                name = state.allParticipants().getOrNull(target)?.name ?: "You",
+                figure = figure(allocation.shortfall),
+                over = over,
+                onClick = onAssignRemainder,
+            )
+        }
     }
+}
+
+/**
+ * "Give $15.00 to You" — the imbalance resolved where it is reported.
+ *
+ * Drawn as the accent pill the roster's "N selected" chip uses rather than a `DivaButton`:
+ * it sits inside a tinted status row, and a filled button there would compete with *Add
+ * Split* for which control the sheet is asking to be pressed.
+ */
+@Composable
+private fun AssignRemainderPill(
+    name: String,
+    figure: String,
+    over: Boolean,
+    onClick: () -> Unit,
+) {
+    val label = if (over) "Take $figure off $name" else "Give $figure to $name"
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = diva.accent,
+        maxLines = 2,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .widthIn(max = 120.dp)
+            .clip(Pill)
+            .background(diva.accent.copy(alpha = 0.14f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp)
+            // Spelled out rather than left to the visible label, which reads as a figure
+            // and a name without saying what pressing it does — the contract `StepperKey`
+            // and `CalculatorKeypad` hold, and what the tests select on.
+            .semantics {
+                contentDescription = if (over) {
+                    "Take the extra $figure off $name"
+                } else {
+                    "Give the remaining $figure to $name"
+                }
+            },
+    )
 }
 
 /**
@@ -2483,6 +2596,27 @@ private fun AddExpenseSplitSheetPreview() {
                 splitSheetOpen = true,
                 splitWith = listOf(SplitPerson(null, "Sam"), SplitPerson(null, "Priya")),
                 splitWithCount = 2,
+            ),
+        )
+    }
+}
+
+/** The state the running check exists for: $57.80 split two ways, $15.00 of it unassigned. */
+@Preview
+@Composable
+private fun AddExpenseSplitUnbalancedPreview() {
+    DivaTheme {
+        AddExpenseContent(
+            state = QuickAddUiState(
+                expression = "57.80",
+                category = SpendingCategory.DINING,
+                splitEnabled = true,
+                splitSheetOpen = true,
+                splitMode = SplitMode.BY_AMOUNT,
+                splitWith = listOf(SplitPerson(null, "Sam")),
+                splitWithCount = 1,
+                splitCustomAmounts = listOf(12.80, 30.0),
+                lastEditedShareIndex = 1,
             ),
         )
     }
